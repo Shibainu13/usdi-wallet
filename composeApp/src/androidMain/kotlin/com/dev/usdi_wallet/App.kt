@@ -19,27 +19,49 @@ import org.jetbrains.compose.resources.painterResource
 import usdi_wallet.composeapp.generated.resources.Res
 import usdi_wallet.composeapp.generated.resources.compose_multiplatform
 
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+
+class AppPresenter {
+    // The "Model" / State
+    var isContentVisible by mutableStateOf(false)
+        private set
+
+    // The Logic
+    fun onToggleClicked() {
+        isContentVisible = !isContentVisible
+    }
+}
+
 @Composable
 @Preview
 fun App() {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
+        // 1. Initialize the Presenter
+        val presenter = remember { AppPresenter() }
+
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
+                .safeContentPadding() // Ensure this extension exists or remove if error
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Button(onClick = { showContent = !showContent }) {
+            // 2. Button calls the Presenter
+            Button(onClick = { presenter.onToggleClicked() }) {
                 Text("Click me!")
             }
-            AnimatedVisibility(showContent) {
+
+            // 3. UI observes the Presenter's state
+            AnimatedVisibility(presenter.isContentVisible) {
                 val greeting = remember { Greeting().greet() }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    // Make sure 'Res' imports are correct for your KMP project
                     Image(painterResource(Res.drawable.compose_multiplatform), null)
                     Text("Compose: $greeting")
                 }
