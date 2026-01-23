@@ -3,9 +3,14 @@
 **Update**: Currently, the module is only capable of establishing connection with the mediator. Next steps will involve establishing connection with another device through the mediator and exchange messages. 
 
 ## Store Github account and token in your Gradle directory
-
+### Window
 1. Go to C:\Users\\\<username\>\\.gradle\\ (assuming you are running the project on Windows - if not, find equivalent path on your OS)
 2. Create a file called `gradle.properties` and add your credentials:
+### Linux
+1. Edit view all file, folder.
+2. Open .gradle folder
+3. Find file 'gradle.properties', if not  create and add.
+
 ```bash
 gpr.user=YOUR_GITHUB_USER_NAME
 gpr.key=YOUR_GITHUB_TOKEN
