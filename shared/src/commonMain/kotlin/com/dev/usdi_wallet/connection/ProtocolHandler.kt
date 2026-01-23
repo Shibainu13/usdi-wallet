@@ -9,5 +9,5 @@ interface ProtocolHandler {
 
     fun handle(input: String): Flow<ConnectionState>
 
-    fun cleanUp(): Unit
+    fun cleanUp()
 }
