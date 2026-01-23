@@ -24,7 +24,26 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // put your Multiplatform dependencies here
+            implementation("io.ktor:ktor-client-core:3.0.1")
+            implementation("io.ktor:ktor-client-logging:3.0.1")
+
+            // Serialization and Coroutines
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0-RC")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+        }
+        androidMain.dependencies {
+            implementation("io.ktor:ktor-client-okhttp:3.0.1")
+
+            implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
+            implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+
+//            implementation("app.cash.sqldelight:sqlite-driver:2.0.2")
+            implementation("app.cash.sqldelight:android-driver:2.0.2")
+
+            // Hyperledger Identus Core
+            implementation("org.hyperledger.identus:edge-agent-sdk:4.0.0")
+
+            implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

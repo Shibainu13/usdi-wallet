@@ -50,6 +50,7 @@ android {
     }
     packaging {
         resources {
+            pickFirsts += "google/protobuf/*.proto"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
@@ -68,3 +69,6 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+configurations.all {
+    exclude(module = "bcprov-jdk15on")
+}
