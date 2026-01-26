@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 kotlin {
@@ -27,11 +28,15 @@ kotlin {
             implementation("io.ktor:ktor-client-core:3.0.1")
 
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+
+            implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.0.1")
 
             implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
+            implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
             implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
 
             implementation("app.cash.sqldelight:android-driver:2.0.2")

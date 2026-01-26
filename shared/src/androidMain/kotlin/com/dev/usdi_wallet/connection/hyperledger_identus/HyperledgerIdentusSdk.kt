@@ -51,7 +51,7 @@ class HyperledgerIdentusSdk private constructor(
     lateinit var agent: EdgeAgent
 
     @Throws(EdgeAgentError.MediationRequestFailedError::class, UnknownHostException::class)
-    suspend fun startAgent(mediatorDID: String, context: Application) {
+    suspend fun startAgent(mediatorDID: String, context: Context) {
         handler = createHandler(mediatorDID)
         agent = createAgent(handler)
 
@@ -81,7 +81,7 @@ class HyperledgerIdentusSdk private constructor(
         agentStatusStream.postValue(EdgeAgent.State.RUNNING)
     }
 
-    suspend fun startPluto(context: Application) {
+    suspend fun startPluto(context: Context) {
         (pluto as PlutoImpl).start(context)
     }
 

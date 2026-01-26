@@ -4,12 +4,10 @@
 
 ## Store Github account and token in your Gradle directory
 ### Window
-1. Go to C:\Users\\\<username\>\\.gradle\\ (assuming you are running the project on Windows - if not, find equivalent path on your OS)
-2. Create a file called `gradle.properties` and add your credentials:
-### Linux
-1. Edit view all file, folder.
-2. Open .gradle folder
-3. Find file 'gradle.properties', if not  create and add.
+1. Go to your global `.gradle` directory:
+   - Windows: Go to C:\Users\\\<username\>\\.gradle\\
+   - Linux: Go to ~/.gradle
+2. Create a file called `gradle.properties` (if not exist) and add your credentials:
 
 ```bash
 gpr.user=YOUR_GITHUB_USER_NAME
@@ -17,10 +15,11 @@ gpr.key=YOUR_GITHUB_TOKEN
 ```
 
 ## Module Orchestration
-![img.png](connection_orchestration.png)
+![connection_orchestration.png](connection_orchestration.png)
 
 - `ConnectionManager` is the main entity governing all different handlers. This class should be singleton.
 - `ProtocolHandler` is the unified interface for connection protocols. New protocol must implement this class.
+- `ProtocolHandlerFactory` returns a list of `ProtocolHandler`s. This is an `expect class`, thus needs to have an actual implementation for each platform.
 - `ConnectionState` acts as an enum for connection states - unified different protocols into 4 states: `Idle`, `Success`, `Error` and `Pending`.
 
 ## Run Connection Module Demo

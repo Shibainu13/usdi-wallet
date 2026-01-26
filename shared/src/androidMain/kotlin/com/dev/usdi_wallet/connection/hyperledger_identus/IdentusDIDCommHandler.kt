@@ -1,6 +1,6 @@
 package com.dev.usdi_wallet.connection.hyperledger_identus
 
-import android.app.Application
+import android.content.Context
 import android.util.Log
 import com.dev.usdi_wallet.connection.ConnectionState
 import com.dev.usdi_wallet.connection.ProtocolHandler
@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.flow
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
 
 class IdentusDIDCommHandler(
-    private val context: Application,
+    private val context: Context,
     private val mediatorDID: String
 ): ProtocolHandler {
     override val protocolId: String = "identus-didcomm"

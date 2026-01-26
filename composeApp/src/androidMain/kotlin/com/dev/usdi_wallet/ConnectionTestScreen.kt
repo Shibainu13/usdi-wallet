@@ -25,14 +25,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.connection.ConnectionManager
 import com.dev.usdi_wallet.connection.ConnectionState
+import com.dev.usdi_wallet.viewmodel.ConnectionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectionTestScreen(connectionManager: ConnectionManager) {
+fun ConnectionTestScreen(viewModel: ConnectionViewModel) {
     var invitationInput by remember { mutableStateOf("") }
-    val connectionState by connectionManager.currentState.collectAsStateWithLifecycle()
+    val connectionState by viewModel.currentState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -96,7 +96,7 @@ fun ConnectionTestScreen(connectionManager: ConnectionManager) {
         ) {
             Button(
                 onClick = {
-                    connectionManager.processInput(invitationInput)
+                    viewModel.processInput(invitationInput)
                 },
                 modifier = Modifier.weight(1f),
                 enabled = invitationInput.isNotBlank() &&
