@@ -1,95 +1,124 @@
 package com.dev.usdi_wallet.connection.hyperledger_identus
 
 import android.content.Context
-import android.util.Log
-import com.dev.usdi_wallet.connection.ConnectionState
+import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.connection.MessageCapable
+import com.dev.usdi_wallet.connection.OperationState
+import com.dev.usdi_wallet.connection.PersistConnectionCapable
 import com.dev.usdi_wallet.connection.ProtocolHandler
+import com.dev.usdi_wallet.connection.ProtocolOperation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
+import org.hyperledger.identus.walletsdk.domain.models.DIDPair
+import kotlin.coroutines.cancellation.CancellationException
 
 class IdentusDIDCommHandler(
     private val context: Context,
     private val mediatorDID: String
-): ProtocolHandler {
-    override val protocolId: String = "identus-didcomm"
-    private val sdk: HyperledgerIdentusSdk = HyperledgerIdentusSdk.getInstance(context)
+) : ProtocolHandler, PersistConnectionCapable, MessageCapable {
+    override val protocolId: String = "IdentusDIDCommHandler"
+    private val sdk: HyperledgerIdentusSdk by lazy { HyperledgerIdentusSdk.getInstance(context) }
     private var isInitialized = false
+    private val agentLock = Mutex()
 
-    override fun canHandle(input: String): Boolean {
+    override fun detectOperation(input: String): ProtocolOperation? {
         return try {
             when {
-                input.contains("_oob=") -> true
-                input.trim().startsWith("{") && input.contains("OutOfBandInvitation") -> true
-                input.trim().startsWith("{") && input.contains("\"type\"") &&
-                        input.contains("https://didcomm.org/out-of-band/") -> true
-                else -> false
+                input.contains("_oob=") ||
+                input.contains("OutOfBandInvitation") ||
+                input.contains("https://didcomm.org/out-of-band/") ->
+                    ProtocolOperation.EstablishConnection(input)
+
+                input.contains("https://didcomm.org/issue-credential/") ||
+                input.contains("OfferCredential") ->
+                    ProtocolOperation.ReceiveCredential(input)
+
+                input.contains("https://didcomm.org/present-proof/") ||
+                input.contains("request-presentation") ->
+                    ProtocolOperation.PresentProof(input)
+
+                input.contains("https://didcomm.org/present-proof/") ||
+                input.contains("presentation") ->
+                    ProtocolOperation.VerifyProof(input)
+
+                else -> null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            false
+            null
         }
     }
 
-    override fun handle(input: String): Flow<ConnectionState> = flow {
-        try {
-            emitAndLog(ConnectionState.Pending("Initializing agent..."))
-
-            if (!initializeAgent()) {
-                emitAndLog(ConnectionState.Error("Failed to initialize agent"))
-                return@flow
-            }
-            Log.d("IdentusDIDCommHandler", "input: $input")
-
-            val oobInvitation = sdk.agent.parseInvitation(input)
-
-            Log.d("IdentusDIDCommHandler", "Parsed: $oobInvitation.")
-
-            emitAndLog(ConnectionState.Pending("Parsing invitation..."))
-            sdk.agent.acceptOutOfBandInvitation(oobInvitation as OutOfBandInvitation)
-
-            emitAndLog(ConnectionState.Pending("Establishing connection..."))
-
-            var retries = 0
-            val maxRetries = 10
-
-            while(retries < maxRetries) {
-                delay(1000)
-
-                val connections = sdk.pluto.getAllDidPairs().first()
-
-                val newConnection = connections.firstOrNull { pair ->
-                    pair.receiver.toString().isNotEmpty()
-                }
-
-                if (newConnection != null) {
-                    emitAndLog(ConnectionState.Success("Connection established successfully"))
-                    return@flow
-                }
-
-                retries++
-                emitAndLog(ConnectionState.Pending("Connection failed $retries time(s). Try again..."))
-            }
-
-            emitAndLog(ConnectionState.Error("Connection timeout."))
-        } catch (e: Exception) {
-            emitAndLog(ConnectionState.Error("Connection failed: ${e.message ?: "Unknown Error"}"))
+    override fun executeOperation(operation: ProtocolOperation): Flow<OperationState> {
+        return when (operation) {
+            is ProtocolOperation.EstablishConnection -> establishConnection(operation.input)
+            is ProtocolOperation.ReceiveCredential -> receiveCredential(operation.input)
+            is ProtocolOperation.PresentProof -> presentProof(operation.input)
+            is ProtocolOperation.VerifyProof -> verifyProof(operation.input)
+            is ProtocolOperation.ReceiveMessage -> receiveMessage()
+            is ProtocolOperation.SendMessage -> sendMessage(operation.input)
         }
     }
 
     override fun cleanUp() {
-        sdk.stopAgent()
+        if (isInitialized) {
+            sdk.stopAgent()
+            isInitialized = false
+        }
+    }
+
+    override fun establishConnection(input: String): Flow<OperationState> = flow {
+        try {
+            emitAndLog(OperationState.InProgress("Initializing agent..."))
+            initializeAgent()
+
+            emitAndLog(OperationState.InProgress("Parsing invitation..."))
+            val oobInvitation = sdk.agent.parseInvitation(input) as? OutOfBandInvitation
+                ?: throw IllegalStateException("Could not parseInvitation from $input")
+            sdk.agent.acceptOutOfBandInvitation(oobInvitation)
+
+            emitAndLog(OperationState.ConnectionEstablished("Connection established."))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emitAndLog(OperationState.Error("Connection failed: ${e.message}"))
+        }
+    }
+
+    override fun receiveCredential(input: String): Flow<OperationState> = flow {
+        TODO("Credential issuance flow not yet implemented")
+    }
+
+    override fun presentProof(input: String): Flow<OperationState> = flow {
+        TODO("Proof presentation flow not yet implemented")
+    }
+
+    override fun verifyProof(input: String): Flow<OperationState> {
+        TODO("Proof verification flow not yet implemented")
+    }
+
+    override fun sendMessage(message: String): Flow<OperationState> = flow {
+        TODO("Message sending flow not yet implemented")
+    }
+
+    override fun receiveMessage(): Flow<OperationState> {
+        TODO("Message receiving flow not yet implemented")
     }
 
     private suspend fun initializeAgent(): Boolean {
         try {
-            if (!isInitialized) {
-                sdk.startAgent(mediatorDID, context)
-                isInitialized = true
-                return true
+            agentLock.withLock {
+                if (!isInitialized) {
+                    sdk.startAgent(mediatorDID, context)
+                    delay(1000)
+                    isInitialized = true
+                    return true
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -98,8 +127,8 @@ class IdentusDIDCommHandler(
         return true
     }
 
-    private suspend fun FlowCollector<ConnectionState>.emitAndLog(state: ConnectionState) {
-        Log.d("IdentusDIDCommHandler", "Emitting state: $state")
+    private suspend fun FlowCollector<OperationState>.emitAndLog(state: OperationState) {
+        Logger.d(protocolId) { state.logMessage }
         emit(state)
     }
 }

@@ -31,6 +31,8 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
 
             implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
+
+            implementation("co.touchlab:kermit:2.0.8")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.0.1")

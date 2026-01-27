@@ -1,26 +1,46 @@
 # How to run Connection Module
 
-**Update**: Currently, the module is only capable of establishing connection with the mediator. Next steps will involve establishing connection with another device through the mediator and exchange messages. 
+***Update**: Currently, the module is only capable of establishing connection with the mediator. Next steps will involve establishing connection with another device through the mediator and exchange messages.*
 
 ## Store Github account and token in your Gradle directory
 ### Window
-1. Go to your global `.gradle` directory:
-   - Windows: Go to C:\Users\\\<username\>\\.gradle\\
-   - Linux: Go to ~/.gradle
+1. Go to your global `.gradle` directory `C:\Users\\\<username\>\\.gradle\\`
 2. Create a file called `gradle.properties` (if not exist) and add your credentials:
-
-```bash
+```shell
 gpr.user=YOUR_GITHUB_USER_NAME
 gpr.key=YOUR_GITHUB_TOKEN
 ```
 
+### Linux
+1. Create / edit `gradle.properties` in global `.gradle` directory:
+```shell
+$ cd ~/.gradle
+$ sudo nano gradle.properties
+```
+2. Add your credentials to `gradle.properties`:
+```shell
+gpr.user=YOUR_GITHUB_USER_NAME
+gpr.key=YOUR_GITHUB_TOKEN
+```
+3. Save your changes with `Ctrl + O` then `Enter` and `Ctrl + X` to exit.
+
+
 ## Module Orchestration
+
+### Overview
 ![connection_orchestration.png](connection_orchestration.png)
 
 - `ConnectionManager` is the main entity governing all different handlers. This class should be singleton.
 - `ProtocolHandler` is the unified interface for connection protocols. New protocol must implement this class.
 - `ProtocolHandlerFactory` returns a list of `ProtocolHandler`s. This is an `expect class`, thus needs to have an actual implementation for each platform.
-- `ConnectionState` acts as an enum for connection states - unified different protocols into 4 states: `Idle`, `Success`, `Error` and `Pending`.
+- `OperationState` acts as an enum for connection states.
+- `ProtocolOperation` acts as an enum for available operations of a protocol.
+
+### Sample implementation of `ProtocolHandler`
+![identus_didcomm_handler.png](identus_didcomm_handler.png)
+
+- Each `ProtocolHandler` can detect operation (establish connection with mediator, receive credential, present proof, etc.) from invitation / server response through `detectOperation` method, which returns a `ProtocolOperation`. This is then passed to `executeOperation` acting as a switch that calls the corresponding *operation*.
+- Each *handler* must have at least 3 operations: `receiveCredential`, `presentProof` and `verifyProof`. Other functionalities can be added through inheritance (`PersistConnectionCapable` adds `establishConnection` method, whereas `MessageCapable` adds `sendMessage` and `receiveMessage`).
 
 ## Run Connection Module Demo
 This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledger Identus. The SDKs used are:

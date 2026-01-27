@@ -25,7 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.connection.ConnectionState
+import com.dev.usdi_wallet.connection.OperationState
 import com.dev.usdi_wallet.viewmodel.ConnectionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,9 +51,9 @@ fun ConnectionTestScreen(viewModel: ConnectionViewModel) {
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = when (connectionState) {
-                    is ConnectionState.Success -> MaterialTheme.colorScheme.primaryContainer
-                    is ConnectionState.Error -> MaterialTheme.colorScheme.errorContainer
-                    is ConnectionState.Pending -> MaterialTheme.colorScheme.tertiaryContainer
+                    is OperationState.ConnectionEstablished -> MaterialTheme.colorScheme.primaryContainer
+                    is OperationState.Error -> MaterialTheme.colorScheme.errorContainer
+                    is OperationState.InProgress -> MaterialTheme.colorScheme.tertiaryContainer
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
             )
@@ -66,10 +66,11 @@ fun ConnectionTestScreen(viewModel: ConnectionViewModel) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = when (val state = connectionState) {
-                        is ConnectionState.Idle -> "Ready to connect"
-                        is ConnectionState.Success -> "✓ ${state.message}"
-                        is ConnectionState.Error -> "✗ ${state.reason}"
-                        is ConnectionState.Pending -> "⋯ ${state.status}"
+                        is OperationState.Idle -> "Ready to connect"
+                        is OperationState.ConnectionEstablished -> "✓ ${state.connectionId}"
+                        is OperationState.Error -> "✗ ${state.reason}"
+                        is OperationState.InProgress -> "⋯ ${state.status}"
+                        else -> "Undefined: ${state.logMessage}"
                     },
                     style = MaterialTheme.typography.bodyLarge
                 )
@@ -100,7 +101,7 @@ fun ConnectionTestScreen(viewModel: ConnectionViewModel) {
                 },
                 modifier = Modifier.weight(1f),
                 enabled = invitationInput.isNotBlank() &&
-                        connectionState !is ConnectionState.Pending
+                        connectionState !is OperationState.InProgress
             ) {
                 Text("Connect")
             }
@@ -133,7 +134,7 @@ fun ConnectionTestScreen(viewModel: ConnectionViewModel) {
         }
 
         // Connection history hint
-        if (connectionState is ConnectionState.Success) {
+        if (connectionState is OperationState.ConnectionEstablished) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
