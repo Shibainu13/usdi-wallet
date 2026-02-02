@@ -51,7 +51,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
 ### Some useful documentation
 - [Hyperledger-Identus/cloud-agent `README.md`](https://github.com/hyperledger-identus/hyperledger-identus): Read this first to understand the general orchestration of Hyperledger Identus modules and how they work with each other.
 - [Hyperledger Identus official documentation](https://hyperledger-identus.github.io/docs/): Hyperledger Identus documentation hub for basic understanding and links to various different SDK documentations.
-- [Cloud agent swagger (access this after finish )]
+- [Cloud agent swagger](http://localhost:8085/docs) (access this after finish setting up local cloud agent)
 
 ### Run Hyperledger-Identus/identus-docker suite
 
@@ -118,14 +118,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       -d ''
     ```
 
-3. Wait some moment (or call this API to check) for the connection state to become `ConnectionResponseSent`:
-    ```shell
-    $ curl -X 'GET' \
-      'http://localhost:8085/connections/{connectionId}' \
-      -H 'accept: application/json'
-    ```
-
-4. Create a new credential schema. Take note of the schema `id` attribute in the response, since we will use it later:
+3. Create a new credential schema. Take note of the schema `id` attribute in the response, since we will use it later:
     ```shell
     $ curl -X 'POST' \
       'http://localhost:8085/schema-registry/schemas' \
@@ -181,7 +174,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
     }
     ```
 
-5. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId`, as we need to use it later:
+4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId`, as we need to use it later:
     ```shell
     $ curl -X 'POST' \
       'http://localhost:8085/connections' \
@@ -192,6 +185,13 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       "goalCode": "issue-vc",
       "goal": "To issue a Faber College Graduate credential"
     }'
+    ```
+
+5. Wait some moment (or call this API to check) for the connection state to become `ConnectionResponseSent`:
+    ```shell
+    $ curl -X 'GET' \
+      'http://localhost:8085/connections/{connectionId}' \
+      -H 'accept: application/json'
     ```
 
 6. Now everything is set! We can issue a simple certificate:
