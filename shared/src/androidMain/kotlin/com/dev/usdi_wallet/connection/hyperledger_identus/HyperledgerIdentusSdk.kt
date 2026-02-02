@@ -35,9 +35,7 @@ import java.net.UnknownHostException
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-class HyperledgerIdentusSdk private constructor(
-    private val context: Context
-) {
+class HyperledgerIdentusSdk private constructor() {
     private val apollo: Apollo = createApollo()
     private val castor: Castor = createCastor()
     private val pollux: Pollux = createPollux()
@@ -101,7 +99,9 @@ class HyperledgerIdentusSdk private constructor(
             override var driver: SqlDriver? = null
 
             override suspend fun connectDb(context: Any?): SqlDriver {
-                val androidContext = (context as? Context) ?: this@HyperledgerIdentusSdk.context
+                val androidContext = (context as? Context)
+                    ?: throw IllegalStateException("Context required")
+
                 val driver = AndroidSqliteDriver(
                     schema = SdkPlutoDb.Schema,
                     context = androidContext,
@@ -171,9 +171,9 @@ class HyperledgerIdentusSdk private constructor(
         private lateinit var instance: HyperledgerIdentusSdk
 
         @JvmStatic
-        fun getInstance(context: Context): HyperledgerIdentusSdk {
+        fun getInstance(): HyperledgerIdentusSdk {
             if (!this::instance.isInitialized) {
-                instance = HyperledgerIdentusSdk(context)
+                instance = HyperledgerIdentusSdk()
             }
             return instance
         }

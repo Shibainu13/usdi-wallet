@@ -10,20 +10,20 @@ import com.dev.usdi_wallet.connection.ProtocolOperation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.ProtocolType
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
-import org.hyperledger.identus.walletsdk.domain.models.DIDPair
 import kotlin.coroutines.cancellation.CancellationException
 
 class IdentusDIDCommHandler(
     private val context: Context,
-    private val mediatorDID: String
+//    private val mediatorDID: String
 ) : ProtocolHandler, PersistConnectionCapable, MessageCapable {
     override val protocolId: String = "IdentusDIDCommHandler"
-    private val sdk: HyperledgerIdentusSdk by lazy { HyperledgerIdentusSdk.getInstance(context) }
+    private val sdk: HyperledgerIdentusSdk by lazy { HyperledgerIdentusSdk.getInstance() }
     private var isInitialized = false
     private val agentLock = Mutex()
 
@@ -32,20 +32,16 @@ class IdentusDIDCommHandler(
             when {
                 input.contains("_oob=") ||
                 input.contains("OutOfBandInvitation") ||
-                input.contains("https://didcomm.org/out-of-band/") ->
+                input.contains(ProtocolType.Didcomminvitation.value) ->
                     ProtocolOperation.EstablishConnection(input)
 
-                input.contains("https://didcomm.org/issue-credential/") ||
+                input.contains(ProtocolType.DidcommOfferCredential.value) ||
                 input.contains("OfferCredential") ->
                     ProtocolOperation.ReceiveCredential(input)
 
-                input.contains("https://didcomm.org/present-proof/") ||
+                input.contains(ProtocolType.DidcommRequestPresentation.value) ||
                 input.contains("request-presentation") ->
                     ProtocolOperation.PresentProof(input)
-
-                input.contains("https://didcomm.org/present-proof/") ||
-                input.contains("presentation") ->
-                    ProtocolOperation.VerifyProof(input)
 
                 else -> null
             }
@@ -60,8 +56,6 @@ class IdentusDIDCommHandler(
             is ProtocolOperation.ReceiveCredential -> receiveCredential(operation.input)
             is ProtocolOperation.PresentProof -> presentProof(operation.input)
             is ProtocolOperation.VerifyProof -> verifyProof(operation.input)
-            is ProtocolOperation.ReceiveMessage -> receiveMessage()
-            is ProtocolOperation.SendMessage -> sendMessage(operation.input)
         }
     }
 
@@ -82,7 +76,13 @@ class IdentusDIDCommHandler(
                 ?: throw IllegalStateException("Could not parseInvitation from $input")
             sdk.agent.acceptOutOfBandInvitation(oobInvitation)
 
-            emitAndLog(OperationState.ConnectionEstablished("Connection established."))
+            emitAndLog(OperationState.InProgress("Verifying connection..."))
+
+            val didPairs = sdk.agent.getAllDIDPairs()
+            val connectionPair = didPairs.lastOrNull()
+                ?: throw IllegalStateException("Could not getDIDPairs from $input")
+
+            emitAndLog(OperationState.ConnectionEstablished("Connection with ${connectionPair.receiver} established"))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -91,7 +91,7 @@ class IdentusDIDCommHandler(
     }
 
     override fun receiveCredential(input: String): Flow<OperationState> = flow {
-        TODO("Credential issuance flow not yet implemented")
+        TODO("Receive credential flow not yet implemented")
     }
 
     override fun presentProof(input: String): Flow<OperationState> = flow {
@@ -114,7 +114,10 @@ class IdentusDIDCommHandler(
         try {
             agentLock.withLock {
                 if (!isInitialized) {
-                    sdk.startAgent(mediatorDID, context)
+                    sdk.startAgent(
+                        mediatorDID = "did:peer:2.Ez6LSghwSE437wnDE1pt3X6hVDUQzSjsHzinpX3XFvMjRAm7y.Vz6Mkhh1e5CEYYq6JBUcTZ6Cp2ranCWRrv7Yax3Le4N59R6dd.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6Imh0dHA6Ly8xOTIuMTY4LjEwNS45OTo4MDgwIiwiYSI6WyJkaWRjb21tL3YyIl19fQ.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6IndzOi8vMTkyLjE2OC4xMDUuOTk6ODA4MC93cyIsImEiOlsiZGlkY29tbS92MiJdfX0",
+                        context = context
+                    )
                     delay(1000)
                     isInitialized = true
                     return true
