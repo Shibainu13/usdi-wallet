@@ -7,13 +7,19 @@ import com.dev.usdi_wallet.connection.OperationState
 import com.dev.usdi_wallet.connection.PersistConnectionCapable
 import com.dev.usdi_wallet.connection.ProtocolHandler
 import com.dev.usdi_wallet.connection.ProtocolOperation
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.hyperledger.identus.walletsdk.domain.models.Message
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.ProtocolType
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.IssueCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
 import kotlin.coroutines.cancellation.CancellationException
@@ -26,6 +32,7 @@ class IdentusDIDCommHandler(
     private val sdk: HyperledgerIdentusSdk by lazy { HyperledgerIdentusSdk.getInstance() }
     private var isInitialized = false
     private val agentLock = Mutex()
+    private var messageListenerJob: Job? = null
 
     override fun detectOperation(input: String): ProtocolOperation? {
         return try {
@@ -83,6 +90,8 @@ class IdentusDIDCommHandler(
                 ?: throw IllegalStateException("Could not getDIDPairs from $input")
 
             emitAndLog(OperationState.ConnectionEstablished("Connection with ${connectionPair.receiver} established"))
+
+            startMessageListener()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -90,15 +99,76 @@ class IdentusDIDCommHandler(
         }
     }
 
-    override fun receiveCredential(input: String): Flow<OperationState> = flow {
-        TODO("Receive credential flow not yet implemented")
+    private fun startMessageListener() {
+        messageListenerJob?.cancel()
+        messageListenerJob = CoroutineScope(Dispatchers.Default).launch {
+            sdk.agent.handleReceivedMessagesEvents().collect { messages ->
+                for (message in messages) {
+                    val operation = detectOperation(message.piuri)
+
+                    when (operation) {
+                        is ProtocolOperation.ReceiveCredential -> {
+                            receiveCredential(message).collect { state ->
+
+                            }
+                        }
+
+                        else -> {
+                            Logger.d(protocolId) { "Message type not handled in background" }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    override fun presentProof(input: String): Flow<OperationState> = flow {
+    override fun receiveCredential(input: Any): Flow<OperationState> = flow {
+        try {
+            val message = when (input) {
+                is String -> sdk.agent.parseInvitation(input) as Message
+                is Message -> input
+                else -> throw IllegalStateException("Input type not handled")
+            }
+
+            when {
+                message.piuri.contains("offer-credential") -> {
+                    emitAndLog(OperationState.InProgress("Processing credential offer..."))
+
+                    val offer = OfferCredential.fromMessage(message)
+                    val didPairs = sdk.agent.getAllDIDPairs()
+                    val myDID = didPairs.lastOrNull()?.holder
+                        ?: throw IllegalStateException("Could not getDIDPairs from $message")
+
+                    val request = sdk.agent.prepareRequestCredentialWithIssuer(myDID, offer)
+                    sdk.agent.sendMessage(request.makeMessage())
+
+                    emitAndLog(OperationState.InProgress("Credential request sent. Waiting for credential"))
+                }
+
+                message.piuri.contains("issue-credential") -> {
+                    emitAndLog(OperationState.InProgress("Receiving credential..."))
+
+                    val issueCredential = IssueCredential.fromMessage(message)
+                    val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
+
+                    emitAndLog(OperationState.CredentialReceived(
+                        credentialId = credential.id,
+                        credentialType = credential.subject ?: "Unknown",
+                        issuer = credential.issuer,
+                        claims = credential.claims.toString()
+                    ))
+                }
+            }
+        } catch (e: Exception) {
+            emitAndLog(OperationState.Error("Failed to receive credential: ${e.message}"))
+        }
+    }
+
+    override fun presentProof(input: Any): Flow<OperationState> = flow {
         TODO("Proof presentation flow not yet implemented")
     }
 
-    override fun verifyProof(input: String): Flow<OperationState> {
+    override fun verifyProof(input: Any): Flow<OperationState> {
         TODO("Proof verification flow not yet implemented")
     }
 

@@ -22,7 +22,7 @@ sealed interface OperationState {
         val credentialId: String,
         val credentialType: String,
         val issuer: String,
-        val claims: Map<String, String>
+        val claims: String
     ) : OperationState {
         override val logMessage: String = "Received: $credentialType from $issuer"
     }
