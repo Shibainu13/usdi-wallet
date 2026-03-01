@@ -25,6 +25,13 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven {
+            url = uri("https://maven.pkg.github.com/LF-Decentralized-Trust-labs/aries-uniffi-wrappers")
+            credentials {
+                username = providers.gradleProperty("gpr.user").getOrElse("")
+                password = providers.gradleProperty("gpr.key").getOrElse("")
+            }
+        }
     }
 }
 
