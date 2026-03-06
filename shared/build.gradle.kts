@@ -43,7 +43,7 @@ kotlin {
 
             implementation("app.cash.sqldelight:android-driver:2.0.2")
 
-            implementation("org.hyperledger.identus:sdk:4.0.0-rc.7")
+            implementation("org.hyperledger.identus:sdk:4.0.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
