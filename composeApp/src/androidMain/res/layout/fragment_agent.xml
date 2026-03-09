@@ -40,23 +40,23 @@
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
         <!-- DID input -->
-        <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/til_mediator_did"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Mediator DID"
-                app:endIconMode="clear_text">
+<!--        <com.google.android.material.textfield.TextInputLayout-->
+<!--                android:id="@+id/til_mediator_did"-->
+<!--                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:hint="Mediator DID"-->
+<!--                app:endIconMode="clear_text">-->
 
-            <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_mediator_did"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textUri|textMultiLine"
-                    android:minLines="2"
-                    android:maxLines="5" />
+<!--            <com.google.android.material.textfield.TextInputEditText-->
+<!--                    android:id="@+id/et_mediator_did"-->
+<!--                    android:layout_width="match_parent"-->
+<!--                    android:layout_height="wrap_content"-->
+<!--                    android:inputType="textUri|textMultiLine"-->
+<!--                    android:minLines="2"-->
+<!--                    android:maxLines="5" />-->
 
-        </com.google.android.material.textfield.TextInputLayout>
+<!--        </com.google.android.material.textfield.TextInputLayout>-->
 
         <!-- Connect button -->
         <com.google.android.material.button.MaterialButton

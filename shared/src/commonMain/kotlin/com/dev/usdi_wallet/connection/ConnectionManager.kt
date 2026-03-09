@@ -3,12 +3,11 @@ package com.dev.usdi_wallet.connection
 import com.dev.usdi_wallet.message.Message
 import kotlinx.coroutines.flow.Flow
 
-interface ConnectionManager {
-    val protocolId: String
+interface ConnectionManager<SdkMessage> {
     val state: Flow<ConnectionState>
 
-    suspend fun start(config: ConnectionStartupConfig)
-    suspend fun sendMessage(message: Message)
-    suspend fun receiveMessage(msgHandler: (message: Message) -> Unit)
+    suspend fun start()
+    suspend fun sendMessage(message: SdkMessage)
+    suspend fun receiveMessage(msgHandler: suspend (message: SdkMessage) -> Unit)
     suspend fun stop()
 }

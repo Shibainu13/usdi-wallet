@@ -4,31 +4,23 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.connection.ConnectionManager
-import com.dev.usdi_wallet.connection.ConnectionStartupConfig
 import com.dev.usdi_wallet.connection.ConnectionState
-import com.dev.usdi_wallet.hyperledger_identus.IdentusDIDCommConnectionManager
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocolHandler
-import com.dev.usdi_wallet.protocol.ProtocolHandler
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.protocol.Protocol
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AgentViewModel(application: Application) : AndroidViewModel(application) {
-    private val managers: Map<String, ConnectionManager> = mapOf(
-        IdentusDIDCommConnectionManager.PROTOCOL_ID to IdentusDIDCommConnectionManager(viewModelScope, application)
+    private val protocols = listOf<Protocol<*>>(
+        IdentusJWTProtocol.getInstance(application),
     )
-
-    private val handlers: Map<String, ProtocolHandler> = mapOf(
-        IdentusDIDCommConnectionManager.PROTOCOL_ID to IdentusJWTProtocolHandler(viewModelScope)
-    )
-
-    val protocolStates: Map<String, StateFlow<ConnectionState>> = managers.mapValues { (_, manager) ->
-        manager.state
+    private val protocolMap: Map<String, Protocol<*>> = protocols.associateBy { it.protocolId }
+    val protocolStates: Map<String, StateFlow<ConnectionState>> = protocolMap.mapValues { (_, protocol) ->
+        protocol.connectionManager.state
             .catch { emit(ConnectionState.ERROR) }
             .stateIn(
                 scope = viewModelScope,
@@ -54,24 +46,13 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = ConnectionState.IDLE
         )
 
-    fun startAgents(configs: List<ConnectionStartupConfig>) {
-        configs.forEach { connectionConfig ->
-            val manager = managers[connectionConfig.protocolId]
-            if (manager == null) {
-                Logger.w(AgentViewModel::class.toString()) { "No manager registered for protocol: ${connectionConfig.protocolId}" }
-                return@forEach
-            }
-            viewModelScope.launch {
-                try {
-                    manager.start(connectionConfig)
-                    manager.state.first() { it == ConnectionState.RUNNING }
-                    manager.receiveMessage { msg ->
-                        viewModelScope.launch {
-                            handlers[connectionConfig.protocolId]?.handleInbound(msg)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Logger.e(AgentViewModel::class.toString()) {"Error starting agent ${connectionConfig.protocolId}: ${e.message}"}
+    fun startAgents() {
+        viewModelScope.launch {
+            try {
+                protocols.forEach { it.start() }
+            } catch (e: Exception) {
+                Logger.e(AgentViewModel::class.toString()) {
+                    "Error starting agent: ${e.message}"
                 }
             }
         }
@@ -80,16 +61,20 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     fun stopAgent(protocolId: String) {
         viewModelScope.launch {
             try {
-                managers[protocolId]?.stop()
-                    ?: Logger.w(AgentViewModel::class.toString()) { "No manager registered for protocol: $protocolId" }
+                protocolMap[protocolId]?.connectionManager?.stop()
+                    ?: Logger.w(AgentViewModel::class.toString()) {
+                        "No manager registered for protocol: $protocolId"
+                    }
             } catch (e: Exception) {
-                Logger.e(AgentViewModel::class.toString()) {"Error stopping agent $protocolId ${e.message}" }
+                Logger.e(AgentViewModel::class.toString()) {
+                    "Error stopping agent $protocolId ${e.message}"
+                }
             }
         }
     }
 
     fun stopAllAgents() {
-        managers.keys.forEach { stopAgent(it) }
+        protocolMap.keys.forEach { stopAgent(it) }
     }
 
     fun stateFor(protocolId: String): StateFlow<ConnectionState>? = protocolStates[protocolId]

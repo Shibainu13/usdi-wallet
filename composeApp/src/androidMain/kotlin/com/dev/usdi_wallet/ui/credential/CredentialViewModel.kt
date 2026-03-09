@@ -7,6 +7,8 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.credential.CredentialManager
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTCredentialManager
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.protocol.Protocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,22 +24,22 @@ data class CredentialUiState(
 )
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
-    private val credentialManagers: List<CredentialManager> = listOf(
-        IdentusJWTCredentialManager(viewModelScope),
+    private val protocols = listOf<Protocol<*>>(
+        IdentusJWTProtocol.getInstance(application),
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
     val uiState: StateFlow<CredentialUiState> = _uiState.asStateFlow()
 
-    val credentials: StateFlow<List<Credential>> = if (credentialManagers.isEmpty()) {
+    val credentials: StateFlow<List<Credential>> = if (protocols.isEmpty()) {
         MutableStateFlow(emptyList())
     } else {
         combine(
-            credentialManagers.map { it.getCredentials() }
+            protocols.map { it.credentialManager.getCredentials() }
         ) { arrays ->
             arrays.toList().flatten()
         }
         .catch { e ->
-            Logger.e(this::class.toString()) { "Failed to get credentials $e" }
+            Logger.e(CredentialViewModel::class.toString()) { "Failed to get credentials $e" }
             _uiState.update { it.copy(error = "Failed to load credentials: $e") }
             emit(emptyList())
         }

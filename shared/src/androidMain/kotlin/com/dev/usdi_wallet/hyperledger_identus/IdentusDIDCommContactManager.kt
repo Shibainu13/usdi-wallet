@@ -16,19 +16,16 @@ import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.Connectio
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.PrismOnboardingInvitation
 
-class IdentusDIDCommContactManager(
-    val scope: CoroutineScope,
-) : ContactManager {
-    override val id: String = DIDCOMM1
+class IdentusDIDCommContactManager : ContactManager {
 
-    init {
-        scope.launch {
-            val pluto = HyperledgerIdentusSdk.getInstance().pluto
-            pluto.getAllDidPairs().collect {
-
-            }
-        }
-    }
+//    init {
+//        scope.launch {
+//            val pluto = HyperledgerIdentusSdk.getInstance().pluto
+//            pluto.getAllDidPairs().collect {
+//
+//            }
+//        }
+//    }
 
     override fun canHandle(invitation: String): Boolean {
         return when {
@@ -38,37 +35,35 @@ class IdentusDIDCommContactManager(
         }
     }
 
-    override fun parseInvitation(invitation: String) {
+    override suspend fun parseInvitation(invitation: String) {
         HyperledgerIdentusSdk.getInstance().agent.let { agent ->
-            scope.launch {
-                try {
-                    Logger.d(this::class.toString()) {"Parsing invitation..."}
+            try {
+                Logger.d(this::class.toString()) {"Parsing invitation..."}
 
-                    when (val invitation = agent.parseInvitation(invitation)) {
-                        is OutOfBandInvitation -> {
-                            agent.acceptOutOfBandInvitation(invitation)
-                        }
-
-                        is PrismOnboardingInvitation -> {
-                            agent.acceptInvitation(invitation)
-                        }
-
-                        is ConnectionlessCredentialOffer -> {
-                            val offer = OfferCredential.fromMessage(invitation.offerCredential.makeMessage())
-                            val subjectDID = agent.createNewPrismDID()
-                            val request = agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
-                            agent.sendMessage(request.makeMessage())
-                        }
-
-                        is ConnectionlessRequestPresentation -> {
-                            agent.pluto.storeMessage(invitation.requestPresentation.makeMessage())
-                        }
+                when (val invitation = agent.parseInvitation(invitation)) {
+                    is OutOfBandInvitation -> {
+                        agent.acceptOutOfBandInvitation(invitation)
                     }
 
-                    Logger.d(this::class.toString()) {"Invitation accepted"}
-                } catch (e: Exception) {
-                    Logger.e(this::class.toString()) {"Error while parsing invitation $invitation: ${e.message}"}
+                    is PrismOnboardingInvitation -> {
+                        agent.acceptInvitation(invitation)
+                    }
+
+                    is ConnectionlessCredentialOffer -> {
+                        val offer = OfferCredential.fromMessage(invitation.offerCredential.makeMessage())
+                        val subjectDID = agent.createNewPrismDID()
+                        val request = agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
+                        agent.sendMessage(request.makeMessage())
+                    }
+
+                    is ConnectionlessRequestPresentation -> {
+                        agent.pluto.storeMessage(invitation.requestPresentation.makeMessage())
+                    }
                 }
+
+                Logger.d(this::class.toString()) {"Invitation accepted"}
+            } catch (e: Exception) {
+                Logger.e(this::class.toString()) {"Error while parsing invitation $invitation: ${e.message}"}
             }
         }
     }
@@ -76,13 +71,13 @@ class IdentusDIDCommContactManager(
     override fun getContacts(): Flow<List<Contact>> =
         HyperledgerIdentusSdk.getInstance().pluto
             .getAllDidPairs()
-            .map { pairs ->  pairs.map { toUsdiContact(it) } }
+            .map { pairs -> pairs.map { toUsdiContact(it) } }
 
     override fun removeContact(contact: Contact) {
         TODO("Not yet implemented")
     }
 
-    private fun toUsdiContact(didPair: DIDPair): Contact =
+    fun toUsdiContact(didPair: DIDPair): Contact =
         Contact(
             holder = didPair.holder.toString(),
             name = didPair.name ?: "Unknown",
