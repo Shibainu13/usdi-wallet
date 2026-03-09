@@ -9,5 +9,6 @@ interface ConnectionManager {
 
     suspend fun start(config: ConnectionStartupConfig)
     suspend fun sendMessage(message: Message)
+    suspend fun receiveMessage(msgHandler: (message: Message) -> Unit)
     suspend fun stop()
 }

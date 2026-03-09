@@ -2,4 +2,5 @@
     <string name="app_name">usdi_wallet</string>
     <string name="tab_agent">Agent</string>
     <string name="tab_contact">Contact</string>
+    <string name="tab_credential">Credential</string>
 </resources>

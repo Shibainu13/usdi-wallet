@@ -7,17 +7,24 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
 import com.dev.usdi_wallet.connection.ConnectionStartupConfig
 import com.dev.usdi_wallet.connection.ConnectionState
-import com.dev.usdi_wallet.connection.hyperledger_identus.connection.IdentusDIDCommConnectionManager
+import com.dev.usdi_wallet.hyperledger_identus.IdentusDIDCommConnectionManager
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocolHandler
+import com.dev.usdi_wallet.protocol.ProtocolHandler
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private val managers: Map<String, ConnectionManager> = mapOf(
         IdentusDIDCommConnectionManager.PROTOCOL_ID to IdentusDIDCommConnectionManager(viewModelScope, application)
+    )
+
+    private val handlers: Map<String, ProtocolHandler> = mapOf(
+        IdentusDIDCommConnectionManager.PROTOCOL_ID to IdentusJWTProtocolHandler(viewModelScope)
     )
 
     val protocolStates: Map<String, StateFlow<ConnectionState>> = managers.mapValues { (_, manager) ->
@@ -57,6 +64,12 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 try {
                     manager.start(connectionConfig)
+                    manager.state.first() { it == ConnectionState.RUNNING }
+                    manager.receiveMessage { msg ->
+                        viewModelScope.launch {
+                            handlers[connectionConfig.protocolId]?.handleInbound(msg)
+                        }
+                    }
                 } catch (e: Exception) {
                     Logger.e(AgentViewModel::class.toString()) {"Error starting agent ${connectionConfig.protocolId}: ${e.message}"}
                 }

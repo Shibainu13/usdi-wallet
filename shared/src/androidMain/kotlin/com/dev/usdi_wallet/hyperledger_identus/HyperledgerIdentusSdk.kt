@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.connection.hyperledger_identus
+package com.dev.usdi_wallet.hyperledger_identus
 
 import android.app.Application
 import android.content.Context
@@ -103,7 +103,7 @@ class HyperledgerIdentusSdk private constructor() {
                     ?: throw IllegalStateException("Context required")
 
                 val driver = AndroidSqliteDriver(
-                    schema = SdkPlutoDb.Schema,
+                    schema = SdkPlutoDb.Companion.Schema,
                     context = androidContext,
                     name = null
                 )

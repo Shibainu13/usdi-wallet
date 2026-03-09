@@ -3,54 +3,35 @@ package com.dev.usdi_wallet.ui.contact
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.dev.usdi_wallet.contact.Contact
-import com.dev.usdi_wallet.databinding.PlaceholderContactBinding
+import com.dev.usdi_wallet.databinding.ItemContactBinding
 
 class ContactAdapter(
-    private var data: MutableList<Contact> = mutableListOf()
-) : RecyclerView.Adapter<ContactAdapter.ContactHolder>() {
+    private val onClick: (Contact) -> Unit = {},
+) : ListAdapter<Contact, ContactAdapter.ContactHolder>(DiffCallback) {
 
-    fun updateContacts(updatedContacts: List<Contact>) {
-        val diffResult = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
-            override fun getOldListSize() = data.size
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+        ContactHolder(ItemContactBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
-            override fun getNewListSize() = updatedContacts.size
+    override fun onBindViewHolder(holder: ContactHolder, position: Int) =
+        holder.bind(getItem(position))
 
-            override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-                data[oldItemPosition].holder == updatedContacts[newItemPosition].holder &&
-                        data[oldItemPosition].name == updatedContacts[newItemPosition].name
-
-            override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-                data[oldItemPosition] == updatedContacts[newItemPosition]
-        })
-
-        data.clear()
-        data.addAll(updatedContacts)
-        diffResult.dispatchUpdatesTo(this)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ContactHolder {
-        val binding = PlaceholderContactBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return ContactHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: ContactHolder, position: Int) {
-        holder.bind(data[position])
-    }
-
-    override fun getItemCount() = data.size
-
-    class ContactHolder(
-        private val binding: PlaceholderContactBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
+    inner class ContactHolder(private val binding: ItemContactBinding) :
+        RecyclerView.ViewHolder(binding.root) {
         fun bind(contact: Contact) {
-            binding.tvContactName.text = contact.name
+            binding.tvContactName.text   = contact.name
             binding.tvContactHolder.text = contact.holder
+            binding.root.setOnClickListener { onClick(contact) }
+        }
+    }
+
+    companion object {
+        val DiffCallback = object : DiffUtil.ItemCallback<Contact>() {
+            override fun areItemsTheSame(old: Contact, new: Contact) =
+                old.holder == new.holder && old.name == new.name
+            override fun areContentsTheSame(old: Contact, new: Contact) = old == new
         }
     }
 }

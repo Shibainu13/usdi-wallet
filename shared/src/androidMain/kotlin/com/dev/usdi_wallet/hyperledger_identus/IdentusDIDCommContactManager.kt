@@ -1,7 +1,6 @@
-package com.dev.usdi_wallet.connection.hyperledger_identus.contact
+package com.dev.usdi_wallet.hyperledger_identus
 
 import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.connection.hyperledger_identus.HyperledgerIdentusSdk
 import com.dev.usdi_wallet.contact.Contact
 import com.dev.usdi_wallet.contact.ContactManager
 import kotlinx.coroutines.CoroutineScope

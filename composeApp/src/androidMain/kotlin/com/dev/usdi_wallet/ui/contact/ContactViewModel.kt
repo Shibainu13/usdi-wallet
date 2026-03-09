@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
-import com.dev.usdi_wallet.connection.hyperledger_identus.connection.IdentusDIDCommConnectionManager
-import com.dev.usdi_wallet.connection.hyperledger_identus.contact.IdentusDIDCommContactManager
+import com.dev.usdi_wallet.hyperledger_identus.IdentusDIDCommConnectionManager
+import com.dev.usdi_wallet.hyperledger_identus.IdentusDIDCommContactManager
 import com.dev.usdi_wallet.contact.Contact
 import com.dev.usdi_wallet.contact.ContactManager
 import kotlinx.coroutines.flow.MutableStateFlow

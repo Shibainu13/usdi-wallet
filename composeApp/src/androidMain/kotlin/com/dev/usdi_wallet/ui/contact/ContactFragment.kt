@@ -46,7 +46,7 @@ class ContactFragment : Fragment() {
 
     private fun setupRecyclerView() {
         binding.rvContacts.apply {
-            layoutManager = LinearLayoutManager(requireContext())
+            layoutManager = LinearLayoutManager(context)
             adapter = this@ContactFragment.adapter
         }
     }
@@ -63,7 +63,7 @@ class ContactFragment : Fragment() {
 
                 launch {
                     viewModel.contacts.collect { contacts ->
-                        adapter.updateContacts(contacts)
+                        adapter.submitList(contacts)
                         binding.tvEmptyState.isVisible = contacts.isEmpty()
                         binding.rvContacts.isVisible = contacts.isNotEmpty()
                     }
@@ -79,7 +79,7 @@ class ContactFragment : Fragment() {
 //                            showSendMessageDialog(state.selectedContact.name)
 //                        }
 
-                        state.error?.let { msg->
+                        state.error?.let { msg ->
                             Snackbar.make(
                                 binding.root,
                                 msg,

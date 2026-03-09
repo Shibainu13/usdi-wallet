@@ -7,10 +7,12 @@ import androidx.fragment.app.FragmentPagerAdapter
 import com.dev.usdi_wallet.R
 import com.dev.usdi_wallet.ui.agent.AgentFragment
 import com.dev.usdi_wallet.ui.contact.ContactFragment
+import com.dev.usdi_wallet.ui.credential.CredentialFragment
 
 private val TAB_TITLES = arrayOf(
     R.string.tab_agent,
     R.string.tab_contact,
+    R.string.tab_credential,
 )
 
 class SectionPagerAdapter(
@@ -21,6 +23,7 @@ class SectionPagerAdapter(
     override fun getItem(position: Int): Fragment = when (position) {
         0 -> AgentFragment.newInstance()
         1 -> ContactFragment.newInstance()
+        2 -> CredentialFragment.newInstance()
         else -> throw IllegalArgumentException("No fragment at position $position")
     }
 
