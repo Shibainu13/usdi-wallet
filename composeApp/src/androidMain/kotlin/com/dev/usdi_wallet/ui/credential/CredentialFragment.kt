@@ -86,7 +86,7 @@ class CredentialFragment : Fragment() {
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(credential.subject)
-            .setMessage(claims)
+            .setMessage(claims.toString())
             .setPositiveButton("Close", null)
             .show()
     }

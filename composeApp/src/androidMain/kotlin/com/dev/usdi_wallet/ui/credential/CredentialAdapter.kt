@@ -31,7 +31,7 @@ class CredentialAdapter(
             binding.tvCredentialType.text = credential.protocol ?: "Credential"
             binding.tvSubject.text = credential.subject
             binding.tvIssuer.text = credential.issuer
-            binding.tvClaims.text = credential.claims
+            binding.tvClaims.text = credential.claims.toString()
             binding.root.setOnClickListener { onClick(credential) }
         }
     }

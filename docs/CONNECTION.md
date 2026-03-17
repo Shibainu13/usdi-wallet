@@ -196,10 +196,8 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
 
 6. Now everything is set! We can issue a simple certificate:
     ```shell
-    $ curl -X 'POST' \   
-      'http://localhost:8085/issue-credentials/credential-offers' \   
-      -H 'Content-Type: application/json' \
-      -d '{
+    $ curl -X 'POST'   'http://localhost:8085/issue-credentials/credential-offers'   -H 'Content-Type: application/json'   -d '{
+      "validityPeriod": 3600,
       "credentialFormat": "JWT",
       "claims": {
         "emailAddress": "alice@wonderland.com",
@@ -209,11 +207,15 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "faculty": "Computer Science",
         "gpa": 3
       },
-      "schemaId": "http://localhost:8085/schema-registry/schemas/{schemaId}/schema",
+      "schemaId": "http://192.168.105.44:8085/schema-registry/schemas/8a46cfe9-4ef7-375e-8243-c4c28547b77a/schema",
+      "credentialDefinitionId": "8a46cfe9-4ef7-375e-8243-c4c28547b77a",
       "automaticIssuance": true,
-      "connectionId": "{connectionId}",
-      "issuingDID": "{didRef}"
-    }'
+      "connectionId": "46f89354-9066-4e77-9ef4-1fda32465c66",
+      "issuingDID": "did:prism:1264d16d2c119bc731453dfc24bb8c0651696b98e7e8cc4d15977a8a5a00c348",
+      "goalCode": "issue-vc",
+      "goal": "test-wallet",
+      "domain": "faber-college-jwt-vc"
+      }'
     ```
 
 ### Run the application

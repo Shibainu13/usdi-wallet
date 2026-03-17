@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlin.collections.emptyList
 
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
-    private val protocols = listOf<Protocol<*>>(
+    private val protocols = listOf<Protocol<*,*>>(
         IdentusJWTProtocol.getInstance(application),
     )
     val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {

@@ -5,16 +5,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.credential.Credential
-import com.dev.usdi_wallet.credential.CredentialManager
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTCredentialManager
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.protocol.Protocol
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
@@ -24,7 +24,7 @@ data class CredentialUiState(
 )
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
-    private val protocols = listOf<Protocol<*>>(
+    private val protocols = listOf<Protocol<*,*>>(
         IdentusJWTProtocol.getInstance(application),
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
@@ -34,12 +34,14 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.credentialManager.getCredentials() }
+            protocols.map { protocolCredentials(it) }
         ) { arrays ->
             arrays.toList().flatten()
         }
         .catch { e ->
-            Logger.e(CredentialViewModel::class.toString()) { "Failed to get credentials $e" }
+            Logger.e(CredentialViewModel::class.toString()) {
+                "Failed to get credentials $e"
+            }
             _uiState.update { it.copy(error = "Failed to load credentials: $e") }
             emit(emptyList())
         }
@@ -49,6 +51,11 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
             initialValue = emptyList()
         )
     }
+
+    private fun <C, M> protocolCredentials(protocol: Protocol<C, M>): Flow<List<Credential>> =
+        protocol.credentialManager.getCredentials().map { list ->
+            list.map { protocol.credentialManager.toUiCredential(it) }
+        }
 
     fun onCredentialClicked(credential: Credential) {
         _uiState.update { it.copy(selectedCredential = credential) }

@@ -1,6 +1,5 @@
 package com.dev.usdi_wallet.connection
 
-import com.dev.usdi_wallet.message.Message
 import kotlinx.coroutines.flow.Flow
 
 interface ConnectionManager<SdkMessage> {
