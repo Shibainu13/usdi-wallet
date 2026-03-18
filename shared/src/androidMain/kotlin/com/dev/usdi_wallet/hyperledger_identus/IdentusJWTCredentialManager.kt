@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.json.Json
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
 import org.hyperledger.identus.walletsdk.domain.models.Curve

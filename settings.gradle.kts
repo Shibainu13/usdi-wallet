@@ -3,7 +3,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
-        mavenLocal()
+//        mavenLocal()
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
@@ -18,7 +18,15 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        mavenLocal()
+        maven {
+            url = uri("https://maven.pkg.github.com/Shibainu13/sdk-kmp")
+            credentials {
+                username = providers.gradleProperty("gpr.user").getOrElse("")
+                password = providers.gradleProperty("gpr.key").getOrElse("")
+            }
+        }
+
+//        mavenLocal()
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
