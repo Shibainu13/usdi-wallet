@@ -83,8 +83,13 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
     then run docker compose:
     ```shell
     $ cd identus-docker/
-    $ docker compose up
+    $ docker compose up 
     ```
+    Or
+    ```shell
+    $ docker-compose up 
+   ```
+   
 
 ### Issue a new certificate
 
@@ -171,7 +176,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "id"
       ],
       "author": "{didRef}"
-    }
+    }'
     ```
 
 4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId`, as we need to use it later:
