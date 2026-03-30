@@ -17,7 +17,7 @@ interface CredentialManager<CredentialType, MessageType> {
     suspend fun handleVerification(message: MessageType): Boolean
     suspend fun sendVerificationRequest(
         toDID: String,
-        claims: Map<String, Any>,
+        request: VerificationRequest,
         domain: String,
         challenge: String,
     )

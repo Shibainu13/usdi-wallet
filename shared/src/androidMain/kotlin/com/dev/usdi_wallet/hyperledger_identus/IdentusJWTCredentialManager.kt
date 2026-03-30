@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
 import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.credential.CredentialManager
+import com.dev.usdi_wallet.credential.VerificationRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,7 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     private val sdk = HyperledgerIdentusSdk.getInstance()
     private val processedOffer: ArrayList<String> = arrayListOf()
     private val issuedCredentials: ArrayList<String> = arrayListOf()
+    private val processedProofRequests: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
     override val proofRequestToProcess: StateFlow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
 
@@ -115,7 +117,8 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     }
 
     private fun handlePresentationRequest(message: SdkMessage) {
-        if (_proofRequestToProcess.value.find { it.id == message.id } == null) {
+        if (!processedProofRequests.contains(message.id)) {
+            processedProofRequests.add(message.id)
             _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
             Logger.d(IdentusJWTCredentialManager::class.toString()) {
                 "Presentation request received: $message"
@@ -128,7 +131,7 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
 
     override suspend fun sendVerificationRequest(
         toDID: String,
-        claims: Map<String, Any>,
+        request: VerificationRequest,
         domain: String,
         challenge: String,
     ) {
@@ -136,7 +139,15 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
             type = CredentialType.JWT,
             toDID = DID(toDID),
             presentationClaims = JWTPresentationClaims(
-                claims = claims.mapValues { (_, value) -> value as InputFieldFilter }
+                claims = request.claims.associate { claim ->
+                    claim.name to InputFieldFilter(
+                        type = claim.type,
+                        pattern = claim.pattern,
+                        enum = claim.enum,
+                        const = claim.const,
+                        value = claim.value,
+                    )
+                }
             ),
             domain = domain,
             challenge = challenge,
@@ -151,6 +162,7 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
                     credential,
                 )
                 sdk.agent.sendMessage(presentation.makeMessage())
+                _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
             } catch (e: EdgeAgentError.CredentialNotValidForPresentationRequest) {
                 Logger.e(IdentusJWTCredentialManager::class.toString()) {
                     "Error presenting proof: ${e.message}"
