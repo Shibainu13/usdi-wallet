@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+        <!-- Domain -->
+        <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Domain (e.g. https://example-verifier.com)"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_domain"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Challenge -->
+        <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+            <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Challenge"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_challenge"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_regenerate_challenge"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_gravity="center_vertical"
+                    android:text="↺" />
+        </LinearLayout>
+
+        <!-- Tab switcher -->
+        <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tab_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:tabMode="fixed">
+            <com.google.android.material.tabs.TabItem
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="From Credential" />
+            <com.google.android.material.tabs.TabItem
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Manual" />
+        </com.google.android.material.tabs.TabLayout>
+
+        <!-- From-credential content -->
+        <LinearLayout
+                android:id="@+id/from_credential_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical">
+
+            <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:text="Select credential type"
+                    android:textAppearance="?attr/textAppearanceLabelMedium" />
+
+            <Spinner
+                    android:id="@+id/spinner_credential"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            <TextView
+                    android:id="@+id/tv_no_credential"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="No credentials found on this device."
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorError"
+                    android:visibility="gone" />
+
+            <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginBottom="4dp"
+                    android:text="Select claims to request"
+                    android:textAppearance="?attr/textAppearanceLabelMedium" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_claim_items"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send_from_credential"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Send Verification Request" />
+
+        </LinearLayout>
+
+        <!-- Manual content -->
+        <LinearLayout
+                android:id="@+id/manual_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+            <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_manual_claims"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_add_row"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="+ Add Claim" />
+
+            <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_send_manual"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Send Verification Request" />
+
+        </LinearLayout>
+
+        <ProgressBar
+                android:id="@+id/progress_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:visibility="gone" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

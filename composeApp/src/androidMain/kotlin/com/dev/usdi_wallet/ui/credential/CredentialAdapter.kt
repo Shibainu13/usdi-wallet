@@ -41,8 +41,5 @@ class CredentialAdapter(
             override fun areItemsTheSame(old: Credential, new: Credential) = old.id == new.id
             override fun areContentsTheSame(old: Credential, new: Credential) = old == new
         }
-
-        private fun String.shortenDid() =
-            if (length > 24) "…${takeLast(20)}" else this
     }
 }

@@ -2,6 +2,8 @@ package com.dev.usdi_wallet.hyperledger_identus
 
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
+import com.dev.usdi_wallet.credential.Claim
+import com.dev.usdi_wallet.credential.ClaimType
 import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.credential.CredentialManager
 import com.dev.usdi_wallet.credential.VerificationRequest
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
+import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
 import org.hyperledger.identus.walletsdk.domain.models.Curve
 import org.hyperledger.identus.walletsdk.domain.models.DID
@@ -34,6 +37,7 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     private val issuedCredentials: ArrayList<String> = arrayListOf()
     private val processedProofRequests: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
+
     override val proofRequestToProcess: StateFlow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
 
     override fun getCredentials(): Flow<List<SdkCredential>> = sdk.agent.getAllCredentials()
@@ -130,18 +134,17 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
         sdk.agent.handlePresentation(message)
 
     override suspend fun sendVerificationRequest(
-        toDID: String,
         request: VerificationRequest,
         domain: String,
         challenge: String,
     ) {
         sdk.agent.initiatePresentationRequest(
             type = CredentialType.JWT,
-            toDID = DID(toDID),
+            toDID = DID(request.destination),
             presentationClaims = JWTPresentationClaims(
                 claims = request.claims.associate { claim ->
                     claim.name to InputFieldFilter(
-                        type = claim.type,
+                        type = claim.type.toString(),
                         pattern = claim.pattern,
                         enum = claim.enum,
                         const = claim.const,
@@ -176,7 +179,15 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
             id = sdkCredential.id,
             issuer = sdkCredential.issuer,
             subject = sdkCredential.subject,
-            claims = sdkCredential.claims.associate { it.key to it.value.toString() },
+            claims = sdkCredential.claims.map { Claim(
+                name = it.key,
+                type = when(it.value) {
+                    is SdkClaimType.StringValue -> ClaimType.STRING
+                    is SdkClaimType.NumberValue -> ClaimType.NUMBER
+                    is SdkClaimType.BoolValue -> ClaimType.BOOLEAN
+                    is SdkClaimType.DataValue -> ClaimType.BYTEARRAY
+                }
+            ) },
             protocol = DIDCOMM1
         )
 
