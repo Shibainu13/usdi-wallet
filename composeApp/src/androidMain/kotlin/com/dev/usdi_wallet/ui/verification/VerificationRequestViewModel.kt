@@ -53,7 +53,6 @@ data class VerificationRequestUiState(
     val domain: String = "",
     val challenge: String = UUID.randomUUID().toString(),
 
-    val availableCredentials: List<Credential> = emptyList(),
     val selectedCredential: Credential? = null,
     val claimItems: List<ClaimCheckItem> = emptyList(),
 
@@ -87,6 +86,20 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList(),
+        )
+    }
+
+    val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
+        MutableStateFlow(emptyList())
+    } else {
+        combine(
+            protocols.map { it.contactManager.getContacts() }
+        ) { contactArrays ->
+            contactArrays.toList().flatten()
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
         )
     }
 
@@ -140,6 +153,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         _uiState.update { it.copy(claimItems = items) }
     }
 
+    fun onClaimPredicateValueChanged(index: Int, value: String) {
+        val items = _uiState.value.claimItems.toMutableList()
+        items[index] = items[index].copy(predicateValue = value)
+        _uiState.update { it.copy(claimItems = items) }
+    }
+
     fun addManualRow() {
         _uiState.update { it.copy(manualClaimRows = it.manualClaimRows + ManualClaimRow()) }
     }
@@ -162,6 +181,10 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
 
     fun onManualRowPredicateOperatorChanged(id: String, operator: PredicateOperator?) {
         updateRow(id) { it.copy(predicateOperator = operator) }
+    }
+
+    fun onManualRowPredicateValueChanged(id: String, value: String) {
+        updateRow(id) { it.copy(predicateValue = value) }
     }
 
     private fun updateRow(id: String, transform: (ManualClaimRow) -> ManualClaimRow) {

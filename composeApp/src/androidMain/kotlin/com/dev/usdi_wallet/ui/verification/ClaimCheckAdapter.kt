@@ -18,7 +18,7 @@ class ClaimCheckAdapter(
     private val onChecked: (Int, Boolean) -> Unit,
     private val onConstraintChanged: (Int, String) -> Unit,
     private val onPredicateOperatorChanged: (Int, PredicateOperator?) -> Unit,
-    private val onPredicateValueChanged: (Int, String) -> Unit,
+    private val onPredicateValueChanged: (Int, operator: String) -> Unit,
 ) : ListAdapter<ClaimCheckItem, ClaimCheckAdapter.ClaimViewHolder>(DiffCallback) {
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ClaimViewHolder {
         val binding = ItemClaimCheckBinding.inflate(
@@ -75,8 +75,15 @@ class ClaimCheckAdapter(
             } else {
                 binding.predicateGroup.isVisible = false
                 binding.tilConstraint.isVisible = claimCheckItem.checked
-                binding.etConstraint.doAfterTextChanged { text ->
-                    onConstraintChanged(layoutPosition, text?.toString() ?: "")
+//                binding.etConstraint.doAfterTextChanged { text ->
+//                    if (binding.etConstraint.hasFocus()) {
+//                        onConstraintChanged(layoutPosition, text?.toString() ?: "")
+//                    }
+//                }
+                binding.etConstraint.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
+                    if (!hasFocus) {
+                        onConstraintChanged(layoutPosition, binding.etConstraint.text.toString())
+                    }
                 }
             }
         }

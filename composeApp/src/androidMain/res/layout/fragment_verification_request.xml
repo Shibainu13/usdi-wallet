@@ -11,10 +11,34 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+        <!-- Contact selection -->
+        <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="Send to"
+                android:textAppearance="?attr/textAppearanceLabelMedium" />
+
+        <Spinner
+                android:id="@+id/spinner_contact"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        <TextView
+                android:id="@+id/tv_no_contact"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="No contacts found. Add a contact first."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorError"
+                android:visibility="gone" />
+
         <!-- Domain -->
         <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
                 android:hint="Domain (e.g. https://example-verifier.com)"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
             <com.google.android.material.textfield.TextInputEditText
@@ -83,7 +107,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="4dp"
-                    android:text="Select credential type"
+                    android:text="Select credential"
                     android:textAppearance="?attr/textAppearanceLabelMedium" />
 
             <Spinner
