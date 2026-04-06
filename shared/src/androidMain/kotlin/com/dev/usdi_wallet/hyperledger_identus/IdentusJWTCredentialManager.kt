@@ -39,6 +39,7 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     private val processedOffer: ArrayList<String> = arrayListOf()
     private val issuedCredentials: ArrayList<String> = arrayListOf()
     private val processedProofRequests: ArrayList<String> = arrayListOf()
+    private val processedVerificationResults: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
     private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
 
@@ -139,13 +140,19 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     }
 
     private suspend fun handleVerification(message: SdkMessage) {
+        Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            "Received verification: $message"
+        }
         try {
-            val isValid = sdk.agent.handlePresentation(message)
-            _verificationResults.update { current ->
-                current + VerificationResult(message.id, isValid)
-            }
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                "Verification result for $message: $isValid"
+            if (!processedVerificationResults.contains(message.id)) {
+                processedVerificationResults.add(message.id)
+                val isValid = sdk.agent.handlePresentation(message)
+                _verificationResults.update { current ->
+                    current + VerificationResult(message.id, isValid)
+                }
+                Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                    "Verification result for $message: $isValid"
+                }
             }
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
@@ -210,7 +217,8 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
                     is SdkClaimType.NumberValue -> ClaimType.NUMBER
                     is SdkClaimType.BoolValue -> ClaimType.BOOLEAN
                     is SdkClaimType.DataValue -> ClaimType.BYTEARRAY
-                }
+                },
+                value = it.value,
             ) },
             protocol = DIDCOMM1
         )

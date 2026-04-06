@@ -1,18 +1,19 @@
 package com.dev.usdi_wallet.ui.verification
 
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import androidx.core.view.isVisible
-import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.dev.usdi_wallet.databinding.ItemManualClaimBinding
 import com.dev.usdi_wallet.credential.ClaimType
 import com.dev.usdi_wallet.credential.PredicateOperator
+import com.dev.usdi_wallet.databinding.ItemManualClaimBinding
 
 class ManualClaimAdapter(
     private val onNameChanged: (String, String) -> Unit,
@@ -23,29 +24,39 @@ class ManualClaimAdapter(
     private val onRemove: (String) -> Unit,
 ) : ListAdapter<ManualClaimRow, ManualClaimAdapter.ManualClaimViewHolder>(DiffCallback) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ManualClaimViewHolder {
-        val binding = ItemManualClaimBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return ManualClaimViewHolder(binding)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+        ManualClaimViewHolder(ItemManualClaimBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
     override fun onBindViewHolder(holder: ManualClaimViewHolder, position: Int) =
         holder.bind(getItem(position))
 
-    inner class ManualClaimViewHolder(private val binding: ItemManualClaimBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    inner class ManualClaimViewHolder(
+        private val binding: ItemManualClaimBinding,
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        private var nameWatcher: TextWatcher? = null
+        private var constraintWatcher: TextWatcher? = null
+        private var predicateValueWatcher: TextWatcher? = null
 
         fun bind(row: ManualClaimRow) {
+            // Remove all stale listeners before touching any view
+            binding.spinnerType.onItemSelectedListener = null
+            binding.spinnerOperator.onItemSelectedListener = null
+            nameWatcher?.let { binding.etClaimName.removeTextChangedListener(it) }
+            constraintWatcher?.let { binding.etConstraint.removeTextChangedListener(it) }
+            predicateValueWatcher?.let { binding.etPredicateValue.removeTextChangedListener(it) }
+            nameWatcher = null
+            constraintWatcher = null
+            predicateValueWatcher = null
+
             // Claim name
             if (binding.etClaimName.text.toString() != row.name) {
                 binding.etClaimName.setText(row.name)
             }
-            binding.etClaimName.doAfterTextChanged { text ->
-                onNameChanged(row.id, text?.toString() ?: "")
-            }
+            nameWatcher = makeWatcher { onNameChanged(row.id, it) }
+            binding.etClaimName.addTextChangedListener(nameWatcher)
 
-            // Type spinner — String / Number / Boolean
+            // Type spinner
             val types = ClaimType.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
             binding.spinnerType.adapter = ArrayAdapter(
                 binding.root.context,
@@ -60,55 +71,62 @@ class ManualClaimAdapter(
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             }
 
-            // NUMBER: predicate operator + value
             if (row.type == ClaimType.NUMBER) {
-                binding.tilConstraint.isVisible  = false
+                binding.tilConstraint.isVisible = false
                 binding.predicateGroup.isVisible = true
 
-                val operators = listOf("= (equals)", "≥", "≤", ">", "<")
+                val operators = PredicateOperator.entries.map { it.symbol }
                 binding.spinnerOperator.adapter = ArrayAdapter(
                     binding.root.context,
                     android.R.layout.simple_spinner_dropdown_item,
                     operators,
                 )
-                binding.spinnerOperator.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                        val op = when (pos) {
-                            0 -> null
-                            1 -> PredicateOperator.GREATER_THAN_OR_EQUAL
-                            2 -> PredicateOperator.LESS_THAN_OR_EQUAL
-                            3 -> PredicateOperator.GREATER_THAN
-                            4 -> PredicateOperator.LESS_THAN
-                            else -> null
+                binding.spinnerOperator.onItemSelectedListener =
+                    object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(
+                            parent: AdapterView<*>?, v: View?, pos: Int, id: Long,
+                        ) {
+                            onPredicateOperatorChanged(row.id, PredicateOperator.entries.getOrNull(pos))
                         }
-                        onPredicateOperatorChanged(row.id, op)
+                        override fun onNothingSelected(parent: AdapterView<*>?) = Unit
                     }
-                    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+
+                if (binding.etPredicateValue.text.toString() != row.predicateValue) {
+                    binding.etPredicateValue.setText(row.predicateValue)
                 }
-                binding.etPredicateValue.doAfterTextChanged { text ->
-                    onPredicateValueChanged(row.id, text?.toString() ?: "")
-                }
+                predicateValueWatcher = makeWatcher { onPredicateValueChanged(row.id, it) }
+                binding.etPredicateValue.addTextChangedListener(predicateValueWatcher)
+
             } else {
-                // STRING / BOOLEAN: optional equality constraint
                 binding.predicateGroup.isVisible = false
-                binding.tilConstraint.isVisible  = true
-                binding.etConstraint.hint = when (row.type) {
+                binding.tilConstraint.isVisible = true
+                binding.tilConstraint.hint = when (row.type) {
                     ClaimType.BOOLEAN -> "true or false (optional)"
                     else              -> "Must equal (optional)"
                 }
-                binding.etConstraint.doAfterTextChanged { text ->
-                    onConstraintChanged(row.id, text?.toString() ?: "")
+
+                if (binding.etConstraint.text.toString() != row.constraint) {
+                    binding.etConstraint.setText(row.constraint)
                 }
+                constraintWatcher = makeWatcher { onConstraintChanged(row.id, it) }
+                binding.etConstraint.addTextChangedListener(constraintWatcher)
             }
 
             binding.btnRemove.setOnClickListener { onRemove(row.id) }
         }
     }
 
+    private fun makeWatcher(onChanged: (String) -> Unit) = object : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        override fun afterTextChanged(s: Editable?) { onChanged(s?.toString() ?: "") }
+    }
+
     companion object {
         val DiffCallback = object : DiffUtil.ItemCallback<ManualClaimRow>() {
             override fun areItemsTheSame(old: ManualClaimRow, new: ManualClaimRow) = old.id == new.id
-            override fun areContentsTheSame(old: ManualClaimRow, new: ManualClaimRow) = old == new
+            override fun areContentsTheSame(old: ManualClaimRow, new: ManualClaimRow) =
+                old.type == new.type && old.name == new.name
         }
     }
 }
