@@ -1,6 +1,5 @@
 package com.dev.usdi_wallet.ui.verification
 
-import android.R
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -23,9 +22,7 @@ import kotlinx.coroutines.launch
 class VerificationRequestFragment : Fragment() {
     private var _binding: FragmentVerificationRequestBinding? = null
     private val binding get() = _binding!!
-
     private val viewModel: VerificationRequestViewModel by viewModels()
-
     private lateinit var claimCheckAdapter: ClaimCheckAdapter
     private lateinit var manualClaimAdapter: ManualClaimAdapter
 
@@ -111,7 +108,7 @@ class VerificationRequestFragment : Fragment() {
                         val credentialLabels = credentials.map { it.subject }
                         binding.spinnerCredential.adapter = ArrayAdapter(
                             requireContext(),
-                            R.layout.simple_spinner_dropdown_item,
+                            android.R.layout.simple_spinner_dropdown_item,
                             credentialLabels,
                         )
                         binding.spinnerCredential.onItemSelectedListener =
@@ -138,7 +135,7 @@ class VerificationRequestFragment : Fragment() {
                         val contactLabels = contacts.map { it.holder }
                         binding.spinnerContact.adapter = ArrayAdapter(
                             requireContext(),
-                            R.layout.simple_spinner_dropdown_item,
+                            android.R.layout.simple_spinner_dropdown_item,
                             contactLabels,
                         )
                         binding.spinnerContact.onItemSelectedListener =
@@ -160,6 +157,19 @@ class VerificationRequestFragment : Fragment() {
                 }
 
                 launch {
+                    viewModel.verificationResults.collect { verificationResults ->
+                        verificationResults.firstOrNull()?.let { latest ->
+                            val msg = if (latest.isValid) "Verification Successful" else "Verification Failed"
+                            Snackbar.make(
+                                binding.root,
+                                msg,
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+
+                launch {
                     viewModel.uiState.collect { state ->
                         binding.progressBar.isVisible = state.isLoading
                         binding.btnSendFromCredential.isEnabled = !state.isLoading
@@ -177,7 +187,11 @@ class VerificationRequestFragment : Fragment() {
                         }
 
                         if (state.success) {
-                            Snackbar.make(binding.root, "Verification request sent", Snackbar.LENGTH_SHORT).show()
+                            Snackbar.make(
+                                binding.root,
+                                "Verification request sent",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
                             viewModel.onSuccessHandled()
                         }
                     }

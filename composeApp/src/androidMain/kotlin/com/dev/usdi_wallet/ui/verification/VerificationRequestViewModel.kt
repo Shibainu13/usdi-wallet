@@ -11,6 +11,7 @@ import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.credential.Predicate
 import com.dev.usdi_wallet.credential.PredicateOperator
 import com.dev.usdi_wallet.credential.VerificationRequest
+import com.dev.usdi_wallet.credential.VerificationResult
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.protocol.Protocol
 import kotlinx.coroutines.flow.Flow
@@ -97,9 +98,23 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         ) { contactArrays ->
             contactArrays.toList().flatten()
         }.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+    }
+
+    val verificationResults: StateFlow<List<VerificationResult>> = if (protocols.isEmpty()) {
+        MutableStateFlow(emptyList())
+    } else {
+        combine(
+            protocols.map { it.credentialManager.getVerificationResults() }
+        ) { verificationResultArray ->
+            verificationResultArray.toList().flatten()
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
     }
 

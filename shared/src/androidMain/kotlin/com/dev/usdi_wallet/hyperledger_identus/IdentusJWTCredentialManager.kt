@@ -1,5 +1,6 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
+import android.opengl.ETC1.isValid
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
 import com.dev.usdi_wallet.credential.Claim
@@ -7,11 +8,13 @@ import com.dev.usdi_wallet.credential.ClaimType
 import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.credential.CredentialManager
 import com.dev.usdi_wallet.credential.VerificationRequest
+import com.dev.usdi_wallet.credential.VerificationResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
 import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
@@ -37,10 +40,13 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
     private val issuedCredentials: ArrayList<String> = arrayListOf()
     private val processedProofRequests: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
-
-    override val proofRequestToProcess: StateFlow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
+    private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
 
     override fun getCredentials(): Flow<List<SdkCredential>> = sdk.agent.getAllCredentials()
+
+    override fun getProofRequestsToProcess(): Flow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
+
+    override fun getVerificationResults(): Flow<List<VerificationResult>> = _verificationResults.asStateFlow()
 
     override suspend fun getCredential(id: String): Credential? {
         TODO("Not yet implemented")
@@ -65,6 +71,8 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
                 -> handleIssueCredential(message)
             ProtocolType.DidcommRequestPresentation.value if message.direction == SdkMessage.Direction.RECEIVED
                 -> handlePresentationRequest(message)
+            ProtocolType.DidcommPresentation.value if message.direction == SdkMessage.Direction.RECEIVED
+                -> handleVerification(message)
         }
     }
 
@@ -130,8 +138,24 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
         }
     }
 
-    override suspend fun handleVerification(message: SdkMessage): Boolean =
-        sdk.agent.handlePresentation(message)
+    private suspend fun handleVerification(message: SdkMessage) {
+        try {
+            val isValid = sdk.agent.handlePresentation(message)
+            _verificationResults.update { current ->
+                current + VerificationResult(message.id, isValid)
+            }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Verification result for $message: $isValid"
+            }
+        } catch (e: Exception) {
+            Logger.e(IdentusJWTCredentialManager::class.toString()) {
+                "Failed to verify presentation: ${e.message}"
+            }
+            _verificationResults.update { current ->
+                current + VerificationResult(message.id, isValid = false)
+            }
+        }
+    }
 
     override suspend fun sendVerificationRequest(
         request: VerificationRequest,

@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
     private fun <C, M> observeProtocolProofRequests(protocol: Protocol<C, M>) {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                protocol.credentialManager.proofRequestToProcess.collect { requests ->
+                protocol.credentialManager.getProofRequestsToProcess().collect { requests ->
                     requests.forEach { request ->
                         val tag = "proof_${UUID.randomUUID()}"
                         if (supportFragmentManager.findFragmentByTag(tag) == null) {
