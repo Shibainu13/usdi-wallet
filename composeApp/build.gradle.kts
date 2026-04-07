@@ -19,6 +19,12 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation("androidx.fragment:fragment-ktx:1.8.5")
+            implementation("androidx.recyclerview:recyclerview:1.3.2")
+            implementation("com.google.android.material:material:1.12.0")
+            implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+            implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+            implementation("androidx.constraintlayout:constraintlayout:2.2.0")
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -30,6 +36,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(projects.shared)
+            implementation("co.touchlab:kermit:2.0.8")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -48,8 +55,13 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+    buildFeatures {
+        viewBinding = true
+        dataBinding = true
+    }
     packaging {
         resources {
+            pickFirsts += "google/protobuf/*.proto"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
@@ -68,3 +80,6 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+configurations.all {
+    exclude(module = "bcprov-jdk15on")
+}
