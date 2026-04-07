@@ -1,5 +1,6 @@
 package com.dev.usdi_wallet.ui.main
 
+import android.content.Context
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -11,6 +12,7 @@ import com.dev.usdi_wallet.databinding.ActivityMainBinding
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.protocol.Protocol
 import com.dev.usdi_wallet.ui.credential.CredentialSelectionBottomSheet
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -34,7 +36,9 @@ class MainActivity : AppCompatActivity() {
 
         sectionsPagerAdapter = SectionPagerAdapter(this, supportFragmentManager)
         startAgents()
+
         observeProofRequests()
+        observeRevokedCredentials()
     }
 
     private fun startAgents() {
@@ -84,6 +88,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun observeProofRequests() {
         protocols.forEach { protocol -> observeProtocolProofRequests(protocol) }
+    }
+
+    private fun <C, M> observeProtocolRevokedCredentials(protocol: Protocol<C, M>) {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                protocol.credentialManager.getRevokedCredential().collect { credentials ->
+                    credentials.forEach { credential ->
+                        val uiCredential = protocol.credentialManager.toUiCredential(credential)
+                        MaterialAlertDialogBuilder(this as Context)
+                            .setTitle("Credential Revoked")
+                            .setMessage("Your credential ${uiCredential.subject} has been revoked by the issuer.")
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeRevokedCredentials() {
+        protocols.forEach { protocol -> observeProtocolRevokedCredentials(protocol) }
     }
 
     private fun showMainContent() {
