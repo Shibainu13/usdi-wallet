@@ -11,8 +11,8 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.dev.usdi_wallet.credential.ClaimType
-import com.dev.usdi_wallet.credential.PredicateOperator
+import com.dev.usdi_wallet.domain.credential.ClaimType
+import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.databinding.ItemManualClaimBinding
 
 class ManualClaimAdapter(

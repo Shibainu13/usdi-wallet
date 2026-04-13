@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.credential
+package com.dev.usdi_wallet.domain.credential
 
 enum class PredicateOperator(val symbol: String) {
     GREATER_THAN(">"),

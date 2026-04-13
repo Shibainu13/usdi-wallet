@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.dev.usdi_wallet.credential.Credential
+import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.databinding.ItemCredentialBinding
 
 class CredentialAdapter(

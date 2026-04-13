@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.message
+package com.dev.usdi_wallet.domain.message
 
 data class Message(
     val id: String,

@@ -1,6 +1,6 @@
-package com.dev.usdi_wallet.credential
+package com.dev.usdi_wallet.domain.credential
 
-import com.dev.usdi_wallet.connection.ConnectionManager
+import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 

@@ -7,10 +7,10 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.dev.usdi_wallet.connection.ConnectionState
+import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.databinding.ActivityMainBinding
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
-import com.dev.usdi_wallet.protocol.Protocol
+import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.ui.credential.CredentialSelectionBottomSheet
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.flow.combine

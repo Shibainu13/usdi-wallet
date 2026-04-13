@@ -105,7 +105,7 @@ class HyperledgerIdentusSdk private constructor() {
                 val driver = AndroidSqliteDriver(
                     schema = SdkPlutoDb.Companion.Schema,
                     context = androidContext,
-                    name = null
+                    name = "hyperledger_identus.db"
                 )
                 this.driver = driver
                 return driver

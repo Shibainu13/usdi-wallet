@@ -1,13 +1,13 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
 import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.connection.ConnectionManager
-import com.dev.usdi_wallet.credential.Claim
-import com.dev.usdi_wallet.credential.ClaimType
-import com.dev.usdi_wallet.credential.Credential
-import com.dev.usdi_wallet.credential.CredentialManager
-import com.dev.usdi_wallet.credential.VerificationRequest
-import com.dev.usdi_wallet.credential.VerificationResult
+import com.dev.usdi_wallet.domain.connection.ConnectionManager
+import com.dev.usdi_wallet.domain.credential.Claim
+import com.dev.usdi_wallet.domain.credential.ClaimType
+import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.credential.VerificationRequest
+import com.dev.usdi_wallet.domain.credential.VerificationResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

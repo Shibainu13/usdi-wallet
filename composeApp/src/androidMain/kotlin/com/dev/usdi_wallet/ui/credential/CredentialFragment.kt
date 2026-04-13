@@ -11,7 +11,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.dev.usdi_wallet.credential.Credential
+import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.databinding.FragmentCredentialBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
