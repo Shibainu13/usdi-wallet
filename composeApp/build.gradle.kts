@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
-    alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
@@ -25,6 +25,7 @@ kotlin {
             implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
             implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
             implementation("androidx.constraintlayout:constraintlayout:2.2.0")
+            implementation("androidx.navigation:navigation-compose:2.8.5")
         }
         commonMain.dependencies {
             implementation(compose.runtime)

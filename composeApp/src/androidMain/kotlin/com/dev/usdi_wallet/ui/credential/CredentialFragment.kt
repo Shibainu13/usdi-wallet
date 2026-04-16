@@ -16,82 +16,28 @@ import com.dev.usdi_wallet.databinding.FragmentCredentialBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
-
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 class CredentialFragment : Fragment() {
-    private var _binding: FragmentCredentialBinding? = null
-    private val binding get() = _binding!!
-
     private val viewModel: CredentialViewModel by viewModels()
-
-    private val adapter = CredentialAdapter()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentCredentialBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        observeViewModel()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    private fun setupRecyclerView() {
-        binding.rvCredentials.apply {
-            layoutManager = LinearLayoutManager(context)
-            adapter = this@CredentialFragment.adapter
-        }
-    }
-
-    private fun observeViewModel() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-
-                launch {
-                    viewModel.credentials.collect { credentials ->
-                        adapter.submitList(credentials)
-                        binding.tvEmptyState.isVisible = credentials.isEmpty()
-                        binding.rvCredentials.isVisible = credentials.isNotEmpty()
-                    }
-                }
-
-                launch {
-                    viewModel.uiState.collect { state ->
-                        state.selectedCredential?.let {
-                            showDetailDialog(it)
-                            viewModel.onDetailDismissed()
-                        }
-
-                        state.error?.let { msg ->
-                            Snackbar.make(binding.root, msg, Snackbar.LENGTH_SHORT).show()
-                            viewModel.onErrorShown()
-                        }
-                    }
-                }
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            )
+            setContent {
+                CredentialScreen(viewModel)
             }
         }
-    }
-
-    private fun showDetailDialog(credential: Credential) {
-        val claims = credential.claims
-
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(credential.subject)
-            .setMessage(claims.toString())
-            .setPositiveButton("Close", null)
-            .show()
     }
 
     companion object {
         fun newInstance() = CredentialFragment()
     }
+
 }

@@ -52,10 +52,19 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         )
     }
 
-    private fun <C, M> protocolCredentials(protocol: Protocol<C, M>): Flow<List<Credential>> =
-        protocol.credentialManager.getCredentials().map { list ->
+    private fun <C, M> protocolCredentials(protocol: Protocol<C, M>): Flow<List<Credential>>  {
+        val sdkFlow = protocol.credentialManager.getCredentials().map { list ->
             list.map { protocol.credentialManager.toUiCredential(it) }
         }
+
+        val localFlow = protocol.credentialManager.getLocalCredentials()
+
+        return combine(sdkFlow, localFlow) { sdkList, localList ->
+            (sdkList + localList)
+                .distinctBy { it.id } // avoid duplicates
+        }
+    }
+
 
     fun onCredentialClicked(credential: Credential) {
         _uiState.update { it.copy(selectedCredential = credential) }

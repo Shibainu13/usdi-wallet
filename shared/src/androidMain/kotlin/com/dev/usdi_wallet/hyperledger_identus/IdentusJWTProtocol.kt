@@ -48,7 +48,7 @@ class IdentusJWTProtocol(
                         DIDCOMM1,
                         IdentusDIDCommConnectionManager(application),
                         IdentusDIDCommContactManager(),
-                        IdentusJWTCredentialManager(),
+                        IdentusJWTCredentialManager(application),
                     )
                 )
     }
