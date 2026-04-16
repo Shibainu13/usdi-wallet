@@ -10,7 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dev.usdi_wallet.contact.Contact
 @Composable
-fun ContactScreen(viewModel: ContactViewModel) {
+fun ContactScreen(
+    viewModel: ContactViewModel,
+    onNavigate: () -> Unit
+) {
 
     val contacts by viewModel.contacts.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
@@ -35,6 +38,7 @@ fun ContactScreen(viewModel: ContactViewModel) {
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 viewModel.onAddContactClicked()
+                onNavigate()
             }) {
                 Text("+")
             }

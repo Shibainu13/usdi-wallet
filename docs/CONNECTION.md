@@ -179,7 +179,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
     }'
     ```
 
-4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId`, as we need to use it later:
+4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId` and `guid`, as we need to use it later:
     ```shell
     $ curl -X 'POST' \
       'http://localhost:8085/connections' \
@@ -212,7 +212,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "faculty": "Computer Science",
         "gpa": 3
       },
-      "schemaId": "http://192.168.105.44:8085/schema-registry/schemas/8a46cfe9-4ef7-375e-8243-c4c28547b77a/schema",
+      "schemaId": "http://<your-schema-service>:8085/schema-registry/schemas/{guid}/schema",
       "credentialDefinitionId": "8a46cfe9-4ef7-375e-8243-c4c28547b77a",
       "automaticIssuance": true,
       "connectionId": "46f89354-9066-4e77-9ef4-1fda32465c66",
@@ -222,7 +222,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       "domain": "faber-college-jwt-vc"
       }'
     ```
-
+Replace with you service and schema address.
 ### Run the application
 
 Please use an Android development IDE (IntelliJ IDEA, Android Studio, etc.) to run the app on an emulator for now. Other methods will be updated later.
