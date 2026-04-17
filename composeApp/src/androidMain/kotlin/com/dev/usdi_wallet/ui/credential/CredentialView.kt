@@ -1,99 +1,125 @@
 package com.dev.usdi_wallet.ui.credential
 
-
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dev.usdi_wallet.credential.Credential
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
-data class ClaimUiModel(
-    val label: String,
-    val displayValue: String
-)
+
 @Composable
-fun CredentialScreen(
-    viewModel: CredentialViewModel = viewModel()
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    val credentials by viewModel.credentials.collectAsState()
+fun CredentialScreen(viewModel: CredentialViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-
-        // Credential List
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(16.dp)
-        ) {
-            items(credentials) { credential ->
-                CredentialItem(
-                    credential = credential,
-                    onClick = { viewModel.onCredentialClicked(credential) }
-                )
-            }
-        }
-
-        // Error Snackbar
-        uiState.error?.let { error ->
-            Snackbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            ) {
-                Text(error)
-            }
-
-            LaunchedEffect(error) {
-                viewModel.onErrorShown()
-            }
-        }
-
-        // Detail Dialog
-        uiState.selectedCredential?.let { credential ->
-            AlertDialog(
-                onDismissRequest = { viewModel.onDetailDismissed() },
-                confirmButton = {
-                    Button(onClick = { viewModel.onDetailDismissed() }) {
-                        Text("Close")
-                    }
-                },
-                title = { Text("Credential Detail") },
-                text = {
-                    Text(credential.toString()) // customize later
-                }
-            )
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.onErrorShown()
         }
     }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            if (credentials.isEmpty()) {
+                Text(
+                    text = "No credentials available.",
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(items = credentials, key = { credential -> credential.id }) { credential ->
+                        CredentialCard(
+                            credential = credential,
+                            onClick = { viewModel.onCredentialClicked(credential) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    uiState.selectedCredential?.let { credential ->
+        AlertDialog(
+            onDismissRequest = viewModel::onDetailDismissed,
+            title = { Text(text = credential.subject ?: credential.id) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = "Issuer: ${credential.issuer}")
+                    Text(text = "Protocol: ${credential.protocol}")
+                    credential.claims.forEach { claim ->
+                        Text(text = "${claim.name}: ${claim.value ?: "N/A"}")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::onDetailDismissed) {
+                    Text(text = "Close")
+                }
+            },
+        )
+    }
 }
+
 @Composable
-private fun CredentialItem(
+private fun CredentialCard(
     credential: Credential,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clickable { onClick() }
+            .clickable(onClick = onClick),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = credential.subject ?: credential.id,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = credential.issuer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
             credential.claims.forEach { claim ->
-
-                val value = claim.value?.toString() ?: "N/A"
-
                 Text(
-                    text = "${claim.name}: $value",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    text = "${claim.name}: ${claim.value ?: "N/A"}",
+                    style = MaterialTheme.typography.bodySmall,
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }

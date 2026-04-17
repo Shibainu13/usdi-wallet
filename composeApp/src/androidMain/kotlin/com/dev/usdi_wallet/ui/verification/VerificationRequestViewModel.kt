@@ -118,10 +118,16 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         )
     }
 
-    private fun <C, M> protocolCredentials(protocol: Protocol<C, M>): Flow<List<Credential>> =
-        protocol.credentialManager.getCredentials().map { list ->
+    private fun <C, M> protocolCredentials(protocol: Protocol<C, M>): Flow<List<Credential>> {
+        val sdkFlow = protocol.credentialManager.getCredentials().map { list ->
             list.map { protocol.credentialManager.toUiCredential(it) }
         }
+        val localFlow = protocol.credentialManager.getLocalCredentials()
+
+        return combine(sdkFlow, localFlow) { sdkCredentials, localCredentials ->
+            (sdkCredentials + localCredentials).distinctBy { credential -> credential.id }
+        }
+    }
 
     fun onContactSelected(contact: Contact) {
         _uiState.update { it.copy(selectedContact = contact) }
@@ -179,7 +185,10 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
     }
 
     fun removeManualRow(id: String) {
-        _uiState.update { it.copy(manualClaimRows = it.manualClaimRows.filter { row -> row.id == id }) }
+        _uiState.update { state ->
+            val updatedRows = state.manualClaimRows.filterNot { row -> row.id == id }
+            state.copy(manualClaimRows = if (updatedRows.isEmpty()) listOf(ManualClaimRow()) else updatedRows)
+        }
     }
 
     fun onManualRowNameChanged(id: String, name: String) {
