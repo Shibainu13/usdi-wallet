@@ -25,7 +25,7 @@ data class CredentialUiState(
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application),
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
     val uiState: StateFlow<CredentialUiState> = _uiState.asStateFlow()

@@ -62,7 +62,7 @@ data class VerificationRequestUiState(
 
 class VerificationRequestViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application)
+        IdentusJWTProtocol.getInstance(application, viewModelScope)
     )
 
     private val _uiState = MutableStateFlow(VerificationRequestUiState())

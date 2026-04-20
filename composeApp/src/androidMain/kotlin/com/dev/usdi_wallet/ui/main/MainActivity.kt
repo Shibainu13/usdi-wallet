@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         protocols = listOf<Protocol<*,*>>(
-            IdentusJWTProtocol.getInstance(application),
+            IdentusJWTProtocol.getInstance(application, lifecycleScope),
         )
 
         binding = ActivityMainBinding.inflate(layoutInflater)

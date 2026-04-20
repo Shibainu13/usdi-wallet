@@ -1,6 +1,9 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
+import android.content.Context
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.db.AppDatabase
+import com.dev.usdi_wallet.db.data.MessageReadStatus
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
@@ -8,12 +11,15 @@ import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.CredentialManager
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
 import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
@@ -33,16 +39,38 @@ import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.Off
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.proofOfPresentation.RequestPresentation
 import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredential
 
-class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage> {
+class IdentusJWTCredentialManager(
+    scope: CoroutineScope,
+    context: Context
+) : CredentialManager<SdkCredential, SdkMessage> {
     private val sdk = HyperledgerIdentusSdk.getInstance()
-    private val processedOffer: ArrayList<String> = arrayListOf()
-    private val issuedCredentials: ArrayList<String> = arrayListOf()
+    private val processedMessageIds = mutableSetOf<String>()
     private val revokedCredentials = MutableStateFlow<List<SdkCredential>>(emptyList())
     private val revokedCredentialNotified = MutableStateFlow<List<SdkCredential>>(emptyList())
-    private val processedProofRequests: ArrayList<String> = arrayListOf()
-    private val processedVerificationResults: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
     private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
+    private val db: AppDatabase = AppDatabase.getInstance(context)
+    private val initCompleted = CompletableDeferred<Unit>()
+
+    init {
+        scope.launch {
+            db.messageReadStatusDao().getUnreadMessages().forEach {
+                processedMessageIds.add(it)
+            }
+
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Processed message IDs: $processedMessageIds"
+            }
+
+            db.pendingProofRequestDao().getAllIds().forEach { id ->
+                sdk.pluto.getMessage(id).first()?.let { message ->
+                    _proofRequestToProcess.update { it + message }
+                }
+            }
+
+            initCompleted.complete(Unit)
+        }
+    }
 
     override fun getCredentials(): Flow<List<SdkCredential>> = sdk.agent.getAllCredentials()
 
@@ -66,6 +94,12 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
         message: SdkMessage,
         connectionManager: ConnectionManager<SdkMessage>,
     ) {
+        initCompleted.await()
+
+        if (message.id in processedMessageIds) return
+
+        processedMessageIds.add(message.id)
+
         when (message.piuri) {
             ProtocolType.DidcommOfferCredential.value
                 -> handleOfferCredential(message, connectionManager)
@@ -83,26 +117,30 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
         connectionManager: ConnectionManager<SdkMessage>,
     ) {
         try {
-            if (!processedOffer.contains(message.id)) {
-                processedOffer.add(message.id)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Received credential offer: $message"
-                }
-                val offer = OfferCredential.fromMessage(message)
-                val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
-                val authenticationKey = Secp256k1KeyPair.generateKeyPair(
-                    sdk.agent.seed,
-                    KeyCurve(Curve.SECP256K1, index)
-                )
-                val subjectDID = sdk.agent.createNewPrismDID(
-                    keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
-                )
-                val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
-                connectionManager.sendMessage(request.makeMessage())
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Credential request sent: $request"
-                }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Received credential offer: $message"
             }
+            val offer = OfferCredential.fromMessage(message)
+            val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
+            val authenticationKey = Secp256k1KeyPair.generateKeyPair(
+                sdk.agent.seed,
+                KeyCurve(Curve.SECP256K1, index)
+            )
+            val subjectDID = sdk.agent.createNewPrismDID(
+                keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
+            )
+            val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
+            connectionManager.sendMessage(request.makeMessage())
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Credential request sent: $request"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to process credential offer: ${e.message}"
@@ -112,17 +150,21 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
 
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
-            if (!issuedCredentials.contains(message.id)) {
-                issuedCredentials.add(message.id)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Received issue offer: $message"
-                }
-                val issueCredential = IssueCredential.fromMessage(message)
-                val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Credential received: $credential"
-                }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Received issue offer: $message"
             }
+            val issueCredential = IssueCredential.fromMessage(message)
+            val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Credential received: $credential"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to receive credential: ${e.message}"
@@ -130,14 +172,18 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
         }
     }
 
-    private fun handlePresentationRequest(message: SdkMessage) {
-        if (!processedProofRequests.contains(message.id)) {
-            processedProofRequests.add(message.id)
-            _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                "Presentation request received: $message"
-            }
+    private suspend fun handlePresentationRequest(message: SdkMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
+        Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            "Presentation request received: $message"
         }
+
+        db.messageReadStatusDao().insertMessage(
+            MessageReadStatus(
+                messageId = message.id,
+                isRead = true,
+            )
+        )
     }
 
     private suspend fun handleVerification(message: SdkMessage) {
@@ -145,16 +191,20 @@ class IdentusJWTCredentialManager : CredentialManager<SdkCredential, SdkMessage>
             "Received verification: $message"
         }
         try {
-            if (!processedVerificationResults.contains(message.id)) {
-                processedVerificationResults.add(message.id)
-                val isValid = sdk.agent.handlePresentation(message)
-                _verificationResults.update { current ->
-                    current + VerificationResult(message.id, isValid)
-                }
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Verification result for $message: $isValid"
-                }
+            val isValid = sdk.agent.handlePresentation(message)
+            _verificationResults.update { current ->
+                current + VerificationResult(message.id, isValid)
             }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Verification result for $message: $isValid"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to verify presentation: ${e.message}"

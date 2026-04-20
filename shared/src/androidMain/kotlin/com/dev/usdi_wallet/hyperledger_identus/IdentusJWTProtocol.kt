@@ -7,6 +7,7 @@ import com.dev.usdi_wallet.domain.contact.ContactManager
 import com.dev.usdi_wallet.domain.credential.CredentialManager
 import com.dev.usdi_wallet.domain.message.Message
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import kotlinx.coroutines.CoroutineScope
 import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredential
 import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
@@ -41,14 +42,14 @@ class IdentusJWTProtocol(
         )
 
     companion object {
-        fun getInstance(application: Application): IdentusJWTProtocol =
+        fun getInstance(application: Application, scope: CoroutineScope): IdentusJWTProtocol =
             getInstance(IdentusJWTProtocol::class)
                 ?: register(
                     IdentusJWTProtocol(
                         DIDCOMM1,
                         IdentusDIDCommConnectionManager(application),
                         IdentusDIDCommContactManager(),
-                        IdentusJWTCredentialManager(),
+                        IdentusJWTCredentialManager(scope, application),
                     )
                 )
     }

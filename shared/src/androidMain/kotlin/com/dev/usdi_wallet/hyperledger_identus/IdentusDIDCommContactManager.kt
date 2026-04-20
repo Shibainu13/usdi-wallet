@@ -44,17 +44,6 @@ class IdentusDIDCommContactManager : ContactManager {
                 }
 
                 is ConnectionlessCredentialOffer -> {
-//                    val offer = OfferCredential.fromMessage(invitation.offerCredential.makeMessage())
-//                    val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
-//                    val authenticationKey = Secp256k1KeyPair.generateKeyPair(
-//                        sdk.agent.seed,
-//                        KeyCurve(Curve.SECP256K1, index)
-//                    )
-//                    val subjectDID = sdk.agent.createNewPrismDID(
-//                        keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
-//                    )
-//                    val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
-//                    sdk.agent.sendMessage(request.makeMessage())
                     sdk.agent.pluto.storeMessage(invitation.offerCredential.makeMessage())
                 }
 

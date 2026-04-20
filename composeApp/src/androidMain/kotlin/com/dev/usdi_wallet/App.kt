@@ -6,6 +6,6 @@ import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
-        HyperledgerIdentusSdk.Companion.getInstance()
+        HyperledgerIdentusSdk.getInstance()
     }
 }

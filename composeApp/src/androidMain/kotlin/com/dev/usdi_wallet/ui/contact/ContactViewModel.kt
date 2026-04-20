@@ -19,7 +19,7 @@ import kotlin.collections.emptyList
 
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application),
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
     )
     val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
         MutableStateFlow(emptyList())
