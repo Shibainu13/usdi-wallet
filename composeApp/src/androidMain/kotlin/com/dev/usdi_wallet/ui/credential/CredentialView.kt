@@ -107,14 +107,7 @@ private fun CredentialCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = credential.subject ?: credential.id,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = credential.issuer,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+
             credential.claims.forEach { claim ->
                 Text(
                     text = "${claim.name}: ${claim.value ?: "N/A"}",
