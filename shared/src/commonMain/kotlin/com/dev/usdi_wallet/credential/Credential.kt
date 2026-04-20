@@ -6,4 +6,5 @@ data class Credential(
     val subject: String?,
     val claims: List<Claim> = emptyList(),
     val protocol: String,
+    var revoked: Boolean = false,
 )

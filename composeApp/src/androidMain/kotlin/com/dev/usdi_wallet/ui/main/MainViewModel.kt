@@ -30,10 +30,16 @@ data class PendingProofRequest(
     val onCredentialSelected: suspend (Credential) -> Unit,
 )
 
+data class RevokedCredentialAlert(
+    val id: String,
+    val subject: String,
+)
+
 data class MainUiState(
     val selectedTab: WalletTab = WalletTab.CONTACTS,
     val isReady: Boolean = false,
     val pendingProofRequests: List<PendingProofRequest> = emptyList(),
+    val revokedCredentialAlerts: List<RevokedCredentialAlert> = emptyList(),
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,6 +63,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         startAgents()
         observeProofRequests()
+        observeRevokedCredentials()
         viewModelScope.launch {
             areAgentsRunning.collect { running ->
                 _uiState.update { it.copy(isReady = running) }
@@ -71,6 +78,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissProofRequest() {
         _uiState.update { state ->
             state.copy(pendingProofRequests = state.pendingProofRequests.drop(1))
+        }
+    }
+
+    fun dismissRevokedCredentialAlert() {
+        _uiState.update { state ->
+            state.copy(revokedCredentialAlerts = state.revokedCredentialAlerts.drop(1))
         }
     }
 
@@ -119,5 +132,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    private fun <C, M> observeProtocolRevokedCredentials(protocol: Protocol<C, M>) {
+        viewModelScope.launch {
+            protocol.credentialManager.getRevokedCredential().collect { credentials ->
+                val revokedCredentialAlerts = credentials.map { credential ->
+                    val uiCredential = protocol.credentialManager.toUiCredential(credential)
+
+                    RevokedCredentialAlert(
+                        id = "${protocol.protocolId}-${uiCredential.id}",
+                        subject = uiCredential.subject ?: uiCredential.id,
+                    )
+                }
+
+                if (revokedCredentialAlerts.isEmpty()) {
+                    return@collect
+                }
+
+                _uiState.update { state ->
+                    val existingAlertIds = state.revokedCredentialAlerts
+                        .mapTo(mutableSetOf()) { alert -> alert.id }
+                    val newAlerts = revokedCredentialAlerts.filterNot { alert ->
+                        alert.id in existingAlertIds
+                    }
+
+                    if (newAlerts.isEmpty()) {
+                        state
+                    } else {
+                        state.copy(
+                            revokedCredentialAlerts = state.revokedCredentialAlerts + newAlerts,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun observeRevokedCredentials() {
+        protocols.forEach { protocol -> observeProtocolRevokedCredentials(protocol) }
     }
 }

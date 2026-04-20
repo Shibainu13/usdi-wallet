@@ -2,6 +2,7 @@ package com.dev.usdi_wallet.credential
 
 import com.dev.usdi_wallet.connection.ConnectionManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface CredentialManager<CredentialType, MessageType> {
     fun getCredentials(): Flow<List<CredentialType>>
@@ -20,6 +21,7 @@ interface CredentialManager<CredentialType, MessageType> {
         challenge: String,
     )
     suspend fun preparePresentationProof(credential: CredentialType, message: MessageType)
+    suspend fun getRevokedCredential(): StateFlow<List<CredentialType>>
     fun toUiCredential(sdkCredential: CredentialType): Credential
     suspend fun toSdkCredential(credential: Credential): CredentialType
     fun getLocalCredentials(): Flow<List<Credential>>

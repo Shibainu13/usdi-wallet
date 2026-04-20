@@ -1,6 +1,5 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
-import android.opengl.ETC1.isValid
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.connection.ConnectionManager
 import com.dev.usdi_wallet.credential.Claim
@@ -47,6 +46,8 @@ class IdentusJWTCredentialManager (
     private val sdk = HyperledgerIdentusSdk.getInstance()
     private val processedOffer: ArrayList<String> = arrayListOf()
     private val issuedCredentials: ArrayList<String> = arrayListOf()
+    private val revokedCredentials = MutableStateFlow<List<SdkCredential>>(emptyList())
+    private val revokedCredentialNotified = MutableStateFlow<List<SdkCredential>>(emptyList())
     private val processedProofRequests: ArrayList<String> = arrayListOf()
     private val processedVerificationResults: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
@@ -318,6 +319,23 @@ class IdentusJWTCredentialManager (
         }
     }
 
+    override suspend fun getRevokedCredential(): StateFlow<List<SdkCredential>> {
+        sdk.agent.observeRevokedCredentials().collect { list ->
+            val newRevokedCredentials = list.filter { newCredential ->
+                revokedCredentials.value.none { notifiedCredentials ->
+                    notifiedCredentials.id == newCredential.id
+                }
+            }
+            if (newRevokedCredentials.isNotEmpty()) {
+                revokedCredentialNotified.value.plus(newRevokedCredentials)
+                revokedCredentials.value = newRevokedCredentials
+            } else {
+                revokedCredentials.value = emptyList()
+            }
+        }
+        return revokedCredentials.asStateFlow()
+    }
+
     override fun toUiCredential(sdkCredential: SdkCredential): Credential =
         Credential(
             id = sdkCredential.id,
@@ -342,7 +360,8 @@ class IdentusJWTCredentialManager (
                     }
                 }
             },
-            protocol = DIDCOMM1
+            protocol = DIDCOMM1,
+            revoked = sdkCredential.revoked ?: false,
         )
     private fun extractValue(value: Any): Any? {
         return when (value) {
