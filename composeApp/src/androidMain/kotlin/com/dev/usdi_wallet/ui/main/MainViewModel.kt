@@ -17,10 +17,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class WalletTab(val title: String) {
-    CONTACTS("Contacts"),
-    CREDENTIALS("Credentials"),
-    VERIFY("Verify"),
+enum class WalletTab(
+    val title: String,
+    val rootRoute: String,
+    val startRoute: String
+) {
+    CONTACTS("Contacts", "contacts_root", "contacts/list"),
+    CREDENTIALS("Credentials", "credentials_root", "credentials/list"),
+    VERIFY("Verify", "verify_root", "verify/list"),
 }
 
 data class PendingProofRequest(
@@ -36,7 +40,6 @@ data class RevokedCredentialAlert(
 )
 
 data class MainUiState(
-    val selectedTab: WalletTab = WalletTab.CONTACTS,
     val isReady: Boolean = false,
     val pendingProofRequests: List<PendingProofRequest> = emptyList(),
     val revokedCredentialAlerts: List<RevokedCredentialAlert> = emptyList(),
@@ -71,9 +74,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun onTabSelected(tab: WalletTab) {
-        _uiState.update { it.copy(selectedTab = tab) }
-    }
 
     fun dismissProofRequest() {
         _uiState.update { state ->
