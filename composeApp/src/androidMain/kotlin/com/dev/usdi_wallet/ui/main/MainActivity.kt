@@ -1,7 +1,6 @@
 package com.dev.usdi_wallet.ui.main
 
 import android.content.Context
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
