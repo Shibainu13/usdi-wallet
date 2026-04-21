@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.ui.main
 
 import android.app.Application
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dev.usdi_wallet.connection.ConnectionState
@@ -16,15 +17,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 enum class WalletTab(
     val title: String,
     val rootRoute: String,
-    val startRoute: String
+    val icon: ImageVector
 ) {
-    CONTACTS("Contacts", "contacts_root", "contacts/list"),
-    CREDENTIALS("Credentials", "credentials_root", "credentials/list"),
-    VERIFY("Verify", "verify_root", "verify/list"),
+    CONTACTS("Contacts", "contacts_root", Icons.Default.People),
+    CREDENTIALS("Credentials", "credentials_root", Icons.Default.Badge),
+    VERIFY("Verify", "verify_root", Icons.Default.CheckCircle),
 }
 
 data class PendingProofRequest(

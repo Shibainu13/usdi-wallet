@@ -1,4 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -26,9 +25,14 @@ kotlin {
             implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
             implementation("androidx.constraintlayout:constraintlayout:2.2.0")
             implementation("androidx.navigation:navigation-compose:2.8.5")
+            implementation(project.dependencies.platform("androidx.compose:compose-bom:2024.10.00"))
+            implementation("androidx.compose.material3:material3")
+
+            // Use the explicit version if the BOM is failing to resolve it
+            implementation("androidx.compose.material:material-icons-extended:1.7.5")
         }
         commonMain.dependencies {
-            implementation(compose.runtime)
+            implementation("org.jetbrains.compose.runtime:runtime:1.10.0")
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
