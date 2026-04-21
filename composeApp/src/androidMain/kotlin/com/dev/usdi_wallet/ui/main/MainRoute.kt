@@ -5,14 +5,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-
-//import com.dev.usdi_wallet.ui.contact.ContactViewModel
-
+import androidx.navigation.navigation
+import com.dev.usdi_wallet.ui.contact.ContactScreen
+import com.dev.usdi_wallet.ui.contact.ContactViewModel
+import com.dev.usdi_wallet.ui.credential.CredentialScreen
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
-
+import com.dev.usdi_wallet.ui.verification.VerificationRequestScreen
 import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
@@ -20,7 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 @Composable
 fun MainRoute(
     viewModel: MainViewModel,
-//    contactViewModel: ContactViewModel = composeViewModel(),
+    contactViewModel: ContactViewModel = composeViewModel(),
     credentialViewModel: CredentialViewModel = composeViewModel(),
     verificationRequestViewModel: VerificationRequestViewModel = composeViewModel(),
 ) {
@@ -33,7 +37,7 @@ fun MainRoute(
 
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
-    } ?: WalletTab.CREDENTIALS
+    } ?: WalletTab.CONTACTS
 
     MainScreen(
         isReady = uiState.isReady,
@@ -47,7 +51,7 @@ fun MainRoute(
         navHost = {
             MainNavHost(
                 navController = navController,
-//                contactViewModel = contactViewModel,
+                contactViewModel = contactViewModel,
                 credentialViewModel = credentialViewModel,
                 verificationRequestViewModel = verificationRequestViewModel
             )

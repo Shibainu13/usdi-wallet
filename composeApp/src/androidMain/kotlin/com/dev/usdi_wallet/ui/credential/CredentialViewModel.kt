@@ -7,7 +7,6 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.protocol.Protocol
-import com.dev.usdi_wallet.contact.Contact
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,14 +17,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 data class CredentialUiState(
     val error: String? = null,
     val selectedCredential: Credential? = null,
-    val showInvitationDialog: Boolean = false,
-    val isLoading: Boolean = false,
-    val snackbarMessage: String? = null,
 )
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,19 +29,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
     val uiState: StateFlow<CredentialUiState> = _uiState.asStateFlow()
-    val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
-        MutableStateFlow(emptyList())
-    } else {
-        combine(
-            protocols.map { it.contactManager.getContacts() }
-        ) { arrays ->
-            arrays.toList().flatten()
-        }.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
-    }
+
     val credentials: StateFlow<List<Credential>> = if (protocols.isEmpty()) {
         MutableStateFlow(emptyList())
     } else {
@@ -93,41 +76,5 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onErrorShown() {
         _uiState.update { it.copy(error = null) }
-    }
-    fun onAddContactClicked() {
-        _uiState.update { it.copy(showInvitationDialog = true) }
-    }
-
-    fun onInvitationDialogDismissed() {
-        _uiState.update { it.copy(showInvitationDialog = false) }
-    }
-
-    fun submitInvitation(invitation: String) {
-        val trimmed = invitation.trim()
-        if (trimmed.isBlank()) {
-            _uiState.update { it.copy(error = "Empty invitation") }
-            return
-        }
-
-        _uiState.update { it.copy(isLoading = true, showInvitationDialog = false) }
-
-        viewModelScope.launch {
-            try {
-                val protocol = protocols.first { it.contactManager.canHandle(trimmed) }
-                protocol.contactManager.parseInvitation(trimmed)
-
-                _uiState.update {
-                    it.copy(isLoading = false, snackbarMessage = "Invitation accepted")
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, error = "Failed: ${e.message}")
-                }
-            }
-        }
-    }
-
-    fun onSnackbarShown() {
-        _uiState.update { it.copy(snackbarMessage = null) }
     }
 }
