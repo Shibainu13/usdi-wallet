@@ -17,6 +17,6 @@ interface MessageReadStatusDao {
     @Query("SELECT isRead FROM messages WHERE messageId = :messageId")
     suspend fun isMessageRead(messageId: String): Boolean
 
-    @Query("SELECT messageId FROM messages WHERE isRead = FALSE")
-    suspend fun getUnreadMessages(): List<String>
+    @Query("SELECT messageId FROM messages WHERE isRead = TRUE")
+    suspend fun getReadMessages(): List<String>
 }

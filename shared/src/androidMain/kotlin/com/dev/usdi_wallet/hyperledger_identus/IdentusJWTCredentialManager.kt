@@ -54,7 +54,7 @@ class IdentusJWTCredentialManager(
 
     init {
         scope.launch {
-            db.messageReadStatusDao().getUnreadMessages().forEach {
+            db.messageReadStatusDao().getReadMessages().forEach {
                 processedMessageIds.add(it)
             }
 
