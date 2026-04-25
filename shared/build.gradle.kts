@@ -37,11 +37,12 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
 
             implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
-
+            implementation(kotlin("reflect"))
             implementation("co.touchlab:kermit:2.0.8")
 
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.0.1")

@@ -24,4 +24,5 @@ interface CredentialManager<CredentialType, MessageType> {
     suspend fun getRevokedCredential(): StateFlow<List<CredentialType>>
     fun toUiCredential(sdkCredential: CredentialType): Credential
     suspend fun toSdkCredential(credential: Credential): CredentialType
+    // fun getLocalCredentials(): Flow<List<Credential>>
 }

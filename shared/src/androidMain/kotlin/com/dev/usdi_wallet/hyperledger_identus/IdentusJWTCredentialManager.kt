@@ -39,6 +39,9 @@ import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.Iss
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.proofOfPresentation.RequestPresentation
 import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredential
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.util.Base64
 import java.util.UUID
 
@@ -46,6 +49,10 @@ class IdentusJWTCredentialManager(
     scope: CoroutineScope,
     context: Context
 ) : CredentialManager<SdkCredential, SdkMessage> {
+    private val file: File by lazy {
+
+        File(context.filesDir, "credentials.json")
+    }
     private val sdk = HyperledgerIdentusSdk.getInstance()
     private val processedMessageIds = mutableSetOf<String>()
     private val revokedCredentials = MutableStateFlow<List<SdkCredential>>(emptyList())
@@ -86,8 +93,95 @@ class IdentusJWTCredentialManager(
     }
 
     override suspend fun saveCredential(credential: Credential) {
-        TODO("Not yet implemented")
+
+        val list = loadAll().toMutableList()
+
+        // replace if exists
+        list.removeAll { it.id == credential.id }
+        list.add(credential)
+
+        val jsonArray = JSONArray()
+        list.forEach { jsonArray.put(toJson(it)) }
+
+        file.writeText(jsonArray.toString())
+        // update memory cache
+        //_localCredentials.value = list
     }
+    private fun loadAll(): List<Credential> {
+        Logger.d { "File path: ${file.absolutePath}" }
+        if (!file.exists()) return emptyList()
+
+        val content = file.readText()
+        if (content.isBlank()) return emptyList()
+
+        val jsonArray = JSONArray(content)
+        val result = mutableListOf<Credential>()
+
+        for (i in 0 until jsonArray.length()) {
+            result.add(fromJson(jsonArray.getJSONObject(i)))
+        }
+        Logger.d { "result: ${result.size}" }
+        return result
+    }
+    private fun toJson(credential: Credential): JSONObject {
+        return JSONObject().apply {
+            put("id", credential.id)
+            put("issuer", credential.issuer)
+            put("subject", credential.subject)
+            put("protocol", credential.protocol)
+
+            val claimsArray = JSONArray()
+            credential.claims.forEach { claimsArray.put(claimToJson(it)) }
+            put("claims", claimsArray)
+        }
+    }
+    private fun fromJson(json: JSONObject): Credential {
+        val claimsJson = json.getJSONArray("claims")
+        val claims = mutableListOf<Claim>()
+
+        for (i in 0 until claimsJson.length()) {
+            claims.add(claimFromJson(claimsJson.getJSONObject(i)))
+        }
+
+        return Credential(
+            id = json.getString("id"),
+            issuer = json.getString("issuer"),
+            subject = json.optString("subject", null),
+            protocol = json.getString("protocol"),
+            claims = claims
+        )
+    }
+    private fun claimToJson(claim: Claim): JSONObject {
+        return JSONObject().apply {
+            put("name", claim.name)
+            put("type", claim.type.toString())
+            put("pattern", claim.pattern)
+            put("value", claim.value)
+
+            claim.enum?.let { put("enum", JSONArray(it)) }
+            claim.const?.let { put("const", JSONArray(it)) }
+        }
+    }
+    private fun claimFromJson(json: JSONObject): Claim {
+        return Claim(
+            name = json.getString("name"),
+            type = ClaimType.valueOf(json.getString("type").uppercase()),
+            pattern = json.optString("pattern", null),
+            value = json.opt("value"),
+            enum = json.optJSONArray("enum")?.let { toList(it) },
+            const = json.optJSONArray("const")?.let { toList(it) }
+        )
+    }
+
+    private fun toList(array: JSONArray): List<Any> {
+        val list = mutableListOf<Any>()
+        for (i in 0 until array.length()) {
+            list.add(array.get(i))
+        }
+        return list
+    }
+
+
 
     override suspend fun removeCredential(id: String) {
         TODO("Not yet implemented")
@@ -192,6 +286,9 @@ class IdentusJWTCredentialManager(
     private suspend fun handleVerification(message: SdkMessage) {
         Logger.d(IdentusJWTCredentialManager::class.toString()) {
             "Received verification: $message"
+        }
+        Logger.d(IdentusJWTCredentialManager::class.toString()){
+            "this is where receive issue result from server"
         }
         try {
             val isValid = sdk.agent.handlePresentation(message)
@@ -375,20 +472,41 @@ class IdentusJWTCredentialManager(
             id = sdkCredential.id,
             issuer = sdkCredential.issuer,
             subject = sdkCredential.subject,
-            claims = sdkCredential.claims.map { Claim(
-                name = it.key,
-                type = when(it.value) {
-                    is SdkClaimType.StringValue -> ClaimType.STRING
-                    is SdkClaimType.NumberValue -> ClaimType.NUMBER
-                    is SdkClaimType.BoolValue -> ClaimType.BOOLEAN
-                    is SdkClaimType.DataValue -> ClaimType.BYTEARRAY
-                },
-                value = it.value,
-            ) },
+            claims = sdkCredential.claims.map { entry ->
+                val extractedValue = extractValue(entry.value)
+
+                Claim(
+                    name = entry.key,
+                    type = when (entry.value) {
+                        is SdkClaimType.StringValue -> ClaimType.STRING
+                        is SdkClaimType.NumberValue -> ClaimType.NUMBER
+                        is SdkClaimType.BoolValue -> ClaimType.BOOLEAN
+                        is SdkClaimType.DataValue -> ClaimType.BYTEARRAY
+                    },
+                    value = extractedValue
+                ).also {
+                    // This block executes after Claim is created
+                    Logger.d(IdentusJWTCredentialManager::class.simpleName.toString()) {
+                        "Mapped claim [${it.name}] with value: ${it.value}"
+                    }
+                }
+            },
             protocol = DIDCOMM1,
             revoked = sdkCredential.revoked ?: false,
         )
+    private fun extractValue(value: Any): Any? {
+        return when (value) {
+            is SdkClaimType.StringValue -> value.value
+            is SdkClaimType.NumberValue -> value.value
+            is SdkClaimType.BoolValue -> value.value
+            is SdkClaimType.DataValue -> value.value // maybe ByteArray
+            else -> null
+        }
+    }
 
     override suspend fun toSdkCredential(credential: Credential): SdkCredential =
         sdk.agent.getAllCredentials().first().find { it.id == credential.id }!!
+    private fun filter(credential: Credential){
+
+    }
 }
