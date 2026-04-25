@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
 import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
@@ -38,6 +39,8 @@ import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.Iss
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.proofOfPresentation.RequestPresentation
 import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredential
+import java.util.Base64
+import java.util.UUID
 
 class IdentusJWTCredentialManager(
     scope: CoroutineScope,
@@ -237,6 +240,100 @@ class IdentusJWTCredentialManager(
             domain = domain,
             challenge = challenge,
         )
+    }
+
+    suspend fun generatePresentationOOBInvitation(
+        claims: List<Claim>,
+        challenge: String,
+        domain: String,
+    ): String {
+        val invitationId = UUID.randomUUID().toString()
+        val requestId    = UUID.randomUUID().toString()
+        val attachmentId = UUID.randomUUID().toString()
+        val defId        = UUID.randomUUID().toString()
+        val newPeerDID   = sdk.agent.createNewPeerDID(
+            services = emptyArray(),
+            updateMediator = true
+        )
+
+        // Build input_descriptors from claims
+        val inputDescriptors = claims.map { claim ->
+            mapOf(
+                "id"   to UUID.randomUUID().toString(),
+                "name" to claim.name,
+                "constraints" to mapOf(
+                    "fields" to listOf(
+                        mapOf(
+                            "path"   to listOf("\$.vc.credentialSubject.${claim.name}", "\$.credentialSubject.${claim.name}"),
+                            "id"     to UUID.randomUUID().toString(),
+                            "name"   to claim.name,
+                            "filter" to mapOf(
+                                "type"    to claim.type.toString(),
+                                "pattern" to claim.pattern,
+                            ).filterValues { it != null },
+                        )
+                    )
+                )
+            )
+        }
+
+        val invitation = mapOf(
+            "id"   to invitationId,
+            "type" to "https://didcomm.org/out-of-band/2.0/invitation",
+            "from" to sdk.agent.getAllRegisteredPeerDIDs(),
+            "body" to mapOf(
+                "goal_code" to "present-vp",
+                "goal"      to "Request proof presentation",
+                "accept"    to listOf("didcomm/v2"),
+            ),
+            "attachments" to listOf(
+                mapOf(
+                    "id"         to attachmentId,
+                    "media_type" to "application/json",
+                    "data" to mapOf(
+                        "json" to mapOf(
+                            "id"   to requestId,
+                            "type" to "https://didcomm.atalaprism.io/present-proof/3.0/request-presentation",
+                            "body" to mapOf(
+                                "goal_code"    to "Request Proof Presentation",
+                                "will_confirm" to false,
+                                "proof_types"  to emptyList<Any>(),
+                            ),
+                            "attachments" to listOf(
+                                mapOf(
+                                    "id"         to UUID.randomUUID().toString(),
+                                    "media_type" to "application/json",
+                                    "data" to mapOf(
+                                        "json" to mapOf(
+                                            "options" to mapOf(
+                                                "challenge" to challenge,
+                                                "domain"    to domain,
+                                            ),
+                                            "presentation_definition" to mapOf(
+                                                "id"                to defId,
+                                                "input_descriptors" to inputDescriptors,
+                                                "format" to mapOf(
+                                                    "jwt" to mapOf("alg" to listOf("ES256K"))
+                                                ),
+                                            ),
+                                        )
+                                    ),
+                                    "format" to "prism/jwt",
+                                )
+                            ),
+                            "thid" to invitationId,
+                            "from" to newPeerDID,
+                        )
+                    ),
+                )
+            ),
+            "created_time" to System.currentTimeMillis() / 1000,
+            "expires_time" to (System.currentTimeMillis() / 1000) + 300,
+        )
+
+        val json    = Json.encodeToString(invitation)
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
+        return "https://domain.com/path?_oob=$encoded"
     }
 
     override suspend fun preparePresentationProof(credential: SdkCredential, message: SdkMessage) {
