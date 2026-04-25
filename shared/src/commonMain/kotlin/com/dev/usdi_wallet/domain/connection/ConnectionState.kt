@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.connection
+package com.dev.usdi_wallet.domain.connection
 
 enum class ConnectionState {
     IDLE,

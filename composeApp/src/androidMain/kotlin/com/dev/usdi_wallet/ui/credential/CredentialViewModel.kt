@@ -4,9 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.credential.Credential
+import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
-import com.dev.usdi_wallet.protocol.Protocol
+import com.dev.usdi_wallet.domain.protocol.Protocol
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,7 +25,7 @@ data class CredentialUiState(
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application),
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
     val uiState: StateFlow<CredentialUiState> = _uiState.asStateFlow()
@@ -57,12 +57,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
             list.map { protocol.credentialManager.toUiCredential(it) }
         }
 
-        val localFlow = protocol.credentialManager.getLocalCredentials()
-
-        return combine(sdkFlow, localFlow) { sdkList, localList ->
-            (sdkList + localList)
-                .distinctBy { it.id } // avoid duplicates
-        }
+        return sdkFlow;
     }
 
 

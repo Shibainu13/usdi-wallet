@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.contact
+package com.dev.usdi_wallet.domain.contact
 
 import kotlinx.coroutines.flow.Flow
 

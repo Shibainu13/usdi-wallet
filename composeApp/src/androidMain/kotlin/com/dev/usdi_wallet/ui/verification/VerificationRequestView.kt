@@ -33,10 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.contact.Contact
-import com.dev.usdi_wallet.credential.ClaimType
-import com.dev.usdi_wallet.credential.Credential
-import com.dev.usdi_wallet.credential.PredicateOperator
+import com.dev.usdi_wallet.domain.contact.Contact
+import com.dev.usdi_wallet.domain.credential.ClaimType
+import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.domain.credential.PredicateOperator
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),

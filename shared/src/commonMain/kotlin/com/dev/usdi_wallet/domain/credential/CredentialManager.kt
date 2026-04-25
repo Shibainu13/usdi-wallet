@@ -1,6 +1,6 @@
-package com.dev.usdi_wallet.credential
+package com.dev.usdi_wallet.domain.credential
 
-import com.dev.usdi_wallet.connection.ConnectionManager
+import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -24,5 +24,5 @@ interface CredentialManager<CredentialType, MessageType> {
     suspend fun getRevokedCredential(): StateFlow<List<CredentialType>>
     fun toUiCredential(sdkCredential: CredentialType): Credential
     suspend fun toSdkCredential(credential: Credential): CredentialType
-    fun getLocalCredentials(): Flow<List<Credential>>
+    // fun getLocalCredentials(): Flow<List<Credential>>
 }

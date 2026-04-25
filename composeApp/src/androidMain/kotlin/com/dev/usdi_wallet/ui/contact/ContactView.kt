@@ -31,7 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.contact.Contact
+import com.dev.usdi_wallet.domain.contact.Contact
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

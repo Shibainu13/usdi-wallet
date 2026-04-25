@@ -4,10 +4,10 @@ import android.app.Application
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.dev.usdi_wallet.connection.ConnectionState
-import com.dev.usdi_wallet.credential.Credential
+import com.dev.usdi_wallet.domain.connection.ConnectionState
+import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
-import com.dev.usdi_wallet.protocol.Protocol
+import com.dev.usdi_wallet.domain.protocol.Protocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,7 +50,7 @@ data class MainUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val protocols = listOf<Protocol<*, *>>(
-        IdentusJWTProtocol.getInstance(application),
+        IdentusJWTProtocol.getInstance(application,viewModelScope),
     )
 
     private val _uiState = MutableStateFlow(MainUiState())

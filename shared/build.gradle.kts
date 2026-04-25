@@ -4,7 +4,12 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     kotlin("plugin.serialization") version "2.1.0"
-    //alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 kotlin {
@@ -34,6 +39,9 @@ kotlin {
             implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
             implementation(kotlin("reflect"))
             implementation("co.touchlab:kermit:2.0.8")
+
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.sqlite.bundled)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
         }
         androidMain.dependencies {
@@ -51,6 +59,12 @@ kotlin {
             implementation(libs.kotlin.test)
         }
     }
+}
+
+dependencies {
+    add("kspAndroid", libs.androidx.room.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
+    add("kspIosArm64", libs.androidx.room.compiler)
 }
 
 android {

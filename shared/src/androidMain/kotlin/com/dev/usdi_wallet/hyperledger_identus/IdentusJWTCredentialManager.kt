@@ -1,19 +1,26 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
+import android.content.Context
 import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.connection.ConnectionManager
-import com.dev.usdi_wallet.credential.Claim
-import com.dev.usdi_wallet.credential.ClaimType
-import com.dev.usdi_wallet.credential.Credential
-import com.dev.usdi_wallet.credential.CredentialManager
-import com.dev.usdi_wallet.credential.VerificationRequest
-import com.dev.usdi_wallet.credential.VerificationResult
+import com.dev.usdi_wallet.db.AppDatabase
+import com.dev.usdi_wallet.db.data.MessageReadStatus
+import com.dev.usdi_wallet.domain.connection.ConnectionManager
+import com.dev.usdi_wallet.domain.credential.Claim
+import com.dev.usdi_wallet.domain.credential.ClaimType
+import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.credential.VerificationRequest
+import com.dev.usdi_wallet.domain.credential.VerificationResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
 import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
@@ -35,34 +42,46 @@ import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredenti
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import android.content.Context
-class IdentusJWTCredentialManager (
-    private val context: Context
-): CredentialManager<SdkCredential, SdkMessage> {
+import java.util.Base64
+import java.util.UUID
+
+class IdentusJWTCredentialManager(
+    scope: CoroutineScope,
+    context: Context
+) : CredentialManager<SdkCredential, SdkMessage> {
     private val file: File by lazy {
 
         File(context.filesDir, "credentials.json")
     }
     private val sdk = HyperledgerIdentusSdk.getInstance()
-    private val processedOffer: ArrayList<String> = arrayListOf()
-    private val issuedCredentials: ArrayList<String> = arrayListOf()
+    private val processedMessageIds = mutableSetOf<String>()
     private val revokedCredentials = MutableStateFlow<List<SdkCredential>>(emptyList())
     private val revokedCredentialNotified = MutableStateFlow<List<SdkCredential>>(emptyList())
-    private val processedProofRequests: ArrayList<String> = arrayListOf()
-    private val processedVerificationResults: ArrayList<String> = arrayListOf()
     private val _proofRequestToProcess = MutableStateFlow<List<SdkMessage>>(emptyList())
     private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
-    private val _localCredentials = MutableStateFlow<List<Credential>>(emptyList())
-    public val localCredentials: StateFlow<List<Credential>> = _localCredentials
+    private val db: AppDatabase = AppDatabase.getInstance(context)
+    private val initCompleted = CompletableDeferred<Unit>()
+
     init {
-        _localCredentials.value = loadAll()
-        Logger.d(IdentusJWTCredentialManager::class.toString()) {
-            "load value : $_localCredentials"
+        scope.launch {
+            db.messageReadStatusDao().getReadMessages().forEach {
+                processedMessageIds.add(it)
+            }
+
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Processed message IDs: $processedMessageIds"
+            }
+
+            db.pendingProofRequestDao().getAllIds().forEach { id ->
+                sdk.pluto.getMessage(id).first()?.let { message ->
+                    _proofRequestToProcess.update { it + message }
+                }
+            }
+
+            initCompleted.complete(Unit)
         }
     }
-    override fun getLocalCredentials(): Flow<List<Credential>> {
-        return localCredentials
-    }
+
     override fun getCredentials(): Flow<List<SdkCredential>> = sdk.agent.getAllCredentials()
 
     override fun getProofRequestsToProcess(): Flow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
@@ -86,7 +105,7 @@ class IdentusJWTCredentialManager (
 
         file.writeText(jsonArray.toString())
         // update memory cache
-        _localCredentials.value = list
+        //_localCredentials.value = list
     }
     private fun loadAll(): List<Credential> {
         Logger.d { "File path: ${file.absolutePath}" }
@@ -101,7 +120,7 @@ class IdentusJWTCredentialManager (
         for (i in 0 until jsonArray.length()) {
             result.add(fromJson(jsonArray.getJSONObject(i)))
         }
-        Logger.d { "resukt: ${result.size}" }
+        Logger.d { "result: ${result.size}" }
         return result
     }
     private fun toJson(credential: Credential): JSONObject {
@@ -172,6 +191,12 @@ class IdentusJWTCredentialManager (
         message: SdkMessage,
         connectionManager: ConnectionManager<SdkMessage>,
     ) {
+        initCompleted.await()
+
+        if (message.id in processedMessageIds) return
+
+        processedMessageIds.add(message.id)
+
         when (message.piuri) {
             ProtocolType.DidcommOfferCredential.value
                 -> handleOfferCredential(message, connectionManager)
@@ -189,26 +214,30 @@ class IdentusJWTCredentialManager (
         connectionManager: ConnectionManager<SdkMessage>,
     ) {
         try {
-            if (!processedOffer.contains(message.id)) {
-                processedOffer.add(message.id)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Received credential offer: $message"
-                }
-                val offer = OfferCredential.fromMessage(message)
-                val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
-                val authenticationKey = Secp256k1KeyPair.generateKeyPair(
-                    sdk.agent.seed,
-                    KeyCurve(Curve.SECP256K1, index)
-                )
-                val subjectDID = sdk.agent.createNewPrismDID(
-                    keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
-                )
-                val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
-                connectionManager.sendMessage(request.makeMessage())
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Credential request sent: $request"
-                }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Received credential offer: $message"
             }
+            val offer = OfferCredential.fromMessage(message)
+            val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
+            val authenticationKey = Secp256k1KeyPair.generateKeyPair(
+                sdk.agent.seed,
+                KeyCurve(Curve.SECP256K1, index)
+            )
+            val subjectDID = sdk.agent.createNewPrismDID(
+                keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
+            )
+            val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
+            connectionManager.sendMessage(request.makeMessage())
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Credential request sent: $request"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to process credential offer: ${e.message}"
@@ -218,21 +247,21 @@ class IdentusJWTCredentialManager (
 
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
-            if (!issuedCredentials.contains(message.id)) {
-                issuedCredentials.add(message.id)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Received issue offer: $message"
-                }
-                val issueCredential = IssueCredential.fromMessage(message)
-                val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Credential received: $credential"
-                }
-                //filter(credential);
-                val uiCredential = toUiCredential(credential)
-
-                saveCredential(uiCredential)
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Received issue offer: $message"
             }
+            val issueCredential = IssueCredential.fromMessage(message)
+            val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Credential received: $credential"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to receive credential: ${e.message}"
@@ -240,14 +269,18 @@ class IdentusJWTCredentialManager (
         }
     }
 
-    private fun handlePresentationRequest(message: SdkMessage) {
-        if (!processedProofRequests.contains(message.id)) {
-            processedProofRequests.add(message.id)
-            _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                "Presentation request received: $message"
-            }
+    private suspend fun handlePresentationRequest(message: SdkMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
+        Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            "Presentation request received: $message"
         }
+
+        db.messageReadStatusDao().insertMessage(
+            MessageReadStatus(
+                messageId = message.id,
+                isRead = true,
+            )
+        )
     }
 
     private suspend fun handleVerification(message: SdkMessage) {
@@ -258,16 +291,20 @@ class IdentusJWTCredentialManager (
             "this is where receive issue result from server"
         }
         try {
-            if (!processedVerificationResults.contains(message.id)) {
-                processedVerificationResults.add(message.id)
-                val isValid = sdk.agent.handlePresentation(message)
-                _verificationResults.update { current ->
-                    current + VerificationResult(message.id, isValid)
-                }
-                Logger.d(IdentusJWTCredentialManager::class.toString()) {
-                    "Verification result for $message: $isValid"
-                }
+            val isValid = sdk.agent.handlePresentation(message)
+            _verificationResults.update { current ->
+                current + VerificationResult(message.id, isValid)
             }
+            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+                "Verification result for $message: $isValid"
+            }
+
+            db.messageReadStatusDao().insertMessage(
+                MessageReadStatus(
+                    messageId = message.id,
+                    isRead = true,
+                )
+            )
         } catch (e: Exception) {
             Logger.e(IdentusJWTCredentialManager::class.toString()) {
                 "Failed to verify presentation: ${e.message}"
@@ -300,6 +337,100 @@ class IdentusJWTCredentialManager (
             domain = domain,
             challenge = challenge,
         )
+    }
+
+    suspend fun generatePresentationOOBInvitation(
+        claims: List<Claim>,
+        challenge: String,
+        domain: String,
+    ): String {
+        val invitationId = UUID.randomUUID().toString()
+        val requestId    = UUID.randomUUID().toString()
+        val attachmentId = UUID.randomUUID().toString()
+        val defId        = UUID.randomUUID().toString()
+        val newPeerDID   = sdk.agent.createNewPeerDID(
+            services = emptyArray(),
+            updateMediator = true
+        )
+
+        // Build input_descriptors from claims
+        val inputDescriptors = claims.map { claim ->
+            mapOf(
+                "id"   to UUID.randomUUID().toString(),
+                "name" to claim.name,
+                "constraints" to mapOf(
+                    "fields" to listOf(
+                        mapOf(
+                            "path"   to listOf("\$.vc.credentialSubject.${claim.name}", "\$.credentialSubject.${claim.name}"),
+                            "id"     to UUID.randomUUID().toString(),
+                            "name"   to claim.name,
+                            "filter" to mapOf(
+                                "type"    to claim.type.toString(),
+                                "pattern" to claim.pattern,
+                            ).filterValues { it != null },
+                        )
+                    )
+                )
+            )
+        }
+
+        val invitation = mapOf(
+            "id"   to invitationId,
+            "type" to "https://didcomm.org/out-of-band/2.0/invitation",
+            "from" to sdk.agent.getAllRegisteredPeerDIDs(),
+            "body" to mapOf(
+                "goal_code" to "present-vp",
+                "goal"      to "Request proof presentation",
+                "accept"    to listOf("didcomm/v2"),
+            ),
+            "attachments" to listOf(
+                mapOf(
+                    "id"         to attachmentId,
+                    "media_type" to "application/json",
+                    "data" to mapOf(
+                        "json" to mapOf(
+                            "id"   to requestId,
+                            "type" to "https://didcomm.atalaprism.io/present-proof/3.0/request-presentation",
+                            "body" to mapOf(
+                                "goal_code"    to "Request Proof Presentation",
+                                "will_confirm" to false,
+                                "proof_types"  to emptyList<Any>(),
+                            ),
+                            "attachments" to listOf(
+                                mapOf(
+                                    "id"         to UUID.randomUUID().toString(),
+                                    "media_type" to "application/json",
+                                    "data" to mapOf(
+                                        "json" to mapOf(
+                                            "options" to mapOf(
+                                                "challenge" to challenge,
+                                                "domain"    to domain,
+                                            ),
+                                            "presentation_definition" to mapOf(
+                                                "id"                to defId,
+                                                "input_descriptors" to inputDescriptors,
+                                                "format" to mapOf(
+                                                    "jwt" to mapOf("alg" to listOf("ES256K"))
+                                                ),
+                                            ),
+                                        )
+                                    ),
+                                    "format" to "prism/jwt",
+                                )
+                            ),
+                            "thid" to invitationId,
+                            "from" to newPeerDID,
+                        )
+                    ),
+                )
+            ),
+            "created_time" to System.currentTimeMillis() / 1000,
+            "expires_time" to (System.currentTimeMillis() / 1000) + 300,
+        )
+
+        val json    = Json.encodeToString(invitation)
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
+        return "https://domain.com/path?_oob=$encoded"
     }
 
     override suspend fun preparePresentationProof(credential: SdkCredential, message: SdkMessage) {
