@@ -175,7 +175,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "graduate",
         "id"
       ],
-      "author": "{didRef}"
+      "author": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc"
     }'
     ```
 
@@ -212,11 +212,11 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "faculty": "Computer Science",
         "gpa": 3
       },
-      "schemaId": "http://192.168.105.44:8085/schema-registry/schemas/8a46cfe9-4ef7-375e-8243-c4c28547b77a/schema",
-      "credentialDefinitionId": "8a46cfe9-4ef7-375e-8243-c4c28547b77a",
+      "schemaId": "http://13.90.44.25:8085/schema-registry/schemas/ffd1a019-7925-32a3-ac17-85208842bb08/schema",
+      "credentialDefinitionId": "ffd1a019-7925-32a3-ac17-85208842bb08",
       "automaticIssuance": true,
-      "connectionId": "46f89354-9066-4e77-9ef4-1fda32465c66",
-      "issuingDID": "did:prism:1264d16d2c119bc731453dfc24bb8c0651696b98e7e8cc4d15977a8a5a00c348",
+      "connectionId": "0e1432fa-0c7a-44e5-aba5-bed02777b741",
+      "issuingDID": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc",
       "goalCode": "issue-vc",
       "goal": "test-wallet",
       "domain": "faber-college-jwt-vc"

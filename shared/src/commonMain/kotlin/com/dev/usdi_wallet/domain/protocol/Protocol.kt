@@ -1,9 +1,9 @@
-package com.dev.usdi_wallet.protocol
+package com.dev.usdi_wallet.domain.protocol
 
-import com.dev.usdi_wallet.connection.ConnectionManager
-import com.dev.usdi_wallet.contact.ContactManager
-import com.dev.usdi_wallet.credential.CredentialManager
-import com.dev.usdi_wallet.message.Message
+import com.dev.usdi_wallet.domain.connection.ConnectionManager
+import com.dev.usdi_wallet.domain.contact.ContactManager
+import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.message.Message
 import kotlin.reflect.KClass
 
 abstract class Protocol<CredentialType, MessageType> {

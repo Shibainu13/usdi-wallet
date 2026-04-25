@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.dev.usdi_wallet.contact.Contact
+import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.databinding.ItemContactBinding
 
 class ContactAdapter(
