@@ -13,7 +13,7 @@ interface CredentialManager<CredentialType, MessageType> {
     suspend fun removeCredential(id: String)
     suspend fun handleInbound(
         message: MessageType,
-        connectionManager: ConnectionManager<MessageType>,
+        connectionManager: ConnectionManager<MessageType>?,
     )
     suspend fun sendVerificationRequest(
         request: VerificationRequest,

@@ -54,6 +54,9 @@ kotlin {
             implementation("app.cash.sqldelight:android-driver:2.0.2")
 
             implementation("org.hyperledger.identus:sdk:4.0.0")
+
+            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.27.0")
+            implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

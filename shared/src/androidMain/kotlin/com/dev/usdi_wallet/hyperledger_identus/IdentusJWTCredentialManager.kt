@@ -189,7 +189,7 @@ class IdentusJWTCredentialManager(
 
     override suspend fun handleInbound(
         message: SdkMessage,
-        connectionManager: ConnectionManager<SdkMessage>,
+        connectionManager: ConnectionManager<SdkMessage>?,
     ) {
         initCompleted.await()
 
@@ -199,7 +199,7 @@ class IdentusJWTCredentialManager(
 
         when (message.piuri) {
             ProtocolType.DidcommOfferCredential.value
-                -> handleOfferCredential(message, connectionManager)
+                -> handleOfferCredential(message, connectionManager!!)
             ProtocolType.DidcommIssueCredential.value
                 -> handleIssueCredential(message)
             ProtocolType.DidcommRequestPresentation.value if message.direction == SdkMessage.Direction.RECEIVED
