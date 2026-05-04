@@ -20,7 +20,11 @@ interface CredentialManager<CredentialType, MessageType> {
         domain: String,
         challenge: String,
     )
-    suspend fun preparePresentationProof(credential: CredentialType, message: MessageType)
+    suspend fun preparePresentationProof(
+        credential: CredentialType,
+        message: MessageType,
+        disclosedClaimLabels: List<String>? = null,
+    )
     suspend fun getRevokedCredential(): StateFlow<List<CredentialType>>
     fun toUiCredential(sdkCredential: CredentialType): Credential
     suspend fun toSdkCredential(credential: Credential): CredentialType

@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.dev.usdi_wallet.eudi.EudiProtocol
+
 enum class WalletTab(
     val title: String,
     val rootRoute: String,
@@ -51,6 +53,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val protocols = listOf<Protocol<*, *>>(
         IdentusJWTProtocol.getInstance(application,viewModelScope),
+        EudiProtocol.getInstance(application, viewModelScope),
     )
 
     private val _uiState = MutableStateFlow(MainUiState())
