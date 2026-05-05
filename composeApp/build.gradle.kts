@@ -69,18 +69,6 @@ android {
             pickFirsts += "google/protobuf/*.proto"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
-
-            // I also highly recommend adding these, as Identity/Crypto
-            // libraries almost always collide on these files eventually:
-            pickFirsts += "META-INF/DEPENDENCIES"
-            pickFirsts += "META-INF/LICENSE"
-            pickFirsts += "META-INF/LICENSE.txt"
-            pickFirsts += "META-INF/license.txt"
-            pickFirsts += "META-INF/NOTICE"
-            pickFirsts += "META-INF/NOTICE.txt"
-            pickFirsts += "META-INF/notice.txt"
-            pickFirsts += "META-INF/ASL2.0"
-            pickFirsts += "META-INF/*.kotlin_module"
         }
     }
     buildTypes {
@@ -99,21 +87,20 @@ dependencies {
 }
 
 configurations.all {
-    // 1. Fix BouncyCastle by excluding the old legacy artifacts
     exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
     exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
     exclude(group = "org.bouncycastle", module = "bcprov-jdk14")
     exclude(group = "com.nimbusds", module = "nimbus-jose-jwt")
     exclude(group = "net.jcip", module = "jcip-annotations")
 
-    // 2. Force the build to use the modern versions required by EUDI Wallet Core
-//    resolutionStrategy {
-//        // Force the modern BouncyCastle
-//        force("org.bouncycastle:bcprov-jdk18on:1.78.1")
-//        force("org.bouncycastle:bcpkix-jdk18on:1.78.1")
-//
-//        // Force the specific Nimbus version EUDI needs,
-//        // rather than blindly excluding it.
-//        force("com.nimbusds:nimbus-jose-jwt:10.9")
-//    }
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.ktor") {
+            useVersion("2.3.12")
+            because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
+        }
+        if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
+            useVersion("0.6.1")
+            because("Identus SDK requires kotlinx-datetime at runtime")
+        }
+    }
 }

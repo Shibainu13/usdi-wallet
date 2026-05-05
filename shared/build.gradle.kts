@@ -31,7 +31,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core:3.0.1")
+            implementation("io.ktor:ktor-client-core:2.3.12")
 
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
@@ -43,9 +43,13 @@ kotlin {
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
         }
         androidMain.dependencies {
-            implementation("io.ktor:ktor-client-okhttp:3.0.1")
+            implementation("io.ktor:ktor-client-okhttp:2.3.12")
+            implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
+            implementation("io.ktor:ktor-client-logging:2.3.12")
 
             implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
             implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
@@ -57,6 +61,8 @@ kotlin {
 
             implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.27.0")
             implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
+
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -79,5 +85,18 @@ android {
     }
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.ktor") {
+            useVersion("2.3.12")
+            because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
+        }
+        if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
+            useVersion("0.6.1")
+            because("Identus SDK requires kotlinx-datetime at runtime")
+        }
     }
 }
