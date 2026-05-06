@@ -3,9 +3,14 @@ package com.dev.usdi_wallet.eudi
 import android.app.Application
 import eu.europa.ec.eudi.wallet.EudiWallet
 import eu.europa.ec.eudi.wallet.EudiWalletConfig
+import eu.europa.ec.eudi.wallet.issue.openid4vci.OpenId4VciManager
+import eu.europa.ec.eudi.wallet.logging.Logger
+import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
+import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.io.File
+import kotlin.time.Duration.Companion.milliseconds
 
 class EudiSdk private constructor() {
     lateinit var wallet: EudiWallet private set
@@ -18,16 +23,35 @@ class EudiSdk private constructor() {
         val storageFile = File(context.noBackupFilesDir.path, "eudi.db")
         val config = EudiWalletConfig()
             .configureDocumentManager(storageFile.absolutePath)
+            .configureLogging(level = Logger.LEVEL_DEBUG)
             .configureDocumentKeyCreation(
                 userAuthenticationRequired = true,
+                userAuthenticationTimeout = 30_000.milliseconds,
                 useStrongBoxForKeys = true,
             )
             .configureOpenId4Vci {
-                withAuthFlowRedirectionURI("usdi_wallet://authorize")
+                withIssuerUrl("https://13.90.44.25/pid-issuer")
+                withAuthFlowRedirectionURI("eudi-openid4ci://authorize")
+                withParUsage(OpenId4VciManager.Config.ParUsage.IF_SUPPORTED)
             }
+            .configureProximityPresentation(
+                enableBlePeripheralMode = true,
+                enableBleCentralMode = true,
+                clearBleCache = true,
+            )
             .configureOpenId4Vp {
-                withSchemes("openid4vp", "eudi-openid4vp", "mdoc-openid4vp")
+                withClientIdSchemes(ClientIdScheme.X509SanDns)
+                withSchemes(
+                    "openid4vp",
+                    "eudi-openid4vp",
+                    "mdoc-openid4vp",
+                )
+                withFormats(
+                    Format.MsoMdoc.ES256,
+                    Format.SdJwtVc.ES256,
+                )
             }
+            .configureDocumentStatusResolver(clockSkewInMinutes = 5)
 
         wallet = EudiWallet(context, config)
     }

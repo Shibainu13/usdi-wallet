@@ -21,7 +21,8 @@ import eu.europa.ec.eudi.wallet.document.format.MsoMdocFormat
 import eu.europa.ec.eudi.wallet.document.format.SdJwtVcData
 import eu.europa.ec.eudi.wallet.document.format.SdJwtVcFormat
 import eu.europa.ec.eudi.wallet.document.nameSpacedDataJSONObject
-import eu.europa.ec.eudi.wallet.issue.openid4vci.IssueEvent
+import eu.europa.ec.eudi.wallet.issue.openid4vci.Offer
+import eu.europa.ec.eudi.wallet.issue.openid4vci.OfferResult
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.SdJwtVcItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -32,17 +33,79 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.multipaz.crypto.Algorithm
+import androidx.core.net.toUri
+import eu.europa.ec.eudi.iso18013.transfer.response.RequestedDocument
 
 class EudiCredentialManager(
     scope: CoroutineScope,
 ) : CredentialManager<Document, String> {
     private val sdk = EudiSdk.getInstance()
+    private val _proofRequestToProcess = MutableStateFlow<List<Document>>(emptyList())
     private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
 
     init {
         scope.launch {
             sdk.inboundUriFlow.collect { uri ->
                 handleInbound(uri, null)
+            }
+        }
+
+        sdk.wallet.addTransferEventListener { event ->
+            when (event) {
+                is TransferEvent.QrEngagementReady -> {
+                    val qrCodeBitMap = event.qrCode.asBitmap(size = 800)
+                }
+
+                TransferEvent.Connecting -> {
+                    Logger.d(EudiCredentialManager::class.toString()) {
+                        "Devices are connecting..."
+                    }
+                }
+
+                TransferEvent.Connected -> {
+                    Logger.d(EudiCredentialManager::class.toString()) {
+                        "Devices are connected."
+                    }
+                }
+
+                is TransferEvent.RequestReceived -> try {
+                    val processedRequest = event.processedRequest.getOrThrow()
+                    val requestedDocuments = processedRequest.requestedDocuments
+                    requestedDocuments.forEach { document ->
+                        _proofRequestToProcess.value.plus(document)
+                    }
+                } catch (e: Exception) {
+                    Logger.e(EudiCredentialManager::class.toString()) {
+                        "Error receiving request: ${e.message}"
+                    }
+                }
+
+                TransferEvent.ResponseSent -> {
+                    Logger.d(EudiCredentialManager::class.toString()) {
+                        "Response sent"
+                    }
+                }
+
+                is TransferEvent.Redirect -> {
+                    val redirectUri = event.redirectUri
+                    Logger.d(EudiCredentialManager::class.toString()) {
+                        "Redirect URI: $redirectUri"
+                    }
+                }
+
+                TransferEvent.Disconnected -> {
+                    sdk.wallet.stopProximityPresentation()
+                }
+
+                is TransferEvent.Error -> {
+                    val cause = event.error
+                    Logger.e(EudiCredentialManager::class.toString()) {
+                        "Transfer error: ${cause.message}"
+                    }
+                    sdk.wallet.stopProximityPresentation()
+                }
+
+                else -> {}
             }
         }
     }
@@ -93,27 +156,26 @@ class EudiCredentialManager(
     private fun handleIssueCredential(offerUri: String) {
         val vciManager = sdk.wallet.createOpenId4VciManager()
 
-        vciManager.issueDocumentByOfferUri(offerUri) { event ->
-            when (event) {
-                is IssueEvent.Started ->
+        vciManager.resolveDocumentOffer(offerUri) { result  ->
+            when (result) {
+                is OfferResult.Success -> {
+                    val offer: Offer = result.offer
+                    // display the offer's data to the user
+                    val issuerName = offer.issuerMetadata.toString()
+                    val offeredDocuments: List<Offer.OfferedDocument> = offer.offeredDocuments
+                    val txCodeSpec = offer.txCodeSpec // information about pre-authorized flow
+
                     Logger.d(EudiCredentialManager::class.toString()) {
-                        "Issuance Started"
+                        "Received credential from $issuerName, tx = $txCodeSpec: $offeredDocuments"
                     }
-                is IssueEvent.DocumentIssued ->
-                    Logger.d(EudiCredentialManager::class.toString()) {
-                        "Document Issued: ${event.documentId}"
-                    }
-                is IssueEvent.Failure ->
-                    Logger.e(EudiCredentialManager::class.toString()) {
-                        "Failed to issue document: ${event.cause}"
-                    }
-                is IssueEvent.DocumentRequiresUserAuth -> {
-//                    val unblockData = event.keysRequireAuth.mapValues { (alias, secureArea) ->
-//                        sdk.wallet.getDefaultKeyUnlockData(secureArea, alias)
-//                    }
-//                    event.resume(unblockData)
                 }
-                else -> {}
+                is OfferResult.Failure -> {
+                    val error = result.cause
+                    // handle error while resolving the offer
+                    Logger.e(EudiCredentialManager::class.toString()) {
+                        "Failed to handle EUDI issue credential: $error"
+                    }
+                }
             }
         }
     }
@@ -129,69 +191,8 @@ class EudiCredentialManager(
             return
         }
 
-        sdk.wallet.addTransferEventListener { event ->
-            if (event is TransferEvent.RequestReceived) {
-                try {
-                    val processedRequest = event.processedRequest.getOrThrow()
-
-                    val itemsToDisclose = disclosedClaimLabels?.map { claimLabel ->
-                        when (issuedDocument.format) {
-
-                            is MsoMdocFormat -> {
-                                // mDocs require a namespace. We dynamically search the parsed JSON
-                                // payload of the document to find which namespace this claim belongs to.
-                                val jsonObject = issuedDocument.nameSpacedDataJSONObject
-                                var targetNamespace = "org.iso.18013.5.1" // Safe fallback
-
-                                jsonObject.keys().forEach { ns ->
-                                    if (jsonObject.getJSONObject(ns).has(claimLabel)) {
-                                        targetNamespace = ns
-                                    }
-                                }
-
-                                MsoMdocItem(
-                                    namespace = targetNamespace,
-                                    elementIdentifier = claimLabel
-                                )
-                            }
-
-                            is SdJwtVcFormat -> {
-                                // SD-JWTs don't use namespaces, they just use JSON paths/keys.
-                                SdJwtVcItem(
-                                    path = listOf(claimLabel)
-                                )
-                            }
-                        }
-                    } ?: emptyList()
-
-                    // Note: Uncomment keyUnlockData when you implement biometrics!
-                    // val keyUnlockData = sdk.wallet.getDefaultKeyUnlockData(credential.id)
-
-                    val disclosedDocuments = DisclosedDocuments(
-                        DisclosedDocument(
-                            documentId = credential.id,
-                            disclosedItems = itemsToDisclose,
-                            // keyUnlockData = keyUnlockData,
-                        )
-                    )
-
-                    val response = processedRequest.generateResponse(
-                        disclosedDocuments = disclosedDocuments,
-                        signatureAlgorithm = Algorithm.ES256,
-                    ).getOrThrow()
-
-                    sdk.wallet.sendResponse(response)
-
-                } catch (e: Exception) {
-                    Logger.e(EudiCredentialManager::class.toString()) {
-                        "Failed to present EUDI proof: ${e.message}"
-                    }
-                }
-            }
-        }
-
         // Start the OpenID4VP transfer
-        sdk.wallet.startRemotePresentation(Uri.parse(message))
+        sdk.wallet.startRemotePresentation(message.toUri())
     }
 
     override suspend fun getRevokedCredential(): StateFlow<List<Document>> {
