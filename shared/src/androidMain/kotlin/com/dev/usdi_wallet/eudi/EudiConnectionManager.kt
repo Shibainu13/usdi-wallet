@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class EudiConnectionManager(
     private val context: Application,
-) : ConnectionManager<String> {
+) : ConnectionManager<EudiMessage> {
     private val sdk = EudiSdk.getInstance()
     private val _state = MutableStateFlow(ConnectionState.IDLE)
     override val state: Flow<ConnectionState> = _state.asStateFlow()
@@ -28,12 +28,17 @@ class EudiConnectionManager(
         }
     }
 
-    override suspend fun sendMessage(message: String) {
+    override suspend fun sendMessage(message: EudiMessage) {
         TODO("Not yet implemented")
     }
 
-    override suspend fun receiveMessage(msgHandler: suspend (message: String) -> Unit) {
-        TODO("Not yet implemented")
+    override suspend fun receiveMessage(msgHandler: suspend (message: EudiMessage) -> Unit) {
+        sdk.eudiMessageFlow.collect { msg ->
+            Logger.d(EudiConnectionManager::class.toString()) {
+                "Received message $msg"
+            }
+            msgHandler(msg)
+        }
     }
 
     override suspend fun stop() {

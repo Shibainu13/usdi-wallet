@@ -10,17 +10,17 @@ class EudiProtocol(
     override val protocolId: String,
     override val connectionManager: EudiConnectionManager,
     override val contactManager: EudiContactManager,
-    override val credentialManager: EudiCredentialManager,
-) : Protocol<Document, String>() {
+    override val credentialManager: EudiSdJwtCredentialManager,
+) : Protocol<Document, EudiMessage>() {
     override suspend fun startConnection() {
         connectionManager.start()
     }
 
-    override fun toUiMessage(message: String): Message =
+    override fun toUiMessage(message: EudiMessage): Message =
         Message(
             id = message.hashCode().toString(),
-            type = if (message.contains("credential_offer")) "Offer" else "Presentation",
-            raw = message
+            type = if (message is EudiMessage.CredentialOffer) "Offer" else "Presentation",
+            raw = message.toString()
         )
 
     companion object {
@@ -28,7 +28,7 @@ class EudiProtocol(
             return getInstance(EudiProtocol::class) ?: run {
                 val connectionManager = EudiConnectionManager(application)
                 val contactManager = EudiContactManager()
-                val credentialManager = EudiCredentialManager(scope)
+                val credentialManager = EudiSdJwtCredentialManager(scope)
 
                 register(
                     EudiProtocol(
