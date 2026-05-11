@@ -11,16 +11,16 @@ import eu.europa.ec.eudi.wallet.logging.Logger as SdkLogger
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
 import java.io.File
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Duration.Companion.milliseconds
 
 class EudiSdk private constructor() {
     lateinit var wallet: EudiWallet private set
 
     // Unified typed message flow replacing the raw String flow
-    private val _eudiMessageFlow = MutableSharedFlow<EudiMessage>(extraBufferCapacity = 10)
-    val eudiMessageFlow = _eudiMessageFlow.asSharedFlow()
+    private val _eudiMessageFlow = MutableStateFlow<List<EudiMessage>>(emptyList())
+    val eudiMessageFlow = _eudiMessageFlow.asStateFlow()
 
     fun start(context: Application) {
         if (this::wallet.isInitialized) return
@@ -36,6 +36,9 @@ class EudiSdk private constructor() {
             )
             .configureOpenId4Vci {
                 withIssuerUrl("https://13.90.44.25/pid-issuer")
+                withClientAuthenticationType(
+                    OpenId4VciManager.ClientAuthenticationType.AttestationBased
+                )
                 withAuthFlowRedirectionURI("eudi-openid4ci://authorize")
                 withParUsage(OpenId4VciManager.Config.ParUsage.IF_SUPPORTED)
             }
@@ -63,20 +66,14 @@ class EudiSdk private constructor() {
         startTransferEventListener()
     }
 
-    suspend fun processInvitation(uri: String) {
-        val message = parseToEudiMessage(uri)
-        _eudiMessageFlow.emit(message)
-    }
-
-    private fun parseToEudiMessage(uri: String): EudiMessage {
+    fun processInvitation(uri: String) {
         if (uri.contains("credential_offer=") || uri.startsWith("openid-credential-offer://")) {
-            return EudiMessage.CredentialOffer(uri)
+            val message = EudiMessage.CredentialOffer(uri)
+            _eudiMessageFlow.value = _eudiMessageFlow.value.plus(message)
         }
         if (uri.startsWith("openid4vp") || uri.startsWith("mdoc-openid4vp") || uri.contains("response_type=vp_token")) {
             wallet.startRemotePresentation(uri.toUri())
-            return EudiMessage.PresentationInvitation(uri)
         }
-        throw RuntimeException("Unrecognizable URL: $uri")
     }
 
     private fun startTransferEventListener() {
@@ -93,10 +90,8 @@ class EudiSdk private constructor() {
                 }
                 is TransferEvent.RequestReceived -> try {
                     val processedRequest = event.processedRequest.getOrThrow()
-                    val requestedDocuments = processedRequest.requestedDocuments
-                    requestedDocuments.forEach { document ->
-                        // Delegate this to your UI state later
-                    }
+                    val message = EudiMessage.PresentationRequest(processedRequest)
+                    _eudiMessageFlow.value = _eudiMessageFlow.value.plus(message)
                 } catch (e: Exception) {
                     Logger.e("EudiSdk") { "Error receiving request: ${e.message}" }
                 }

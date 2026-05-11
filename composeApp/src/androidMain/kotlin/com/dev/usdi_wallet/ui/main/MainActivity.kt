@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        Logger.d(MainActivity::class.toString()) { "Received new intent: $intent" }
         setIntent(intent)
         handleAuthIntent(intent)
     }

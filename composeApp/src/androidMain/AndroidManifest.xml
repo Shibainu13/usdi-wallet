@@ -28,8 +28,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="usdi-wallet"
-                    android:host="auth-callback" />
+                    android:scheme="eudi-openid4vci"
+                    android:host="authorize" />
             </intent-filter>
         </activity>
     </application>

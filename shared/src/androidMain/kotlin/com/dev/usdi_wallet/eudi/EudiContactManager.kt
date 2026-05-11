@@ -3,6 +3,7 @@ package com.dev.usdi_wallet.eudi
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.contact.ContactManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 class EudiContactManager : ContactManager {
     private val sdk = EudiSdk.getInstance()
@@ -18,9 +19,7 @@ class EudiContactManager : ContactManager {
         sdk.processInvitation(invitation)
     }
 
-    override fun getContacts(): Flow<List<Contact>> {
-        TODO("Not yet implemented")
-    }
+    override fun getContacts(): Flow<List<Contact>> = emptyFlow()
 
     override fun removeContact(contact: Contact) {
         TODO("Not yet implemented")

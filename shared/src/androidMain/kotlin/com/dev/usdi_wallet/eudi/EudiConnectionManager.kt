@@ -33,11 +33,13 @@ class EudiConnectionManager(
     }
 
     override suspend fun receiveMessage(msgHandler: suspend (message: EudiMessage) -> Unit) {
-        sdk.eudiMessageFlow.collect { msg ->
-            Logger.d(EudiConnectionManager::class.toString()) {
-                "Received message $msg"
+        sdk.eudiMessageFlow.collect { list ->
+            list.forEach { msg ->
+                Logger.d(EudiConnectionManager::class.toString()) {
+                    "Received message $msg"
+                }
+                msgHandler(msg)
             }
-            msgHandler(msg)
         }
     }
 

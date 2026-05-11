@@ -454,7 +454,7 @@ class IdentusJWTCredentialManager(
         }
     }
 
-    override suspend fun getRevokedCredential(): StateFlow<List<SdkCredential>> {
+    override suspend fun getRevokedCredential(): Flow<List<SdkCredential>> {
         sdk.agent.observeRevokedCredentials().collect { list ->
             val newRevokedCredentials = list.filter { newCredential ->
                 revokedCredentials.value.none { notifiedCredentials ->

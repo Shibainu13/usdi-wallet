@@ -11,12 +11,7 @@ sealed class EudiMessage {
         val rawUri: String,
     ) : EudiMessage()
 
-    data class PresentationInvitation(
-        val rawUri: String,
-    ) : EudiMessage()
-
     data class PresentationRequest(
-        val rawUri: String,
         val processedRequest: RequestProcessor.ProcessedRequest.Success,
-    )
+    ) : EudiMessage()
 }

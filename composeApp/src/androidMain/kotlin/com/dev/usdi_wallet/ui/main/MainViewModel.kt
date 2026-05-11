@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.eudi.EudiProtocol
 
 enum class WalletTab(
@@ -74,6 +75,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         observeRevokedCredentials()
         viewModelScope.launch {
             areAgentsRunning.collect { running ->
+                if (!running) {
+                    Logger.w(MainViewModel::class.toString()) {
+                        "At least one of the protocols is not running"
+                    }
+                }
                 _uiState.update { it.copy(isReady = running) }
             }
         }

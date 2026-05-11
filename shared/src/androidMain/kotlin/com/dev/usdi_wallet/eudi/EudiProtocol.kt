@@ -14,6 +14,9 @@ class EudiProtocol(
 ) : Protocol<Document, EudiMessage>() {
     override suspend fun startConnection() {
         connectionManager.start()
+        connectionManager.receiveMessage { msg ->
+            credentialManager.handleInbound(msg, connectionManager)
+        }
     }
 
     override fun toUiMessage(message: EudiMessage): Message =
