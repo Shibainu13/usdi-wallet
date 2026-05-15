@@ -95,7 +95,7 @@ configurations.all {
 
     resolutionStrategy.eachDependency {
         if (requested.group == "io.ktor") {
-            useVersion("2.3.12")
+            useVersion("3.0.1")
             because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
         }
         if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {

@@ -52,9 +52,7 @@ class EudiSdJwtCredentialManager(
     }
 
     private fun handleIssueCredential(message: EudiMessage.CredentialOffer) {
-        val vciManager = sdk.wallet.createOpenId4VciManager()
-
-        vciManager.resolveDocumentOffer(message.rawUri) { result  ->
+        sdk.openId4VciManager.resolveDocumentOffer(message.rawUri) { result  ->
             when (result) {
                 is OfferResult.Success -> {
                     val offer: Offer = result.offer

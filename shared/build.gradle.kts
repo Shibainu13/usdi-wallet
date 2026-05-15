@@ -57,9 +57,9 @@ kotlin {
 
             implementation("app.cash.sqldelight:android-driver:2.0.2")
 
-            implementation("org.hyperledger.identus:sdk:4.0.0")
+            implementation("org.hyperledger.identus:sdk:4.0.0-mod1")
 
-            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.27.0")
+            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.23.0")
             implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
 
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
@@ -91,7 +91,7 @@ android {
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.ktor") {
-            useVersion("2.3.12")
+            useVersion("3.0.1")
             because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
         }
         if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {

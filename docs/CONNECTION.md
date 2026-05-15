@@ -212,11 +212,11 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "faculty": "Computer Science",
         "gpa": 3
       },
-      "schemaId": "http://<your-schema-service>:8085/schema-registry/schemas/{guid}/schema",
-      "credentialDefinitionId": "8a46cfe9-4ef7-375e-8243-c4c28547b77a",
+      "schemaId": "http://13.90.44.25:8085/schema-registry/schemas/ffd1a019-7925-32a3-ac17-85208842bb08/schema",
+      "credentialDefinitionId": "ffd1a019-7925-32a3-ac17-85208842bb08",
       "automaticIssuance": true,
-      "connectionId": "0e1432fa-0c7a-44e5-aba5-bed02777b741",
       "issuingDID": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc",
+      "connectionId": "28d2a747-5f38-4dfa-aba1-ff5d36c3070c",
       "goalCode": "issue-vc",
       "goal": "test-wallet",
       "domain": "faber-college-jwt-vc"

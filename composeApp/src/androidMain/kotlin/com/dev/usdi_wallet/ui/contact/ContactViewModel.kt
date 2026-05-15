@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,7 +28,7 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.contactManager.getContacts() }
+            protocols.map { it.contactManager.getContacts().onStart { emit(emptyList()) } }
         ) { contactArrays ->
             contactArrays.toList().flatten()
         }.stateIn(

@@ -1,6 +1,5 @@
 package com.dev.usdi_wallet.ui.main
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,16 +7,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.lifecycle.lifecycleScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private lateinit var deepLinkRouter: DeepLinkRouter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        handleAuthIntent(intent)
+        deepLinkRouter = DeepLinkRouter(
+            protocols = listOf(
+                IdentusJWTProtocol.getInstance(application, lifecycleScope),
+                EudiProtocol.getInstance(application, lifecycleScope),
+            ),
+            scope = lifecycleScope,
+        )
+
+        deepLinkRouter.handle(intent)
 
         setContent {
             MaterialTheme {
@@ -32,25 +43,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         Logger.d(MainActivity::class.toString()) { "Received new intent: $intent" }
         setIntent(intent)
-        handleAuthIntent(intent)
-    }
-
-    private fun handleAuthIntent(intent: Intent) {
-        if (Intent.ACTION_VIEW == intent.action) {
-            val uri = intent.data
-            if (uri != null && uri.scheme == "usdi-wallet" && uri.host == "auth-callback") {
-                val authCode = uri.getQueryParameter("code")
-                if (authCode != null) {
-                    Logger.d(MainActivity::class.toString()) {
-                        "Received AuthCode: $authCode"
-                    }
-                } else {
-                    val error = uri.getQueryParameter("error")
-                    Logger.e(MainActivity::class.toString()) {
-                        "Failed to receive auth code: $error"
-                    }
-                }
-            }
-        }
+        deepLinkRouter.handle(intent)
     }
 }

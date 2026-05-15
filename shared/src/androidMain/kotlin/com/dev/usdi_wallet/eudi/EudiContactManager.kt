@@ -10,6 +10,7 @@ class EudiContactManager : ContactManager {
     private val protocolId = "OPENID4VC"
 
     override fun canHandle(invitation: String): Boolean =
+        invitation.startsWith("eudi-openid4vci://authorize") ||
         invitation.startsWith("openid-credential-offer://") ||
         invitation.startsWith("openid4vp://") ||
         invitation.startsWith("mdoc-openid4vp://") ||

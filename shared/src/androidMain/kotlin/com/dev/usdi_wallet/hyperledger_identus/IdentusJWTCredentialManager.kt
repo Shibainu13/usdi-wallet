@@ -181,8 +181,6 @@ class IdentusJWTCredentialManager(
         return list
     }
 
-
-
     override suspend fun removeCredential(id: String) {
         TODO("Not yet implemented")
     }

@@ -4,9 +4,11 @@ import android.app.Application
 import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import eu.europa.ec.eudi.iso18013.transfer.TransferEvent
+import eu.europa.ec.eudi.openid4vci.Nonce
 import eu.europa.ec.eudi.wallet.EudiWallet
 import eu.europa.ec.eudi.wallet.EudiWalletConfig
 import eu.europa.ec.eudi.wallet.issue.openid4vci.OpenId4VciManager
+import eu.europa.ec.eudi.wallet.provider.WalletAttestationsProvider
 import eu.europa.ec.eudi.wallet.logging.Logger as SdkLogger
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
@@ -14,13 +16,39 @@ import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Duration.Companion.milliseconds
+import org.multipaz.securearea.KeyInfo
 
 class EudiSdk private constructor() {
     lateinit var wallet: EudiWallet private set
-
-    // Unified typed message flow replacing the raw String flow
+    lateinit var openId4VciManager: OpenId4VciManager
     private val _eudiMessageFlow = MutableStateFlow<List<EudiMessage>>(emptyList())
     val eudiMessageFlow = _eudiMessageFlow.asStateFlow()
+    val walletAttestationsProvider = object : WalletAttestationsProvider {
+        /**
+         * WIA (Wallet Instance Attestation)
+         * Used for Client Authentication (OAuth 2.0).
+         */
+        override suspend fun getWalletAttestation(keyInfo: KeyInfo): Result<String> {
+            //  Make a network call to your Wallet Provider Service.
+            //  Send the public key from 'keyInfo' (PoP key).
+            //  Prove app integrity
+            // Return the "Client Attestation JWT" signed by your Provider.
+            return Result.success("ey...<The_WIA_JWT>")
+        }
+
+        /**
+         * WUA (Wallet Unit Attestation)
+         * Used to authorize Credential Issuance.
+         */
+        override suspend fun getKeyAttestation(keys: List<KeyInfo>, nonce: Nonce?): Result<String> {
+            // Make a network call to your Wallet Provider Service.
+            // Send the public keys (from 'keys') intended for the new Credential.
+            // Provide the 'nonce' if required by the Issuer.
+            // Return the "Wallet Unit Attestation" (or Key Attestation) JWT.
+            // This certifies that these specific keys are hardware-bound and trusted.
+            return Result.success("ey...<The_WUA_JWT>")
+        }
+    }
 
     fun start(context: Application) {
         if (this::wallet.isInitialized) return
@@ -61,7 +89,8 @@ class EudiSdk private constructor() {
             }
             .configureDocumentStatusResolver(clockSkewInMinutes = 5)
 
-        wallet = EudiWallet(context, config)
+        wallet = EudiWallet(context, config,walletAttestationsProvider)
+        openId4VciManager = wallet.createOpenId4VciManager()
 
         startTransferEventListener()
     }
@@ -73,6 +102,9 @@ class EudiSdk private constructor() {
         }
         if (uri.startsWith("openid4vp") || uri.startsWith("mdoc-openid4vp") || uri.contains("response_type=vp_token")) {
             wallet.startRemotePresentation(uri.toUri())
+        }
+        if (uri.startsWith("eudi-openid4vci://authorize")) {
+            openId4VciManager.resumeWithAuthorization(uri.toUri())
         }
     }
 
