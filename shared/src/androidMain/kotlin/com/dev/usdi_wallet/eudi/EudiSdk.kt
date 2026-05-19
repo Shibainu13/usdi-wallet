@@ -12,11 +12,20 @@ import eu.europa.ec.eudi.wallet.provider.WalletAttestationsProvider
 import eu.europa.ec.eudi.wallet.logging.Logger as SdkLogger
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.OkHttpClient
 import kotlin.time.Duration.Companion.milliseconds
 import org.multipaz.securearea.KeyInfo
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class EudiSdk private constructor() {
     lateinit var wallet: EudiWallet private set
@@ -90,7 +99,9 @@ class EudiSdk private constructor() {
             .configureDocumentStatusResolver(clockSkewInMinutes = 5)
 
         wallet = EudiWallet(context, config,walletAttestationsProvider)
-        openId4VciManager = wallet.createOpenId4VciManager()
+        openId4VciManager = wallet.createOpenId4VciManager(
+            ktorHttpClientFactory = { buildTrustAllKtorClient() }
+        )
 
         startTransferEventListener()
     }
@@ -141,6 +152,29 @@ class EudiSdk private constructor() {
                     wallet.stopProximityPresentation()
                 }
                 else -> {}
+            }
+        }
+    }
+
+    private fun buildTrustAllKtorClient(): HttpClient {
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate?>?, authType: String?) = Unit
+                override fun checkServerTrusted(chain: Array<out X509Certificate?>?, authType: String?) = Unit
+                override fun getAcceptedIssuers(): Array<X509Certificate?> = arrayOf()
+            }
+        )
+        val sslContext = SSLContext.getInstance("SSL").apply {
+            init(null, trustAllCerts, SecureRandom())
+        }
+        val okHttpClient = OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            .hostnameVerifier(HostnameVerifier { _, _ -> true })
+            .build()
+
+        return HttpClient(OkHttp) {
+            engine {
+                preconfigured = okHttpClient
             }
         }
     }

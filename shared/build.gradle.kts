@@ -57,9 +57,14 @@ kotlin {
 
             implementation("app.cash.sqldelight:android-driver:2.0.2")
 
-            implementation("org.hyperledger.identus:sdk:4.0.0-mod1")
+            implementation("org.hyperledger.identus:sdk:4.0.0-mod1") {
+                exclude(group = "org.didcommx", module = "didcomm")
+            }
+            implementation("org.didcommx:didcomm:0.3.2")
+            implementation(files("libs/didcomm-relocated-0.3.2.jar"))
+            implementation("com.google.crypto.tink:tink-android:1.7.0")
 
-            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.23.0")
+            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.28.1")
             implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
 
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
@@ -86,17 +91,25 @@ android {
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
+    packaging {
+        resources {
+            pickFirsts += "google/protobuf/*.proto"
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "com/nimbusds/jose/**"
+            pickFirsts += "com/nimbusds/jwt/**"
+        }
+    }
 }
 
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.ktor") {
             useVersion("3.0.1")
-            because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
+            because("EUDI SDK requires Ktor 3.x — overrides EUDI strict constraints")
         }
         if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
             useVersion("0.6.1")
             because("Identus SDK requires kotlinx-datetime at runtime")
         }
-    }
 }

@@ -69,6 +69,8 @@ android {
             pickFirsts += "google/protobuf/*.proto"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "com/nimbusds/jose/**"
+            pickFirsts += "com/nimbusds/jwt/**"
         }
     }
     buildTypes {
@@ -90,7 +92,7 @@ configurations.all {
     exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
     exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
     exclude(group = "org.bouncycastle", module = "bcprov-jdk14")
-    exclude(group = "com.nimbusds", module = "nimbus-jose-jwt")
+    exclude(group = "org.didcommx", module = "didcomm")
     exclude(group = "net.jcip", module = "jcip-annotations")
 
     resolutionStrategy.eachDependency {
