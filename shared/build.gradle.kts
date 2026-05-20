@@ -31,43 +31,30 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core:2.3.12")
-
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
-
-            implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
+            implementation(libs.ktor.client.core)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.androidx.lifecycle.viewmodel)
             implementation(kotlin("reflect"))
-            implementation("co.touchlab:kermit:2.0.8")
-
+            implementation(libs.kermit)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+            implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
-            implementation("io.ktor:ktor-client-okhttp:2.3.12")
-            implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
-            implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
-            implementation("io.ktor:ktor-client-logging:2.3.12")
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.logging)
 
-            implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
-            implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
-            implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+            implementation(libs.androidx.lifecycle.livedata.ktx)
+            implementation(libs.androidx.lifecycle.viewmodel.ktx)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
 
-            implementation("app.cash.sqldelight:android-driver:2.0.2")
-
-            implementation("org.hyperledger.identus:sdk:4.0.0-mod1") {
-                exclude(group = "org.didcommx", module = "didcomm")
-            }
-            implementation("org.didcommx:didcomm:0.3.2")
-            implementation(files("libs/didcomm-relocated-0.3.2.jar"))
-            implementation("com.google.crypto.tink:tink-android:1.7.0")
-
-            implementation("eu.europa.ec.eudi:eudi-lib-android-wallet-core:0.28.1")
-            implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
-
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+            implementation(libs.sqldelight.android.driver)
+            implementation(libs.identus.sdk)
+            implementation(libs.eudi.wallet.core)
+            implementation(libs.androidx.biometric)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -105,11 +92,12 @@ android {
 configurations.all {
     resolutionStrategy.eachDependency {
         if (requested.group == "io.ktor") {
-            useVersion("3.0.1")
+            useVersion(libs.versions.ktor.override.get())
             because("EUDI SDK requires Ktor 3.x — overrides EUDI strict constraints")
         }
         if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
-            useVersion("0.6.1")
+            useVersion(libs.versions.datetime.get())
             because("Identus SDK requires kotlinx-datetime at runtime")
         }
+    }
 }

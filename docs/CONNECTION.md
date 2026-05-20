@@ -201,7 +201,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
 
 6. Now everything is set! We can issue a simple certificate:
     ```shell
-    $ curl -X 'POST'   'http://localhost:8085/issue-credentials/credential-offers'   -H 'Content-Type: application/json'   -d '{
+    $ curl -X 'POST'   'http://localhost:8085/issue-credentials/credential-offers/invitation'   -H 'Content-Type: application/json'   -d '{
       "validityPeriod": 3600,
       "credentialFormat": "JWT",
       "claims": {
@@ -216,12 +216,13 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       "credentialDefinitionId": "ffd1a019-7925-32a3-ac17-85208842bb08",
       "automaticIssuance": true,
       "issuingDID": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc",
-      "connectionId": "28d2a747-5f38-4dfa-aba1-ff5d36c3070c",
       "goalCode": "issue-vc",
       "goal": "test-wallet",
       "domain": "faber-college-jwt-vc"
       }'
     ```
+   
+7. 
 Replace with you service and schema address.
 ### Run the application
 
