@@ -14,6 +14,7 @@ import eu.europa.ec.eudi.iso18013.transfer.response.DocItem
 import eu.europa.ec.eudi.iso18013.transfer.response.device.MsoMdocItem
 import eu.europa.ec.eudi.wallet.document.Document
 import eu.europa.ec.eudi.wallet.document.IssuedDocument
+import eu.europa.ec.eudi.wallet.issue.openid4vci.IssueEvent
 import eu.europa.ec.eudi.wallet.issue.openid4vci.Offer
 import eu.europa.ec.eudi.wallet.issue.openid4vci.OfferResult
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.SdJwtVcItem
@@ -61,7 +62,36 @@ class EudiSdJwtCredentialManager(
                     val txCodeSpec = offer.txCodeSpec
 
                     Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                        "Received credential from $issuerName, tx = $txCodeSpec: $offeredDocuments"
+                        "Received offer from $issuerName, tx = $txCodeSpec: $offeredDocuments"
+                    }
+
+                    sdk.openId4VciManager.issueDocumentByOffer(
+                        offer = offer,
+                    ) { issueEvent ->
+                        when (issueEvent) {
+                            is IssueEvent.DocumentIssued -> {
+                                Logger.d(EudiSdJwtCredentialManager::class.toString()) {
+                                    "Document issued: ${issueEvent.document.id}"
+                                }
+                                // getDocuments() will now return this document
+                            }
+                            is IssueEvent.DocumentFailed -> {
+                                Logger.e(EudiSdJwtCredentialManager::class.toString()) {
+                                    "Document issuance failed: ${issueEvent.cause}"
+                                }
+                            }
+                            is IssueEvent.Started -> {
+                                Logger.d(EudiSdJwtCredentialManager::class.toString()) {
+                                    "Issuance started, total: ${issueEvent.total}"
+                                }
+                            }
+                            is IssueEvent.Finished -> {
+                                Logger.d(EudiSdJwtCredentialManager::class.toString()) {
+                                    "Issuance finished"
+                                }
+                            }
+                            else -> {}
+                        }
                     }
                 }
                 is OfferResult.Failure -> {

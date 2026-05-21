@@ -74,7 +74,7 @@ class EudiSdk private constructor() {
             .configureOpenId4Vci {
                 withIssuerUrl("https://13.90.44.25/pid-issuer")
                 withClientAuthenticationType(
-                    OpenId4VciManager.ClientAuthenticationType.AttestationBased
+                    OpenId4VciManager.ClientAuthenticationType.None("wallet-dev")
                 )
                 withAuthFlowRedirectionURI("eudi-openid4ci://authorize")
                 withParUsage(OpenId4VciManager.Config.ParUsage.IF_SUPPORTED)
