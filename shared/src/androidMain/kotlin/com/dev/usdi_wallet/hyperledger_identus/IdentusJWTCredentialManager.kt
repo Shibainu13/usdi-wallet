@@ -39,6 +39,7 @@ import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.Iss
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.proofOfPresentation.RequestPresentation
 import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredential
+import org.hyperledger.identus.walletsdk.pollux.models.AnonCredential
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -467,33 +468,163 @@ class IdentusJWTCredentialManager(
         return revokedCredentials.asStateFlow()
     }
 
-    override fun toUiCredential(sdkCredential: SdkCredential): Credential =
-        Credential(
+    override fun toUiCredential(sdkCredential: SdkCredential): Credential {
+        val claims = extractClaimsFromAnonCredential(sdkCredential)
+
+        claims.forEach { claim ->
+            Logger.d(IdentusJWTCredentialManager::class.simpleName.toString()) {
+                "Mapped claim [${claim.name}] with value: ${claim.value}"
+            }
+        }
+
+        return Credential(
             id = sdkCredential.id,
             issuer = sdkCredential.issuer,
             subject = sdkCredential.subject,
-            claims = sdkCredential.claims.map { entry ->
-                val extractedValue = extractValue(entry.value)
-
-                Claim(
-                    name = entry.key,
-                    type = when (entry.value) {
-                        is SdkClaimType.StringValue -> ClaimType.STRING
-                        is SdkClaimType.NumberValue -> ClaimType.NUMBER
-                        is SdkClaimType.BoolValue -> ClaimType.BOOLEAN
-                        is SdkClaimType.DataValue -> ClaimType.BYTEARRAY
-                    },
-                    value = extractedValue
-                ).also {
-                    // This block executes after Claim is created
-                    Logger.d(IdentusJWTCredentialManager::class.simpleName.toString()) {
-                        "Mapped claim [${it.name}] with value: ${it.value}"
-                    }
-                }
-            },
+            claims = claims,
             protocol = DIDCOMM1,
             revoked = sdkCredential.revoked ?: false,
         )
+    }
+
+    private fun extractClaimsFromAnonCredential(sdkCredential: SdkCredential): List<Claim> {
+        val fallbackClaims = sdkCredential.claims.map { entry ->
+            claimFromRawValue(entry.key, extractValue(entry.value))
+        }
+
+        val rawClaims = extractClaimsFromAnonCredentialJson(sdkCredential.id)
+            ?: extractClaimsFromAnonCredentialValues(sdkCredential as? AnonCredential)
+            ?: return fallbackClaims
+
+        val rawClaimsByName = rawClaims.associateBy { it.name }
+        val fallbackNames = fallbackClaims.map { it.name }.toSet()
+        val mergedClaims = fallbackClaims.map { fallbackClaim ->
+            rawClaimsByName[fallbackClaim.name] ?: fallbackClaim
+        }
+        val extraRawClaims = rawClaims.filter { it.name !in fallbackNames }
+
+        return mergedClaims + extraRawClaims
+    }
+
+    private fun extractClaimsFromAnonCredentialJson(json: String): List<Claim>? {
+        return runCatching {
+            findAnonCredentialValues(JSONObject(json))
+        }.getOrNull()
+            ?.let { claimsFromAnonCredentialValues(it) }
+            ?.takeIf { it.isNotEmpty() }
+            ?: extractClaimsFromAnonCredentialText(json)
+    }
+
+    private fun extractClaimsFromAnonCredentialText(text: String): List<Claim>? {
+        val values = valuesObjectText(text)?.let { valuesText ->
+            runCatching { JSONObject(valuesText) }.getOrNull()
+                ?: runCatching { JSONObject(valuesText.replace("\\\"", "\"")) }.getOrNull()
+        }
+
+        return values
+            ?.let { claimsFromAnonCredentialValues(it) }
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun valuesObjectText(text: String): String? {
+        val valuesKeyIndex = text.indexOf("\"values\"").takeIf { it >= 0 }
+            ?: text.indexOf("values").takeIf { it >= 0 }
+            ?: return null
+        val valuesStart = text.indexOf('{', valuesKeyIndex).takeIf { it >= 0 } ?: return null
+        var depth = 0
+        var inString = false
+        var isEscaped = false
+
+        for (index in valuesStart until text.length) {
+            val char = text[index]
+            when {
+                isEscaped -> isEscaped = false
+                char == '\\' && inString -> isEscaped = true
+                char == '"' -> inString = !inString
+                !inString && char == '{' -> depth++
+                !inString && char == '}' -> {
+                    depth--
+                    if (depth == 0) return text.substring(valuesStart, index + 1)
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun extractClaimsFromAnonCredentialValues(credential: AnonCredential?): List<Claim>? {
+        return credential?.values
+            ?.map { (name, attribute) -> claimFromRawValue(name, attribute.raw) }
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun claimsFromAnonCredentialValues(values: JSONObject): List<Claim> {
+        val claims = mutableListOf<Claim>()
+        val keys = values.keys()
+
+        while (keys.hasNext()) {
+            val key = keys.next()
+            claims.add(claimFromRawValue(key, extractRawValue(values.opt(key))))
+        }
+
+        return claims
+    }
+
+    private fun findAnonCredentialValues(json: JSONObject): JSONObject? {
+        json.optJSONObject("values")?.let { values ->
+            if (valuesLooksLikeAnonCredentialAttributes(values)) return values
+        }
+
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val child = json.opt(keys.next())
+            when (child) {
+                is JSONObject -> findAnonCredentialValues(child)?.let { return it }
+                is JSONArray -> {
+                    for (index in 0 until child.length()) {
+                        (child.opt(index) as? JSONObject)?.let { item ->
+                            findAnonCredentialValues(item)?.let { return it }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun valuesLooksLikeAnonCredentialAttributes(values: JSONObject): Boolean {
+        val keys = values.keys()
+        while (keys.hasNext()) {
+            val attribute = values.opt(keys.next())
+            if (attribute is JSONObject && attribute.has("raw")) return true
+        }
+
+        return false
+    }
+
+    private fun extractRawValue(value: Any?): Any? {
+        return when (value) {
+            is JSONObject -> value.opt("raw").takeUnless { it == JSONObject.NULL }
+                ?: value.opt("value").takeUnless { it == JSONObject.NULL }
+                ?: value.toString()
+            JSONObject.NULL -> null
+            else -> value
+        }
+    }
+
+    private fun claimFromRawValue(name: String, value: Any?): Claim {
+        return Claim(
+            name = name,
+            type = when (value) {
+                is Number -> ClaimType.NUMBER
+                is Boolean -> ClaimType.BOOLEAN
+                null -> ClaimType.NULL
+                else -> ClaimType.STRING
+            },
+            value = value,
+        )
+    }
     private fun extractValue(value: Any): Any? {
         return when (value) {
             is SdkClaimType.StringValue -> value.value

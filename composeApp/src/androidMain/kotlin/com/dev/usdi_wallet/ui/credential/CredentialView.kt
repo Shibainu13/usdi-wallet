@@ -26,7 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.credential.Credential
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Composable
 fun CredentialScreen(viewModel: CredentialViewModel) {
@@ -79,8 +82,9 @@ fun CredentialScreen(viewModel: CredentialViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Issuer: ${credential.issuer}")
                     Text(text = "Protocol: ${credential.protocol}")
+                    Logger.d("Claims: ${credential.claims}")
                     credential.claims.forEach { claim ->
-                        Text(text = "${claim.name}: ${claim.value ?: "N/A"}")
+                        Text(text = "${claim.name}: ${formatClaimValue(claim.value)}")
                     }
                 }
             },
@@ -110,10 +114,65 @@ private fun CredentialCard(
 
             credential.claims.forEach { claim ->
                 Text(
-                    text = "${claim.name}: ${claim.value ?: "N/A"}",
+                    text = "${claim.name}: ${formatClaimValue(claim.value)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
     }
+}
+
+private fun formatClaimValue(value: Any?): String {
+    return when (value) {
+        null -> "N/A"
+        is JSONObject -> formatJsonObjectClaimValue(value)
+        is JSONArray -> formatJsonArrayClaimValue(value)
+        is Map<*, *> -> formatMapClaimValue(value)
+        is List<*> -> value.joinToString(", ") { formatClaimValue(it) }
+        is String -> rawValueFromJsonString(value) ?: value
+        else -> rawMemberValue(value)?.toString() ?: value.toString()
+    }
+}
+
+private fun formatJsonObjectClaimValue(value: JSONObject): String {
+    value.opt("raw")?.let { return it.toString() }
+
+    return value.keys().asSequence().joinToString(", ") { key ->
+        "$key: ${formatClaimValue(value.opt(key))}"
+    }
+}
+
+private fun formatJsonArrayClaimValue(value: JSONArray): String {
+    return (0 until value.length()).joinToString(", ") { index ->
+        formatClaimValue(value.opt(index))
+    }
+}
+
+private fun formatMapClaimValue(value: Map<*, *>): String {
+    value["raw"]?.let { return it.toString() }
+
+    return value.entries.joinToString(", ") { (key, itemValue) ->
+        "$key: ${formatClaimValue(itemValue)}"
+    }
+}
+
+private fun rawValueFromJsonString(value: String): String? {
+    return runCatching {
+        formatJsonObjectClaimValue(JSONObject(value))
+    }.getOrNull()
+}
+
+private fun rawMemberValue(value: Any): Any? {
+    value.javaClass.methods
+        .firstOrNull { method -> method.name == "getRaw" && method.parameterTypes.isEmpty() }
+        ?.let { method -> return runCatching { method.invoke(value) }.getOrNull() }
+
+    return value.javaClass.declaredFields
+        .firstOrNull { field -> field.name == "raw" }
+        ?.let { field ->
+            runCatching {
+                field.isAccessible = true
+                field.get(value)
+            }.getOrNull()
+        }
 }

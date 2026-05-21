@@ -123,7 +123,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       -d ''
     ```
 
-3. Create a new credential schema. Take note of the schema `id` attribute in the response, since we will use it later:
+3. Create a new credential schema. Take note of the schema `id`,`guid` attribute in the response, since we will use it later:
     ```shell
     $ curl -X 'POST' \
       'http://localhost:8085/schema-registry/schemas' \
@@ -178,7 +178,58 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       "author": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc"
     }'
     ```
+   Check the list credential definition
+```shell
+curl -X GET \
+  'http://192.168.1.9:8085/credential-definition-registry/definitions' \
+  -H 'accept: application/json'
+```
 
+Expect the responce
+```json
+{
+  "contents": [
+    {
+      "guid": "THE_VALUE_YOU_NEED",
+      "id": "...",
+      "schemaId": "...",
+      "author": "did:prism:..."
+    }
+  ]
+}
+  ```
+
+If not exist then create one
+```shell
+curl -X POST \
+  'http://192.168.1.9:8085/credential-definition-registry/definitions' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "BirthdayCredential",
+    "description": "Birthday credential definition",
+    "version": "1.0.0",
+    "tag": "birthday",
+    "author": "did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6",
+    "schemaId": "http://192.168.1.9:8085/schema-registry/schemas/67ec5454-0f39-3ab3-8a56-494907be5fac/schema",
+    "signatureType": "CL",
+    "supportRevocation": false
+  }'
+  ```
+If it succeeds, response will look like:
+```json
+{
+  "guid": "NEW-CREDENTIAL-DEFINITION-GUID",
+  "id": "...",
+  "schemaId": "http://192.168.1.9:8085/schema-registry/schemas/67ec5454-0f39-3ab3-8a56-494907be5fac/schema",
+  "kind": "CredentialDefinition"
+}
+```
+Then use that guid here(in 4 for Anon):
+```shell
+
+"credentialDefinitionId": "NEW-CREDENTIAL-DEFINITION-GUID"
+```
 4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId` and `guid`, as we need to use it later:
     ```shell
     $ curl -X 'POST' \
@@ -213,7 +264,7 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
         "gpa": 3
       },
       "schemaId": "http://<your-schema-service>:8085/schema-registry/schemas/{guid}/schema",
-      "credentialDefinitionId": "8a46cfe9-4ef7-375e-8243-c4c28547b77a",
+      "credentialDefinitionId": "id",
       "automaticIssuance": true,
       "connectionId": "0e1432fa-0c7a-44e5-aba5-bed02777b741",
       "issuingDID": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc",
