@@ -114,7 +114,7 @@ class EudiSdk private constructor() {
         if (uri.startsWith("openid4vp") || uri.startsWith("mdoc-openid4vp") || uri.contains("response_type=vp_token")) {
             wallet.startRemotePresentation(uri.toUri())
         }
-        if (uri.startsWith("eudi-openid4vci://authorize")) {
+        if (uri.startsWith("eudi-openid4ci://authorize")) {
             openId4VciManager.resumeWithAuthorization(uri.toUri())
         }
     }

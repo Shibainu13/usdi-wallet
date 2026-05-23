@@ -10,7 +10,9 @@ import androidx.compose.material3.Surface
 import androidx.lifecycle.lifecycleScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -44,5 +46,17 @@ class MainActivity : ComponentActivity() {
         Logger.d(MainActivity::class.toString()) { "Received new intent: $intent" }
         setIntent(intent)
         deepLinkRouter.handle(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        HyperledgerIdentusSdk.getInstance().resumeAgent()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        lifecycleScope.launch {
+            HyperledgerIdentusSdk.getInstance().pauseAgent()
+        }
     }
 }

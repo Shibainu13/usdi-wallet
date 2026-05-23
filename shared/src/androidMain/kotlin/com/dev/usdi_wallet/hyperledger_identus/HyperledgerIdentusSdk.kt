@@ -90,6 +90,18 @@ class HyperledgerIdentusSdk private constructor() {
         }
     }
 
+    suspend fun pauseAgent() {
+        if (this::agent.isInitialized) {
+            agent.stopFetchingMessages()
+        }
+    }
+
+    fun resumeAgent() {
+        if (this::agent.isInitialized) {
+            agent.startFetchingMessages()
+        }
+    }
+
     fun agentStatusStream(): LiveData<EdgeAgent.State> {
         return agentStatusStream
     }
