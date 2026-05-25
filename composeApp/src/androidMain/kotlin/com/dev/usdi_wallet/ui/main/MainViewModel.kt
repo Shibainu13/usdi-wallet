@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -105,7 +104,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             protocol.credentialManager.getProofRequestsToProcess().collect { requests ->
                 requests.forEachIndexed { index, request ->
-                    val credentials = protocol.credentialManager.getCredentials().first().map {
+                    val credentials = protocol.credentialManager.findMatchingCredentials(request).map {
                         protocol.credentialManager.toUiCredential(it)
                     }
 

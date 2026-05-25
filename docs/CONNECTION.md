@@ -123,62 +123,64 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
       -d ''
     ```
 
-3. Create a new credential schema. Take note of the schema `id`,`guid` attribute in the response, since we will use it later:
+3. Create a new credential schema. Take note of the schema `guid` attribute in the response, since we will use it later:
     ```shell
-    $ curl -X 'POST' \
-      'http://localhost:8085/schema-registry/schemas' \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{
-      "name": "FaberCollegeGraduate",
-      "version": "1.0.0",
-      "description": "Simple credential schema for the university graduate verifiable credential.",
-      "type": "https://w3c-ccg.github.io/vc-json-schemas/schema/2.0/schema.json",
-      "schema": {
-        "$id": "https://example.com/university-graduate-1.0",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "description": "University graduate",
-        "type": "object",
-        "properties": {
-          "emailAddress": {
-            "type": "string",
-            "format": "email"
-          },
-          "givenName": {
-            "type": "string"
-          },
-          "familyName": {
-            "type": "string"
-          },
-          "dateOfIssuance": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "faculty": {
-            "type": "string"
-          },
-          "gpa": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "emailAddress",
-          "familyName",
-          "dateOfIssuance",
-          "faculty",
-          "gpa"
-        ],
-        "additionalProperties": false
-      },
-      "tags": [
-        "university",
-        "graduate",
-        "id"
-      ],
-      "author": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc"
+   $ curl --location 'http://192.168.1.9:8085/schema-registry/schemas' \
+    --header 'accept: application/json' \
+    --header 'Content-Type: application/json' \
+    --data '{
+    "name":"anoncred-birthday-cert",
+    "version":"1.0.0",
+    "description":"Birthday certificate",
+    "type":"AnoncredSchemaV1",
+    "author":"did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6",
+    "tags":[
+    "birth",
+    "certificate"
+    ],
+    "schema":{
+    "$schema":"https://json-schema.org/draft/2020-12/schema",
+    "type":"object",
+    "properties":{
+    "name":{
+    "type":"string",
+    "minLength":1
+    },
+    "version":{
+    "type":"string",
+    "minLength":1
+    },
+    "attrNames":{
+    "type":"array",
+    "items":{
+    "type":"string",
+    "minLength":1
+    },
+    "minItems":1,
+    "maxItems":125,
+    "uniqueItems":true
+    },
+    "issuerId":{
+    "type":"string",
+    "minLength":1
+    }
+    },
+    "name":"Birth Certificate Schema",
+    "version":"1.0",
+    "attrNames":[
+    "location",
+    "birthday"
+    ],
+    "issuerId":"did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6"
+    },
+    "required":[
+    "name",
+    "version"
+    ],
+    "additionalProperties":true
     }'
     ```
-   Check the list credential definition
+   4. Check the list credential definition
 ```shell
 curl -X GET \
   'http://192.168.1.9:8085/credential-definition-registry/definitions' \
@@ -199,7 +201,7 @@ Expect the responce
 }
   ```
 
-If not exist then create one
+ If not exist then create one
 ```shell
 curl -X POST \
   'http://192.168.1.9:8085/credential-definition-registry/definitions' \
@@ -221,16 +223,16 @@ If it succeeds, response will look like:
 {
   "guid": "NEW-CREDENTIAL-DEFINITION-GUID",
   "id": "...",
-  "schemaId": "http://192.168.1.9:8085/schema-registry/schemas/67ec5454-0f39-3ab3-8a56-494907be5fac/schema",
+  "schemaId": "http://192.168.1.9:8085/schema-registry/schemas/{guid}/schema",
   "kind": "CredentialDefinition"
-}
-```
+   }
+   ```
 Then use that guid here(in 4 for Anon):
 ```shell
 
 "credentialDefinitionId": "NEW-CREDENTIAL-DEFINITION-GUID"
 ```
-4. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId` and `guid`, as we need to use it later:
+5. Create a Connection Invitation, then paste the `invitationUrl` value in the response to our app. Also take note of the `connectionId` and `guid`, as we need to use it later:
     ```shell
     $ curl -X 'POST' \
       'http://localhost:8085/connections' \
@@ -243,35 +245,35 @@ Then use that guid here(in 4 for Anon):
     }'
     ```
 
-5. Wait some moment (or call this API to check) for the connection state to become `ConnectionResponseSent`:
+6. Wait some moment (or call this API to check) for the connection state to become `ConnectionResponseSent`:
     ```shell
     $ curl -X 'GET' \
       'http://localhost:8085/connections/{connectionId}' \
       -H 'accept: application/json'
     ```
 
-6. Now everything is set! We can issue a simple certificate:
+7. Now everything is set! We can issue a simple certificate:
+Replace `guid` in schemaId in step 3 and `credentialDefinitionId` in step 4with the guids we got in the previous steps.
     ```shell
-    $ curl -X 'POST'   'http://localhost:8085/issue-credentials/credential-offers'   -H 'Content-Type: application/json'   -d '{
-      "validityPeriod": 3600,
-      "credentialFormat": "JWT",
-      "claims": {
-        "emailAddress": "alice@wonderland.com",
-        "givenName": "Alice",
-        "familyName": "Wonderland",
-        "dateOfIssuance": "2024-01-30T00:00:00Z",
-        "faculty": "Computer Science",
-        "gpa": 3
-      },
-      "schemaId": "http://<your-schema-service>:8085/schema-registry/schemas/{guid}/schema",
-      "credentialDefinitionId": "id",
-      "automaticIssuance": true,
-      "connectionId": "0e1432fa-0c7a-44e5-aba5-bed02777b741",
-      "issuingDID": "did:prism:46e4ec58b6464ba3d818657b4707837a9f23a3ac28a395c29e266ecbe29ed6dc",
-      "goalCode": "issue-vc",
-      "goal": "test-wallet",
-      "domain": "faber-college-jwt-vc"
-      }'
+    $ curl --location 'http://192.168.1.9:8085/issue-credentials/credential-offers' \
+   --header 'Content-Type: application/json' \
+   --data '{
+   "validityPeriod": 3600,
+   "credentialFormat": "AnonCreds",
+   "claims": {
+   "location":"Gia Rai thi duoc",
+   "birthday":"10-02-2014"
+   
+   },
+   "schemaId": "http://<your_ip>:8085/schema-registry/schemas/{guid}/schema",
+   "credentialDefinitionId": "fd451564-b504-32bd-b1ee-4c1b768c0578",
+   "automaticIssuance": true,
+   "connectionId": "006eee64-3e1b-4f1a-a278-3cbb2c49e339",
+   "issuingDID": "did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6",
+   "goalCode": "issue-vc",
+   "goal": "test-wallet",
+   "domain": "birthday"
+   }'
     ```
 Replace with you service and schema address.
 ### Run the application

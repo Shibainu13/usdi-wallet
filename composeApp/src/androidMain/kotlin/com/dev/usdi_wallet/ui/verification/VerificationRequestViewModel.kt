@@ -274,7 +274,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
 
     private fun buildRequestFromItems(contact: Contact, items: List<ClaimCheckItem>): VerificationRequest {
         val claims = items
-            .filter { it.type != ClaimType.NUMBER || it.predicateOperator != null }
+            .filterNot { it.type == ClaimType.NUMBER && it.predicateOperator != null }
             .map { Claim(name = it.name, type = it.type, pattern = it.constraint) }
 
         val predicates = items
@@ -293,11 +293,11 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
 
     private fun buildRequestFromRows(contact: Contact, rows: List<ManualClaimRow>): VerificationRequest {
         val claims = rows
-            .filter { it.predicateOperator == null }
+            .filter { it.type != ClaimType.NUMBER || it.predicateOperator == null }
             .map { Claim(name = it.name, type = it.type, pattern = it.constraint.ifBlank { null }) }
 
         val predicates = rows
-            .filter { it.predicateOperator != null }
+            .filter { it.type == ClaimType.NUMBER && it.predicateOperator != null }
             .mapNotNull { row ->
                 val value = row.predicateValue.toIntOrNull() ?: return@mapNotNull null
                 Predicate(

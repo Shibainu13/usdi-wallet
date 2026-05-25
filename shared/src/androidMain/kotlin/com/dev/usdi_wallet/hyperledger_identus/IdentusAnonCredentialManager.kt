@@ -4,11 +4,13 @@ import android.content.Context
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.db.AppDatabase
 import com.dev.usdi_wallet.db.data.MessageReadStatus
+import com.dev.usdi_wallet.db.data.PendingProofRequest
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import kotlinx.coroutines.CompletableDeferred
@@ -26,10 +28,11 @@ import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
 import org.hyperledger.identus.walletsdk.domain.models.Curve
 import org.hyperledger.identus.walletsdk.domain.models.DID
-import org.hyperledger.identus.walletsdk.domain.models.InputFieldFilter
-import org.hyperledger.identus.walletsdk.domain.models.JWTPresentationClaims
+import org.hyperledger.identus.walletsdk.domain.models.AnoncredsInputFieldFilter
+import org.hyperledger.identus.walletsdk.domain.models.AnoncredsPresentationClaims
 import org.hyperledger.identus.walletsdk.domain.models.KeyCurve
 import org.hyperledger.identus.walletsdk.domain.models.KeyPurpose
+import org.hyperledger.identus.walletsdk.domain.models.RequestedAttributes
 import org.hyperledger.identus.walletsdk.domain.models.ProvableCredential
 import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
@@ -46,7 +49,7 @@ import java.io.File
 import java.util.Base64
 import java.util.UUID
 
-class IdentusJWTCredentialManager(
+class IdentusAnonCredentialManager(
     scope: CoroutineScope,
     context: Context
 ) : CredentialManager<SdkCredential, SdkMessage> {
@@ -69,7 +72,7 @@ class IdentusJWTCredentialManager(
                 processedMessageIds.add(it)
             }
 
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Processed message IDs: $processedMessageIds"
             }
 
@@ -89,8 +92,28 @@ class IdentusJWTCredentialManager(
 
     override fun getVerificationResults(): Flow<List<VerificationResult>> = _verificationResults.asStateFlow()
 
+    override suspend fun findMatchingCredentials(proofRequest: SdkMessage): List<SdkCredential> {
+        val criteria = try {
+            proofRequestCriteria(proofRequest)
+        } catch (e: Exception) {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Invalid proof request ${proofRequest.id}: ${e.message}"
+            }
+            return emptyList()
+        }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Finding matching credentials for proof request ${proofRequest.id}: $criteria"
+        }
+
+        return sdk.agent.getAllCredentials().first().filter { credential ->
+            credential is ProvableCredential &&
+                credential.revoked != true &&
+                credentialContainsAllRequestedClaims(credential, criteria)
+        }
+    }
+
     override suspend fun getCredential(id: String): Credential? {
-        TODO("Not yet implemented")
+        return loadAll().firstOrNull { it.id == id }
     }
 
     override suspend fun saveCredential(credential: Credential) {
@@ -185,7 +208,10 @@ class IdentusJWTCredentialManager(
 
 
     override suspend fun removeCredential(id: String) {
-        TODO("Not yet implemented")
+        val updated = loadAll().filterNot { it.id == id }
+        val jsonArray = JSONArray()
+        updated.forEach { jsonArray.put(toJson(it)) }
+        file.writeText(jsonArray.toString())
     }
 
     override suspend fun handleInbound(
@@ -215,7 +241,7 @@ class IdentusJWTCredentialManager(
         connectionManager: ConnectionManager<SdkMessage>,
     ) {
         try {
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Received credential offer: $message"
             }
             val offer = OfferCredential.fromMessage(message)
@@ -229,7 +255,7 @@ class IdentusJWTCredentialManager(
             )
             val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
             connectionManager.sendMessage(request.makeMessage())
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Credential request sent: $request"
             }
 
@@ -240,7 +266,7 @@ class IdentusJWTCredentialManager(
                 )
             )
         } catch (e: Exception) {
-            Logger.e(IdentusJWTCredentialManager::class.toString()) {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
                 "Failed to process credential offer: ${e.message}"
             }
         }
@@ -248,12 +274,12 @@ class IdentusJWTCredentialManager(
 
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Received issue offer: $message"
             }
             val issueCredential = IssueCredential.fromMessage(message)
             val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Credential received: $credential"
             }
 
@@ -264,17 +290,27 @@ class IdentusJWTCredentialManager(
                 )
             )
         } catch (e: Exception) {
-            Logger.e(IdentusJWTCredentialManager::class.toString()) {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
                 "Failed to receive credential: ${e.message}"
             }
         }
     }
 
     private suspend fun handlePresentationRequest(message: SdkMessage) {
-        _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
-        Logger.d(IdentusJWTCredentialManager::class.toString()) {
+        if (_proofRequestToProcess.value.none { it.id == message.id }) {
+            _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
+        }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Presentation request received: $message"
         }
+
+        db.pendingProofRequestDao().insertPending(
+            PendingProofRequest(
+                messageId = message.id,
+                thid = message.thid ?: message.id,
+                createdAt = System.currentTimeMillis(),
+            )
+        )
 
         db.messageReadStatusDao().insertMessage(
             MessageReadStatus(
@@ -285,10 +321,10 @@ class IdentusJWTCredentialManager(
     }
 
     private suspend fun handleVerification(message: SdkMessage) {
-        Logger.d(IdentusJWTCredentialManager::class.toString()) {
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Received verification: $message"
         }
-        Logger.d(IdentusJWTCredentialManager::class.toString()){
+        Logger.d(IdentusAnonCredentialManager::class.toString()){
             "this is where receive issue result from server"
         }
         try {
@@ -296,7 +332,7 @@ class IdentusJWTCredentialManager(
             _verificationResults.update { current ->
                 current + VerificationResult(message.id, isValid)
             }
-            Logger.d(IdentusJWTCredentialManager::class.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Verification result for $message: $isValid"
             }
 
@@ -307,7 +343,7 @@ class IdentusJWTCredentialManager(
                 )
             )
         } catch (e: Exception) {
-            Logger.e(IdentusJWTCredentialManager::class.toString()) {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
                 "Failed to verify presentation: ${e.message}"
             }
             _verificationResults.update { current ->
@@ -321,22 +357,32 @@ class IdentusJWTCredentialManager(
         domain: String,
         challenge: String,
     ) {
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Sending AnonCred proof request to ${request.destination}; attributes=${request.claims.map { it.name }}, predicates=${request.predicates}"
+        }
         sdk.agent.initiatePresentationRequest(
-            type = CredentialType.JWT,
+            type = CredentialType.ANONCREDS_PROOF_REQUEST,
             toDID = DID(request.destination),
-            presentationClaims = JWTPresentationClaims(
-                claims = request.claims.associate { claim ->
-                    claim.name to InputFieldFilter(
-                        type = claim.type.toString(),
-                        pattern = claim.pattern,
-                        enum = claim.enum,
-                        const = claim.const,
-                        value = claim.value,
+            presentationClaims = AnoncredsPresentationClaims(
+                attributes = request.claims.associate { claim ->
+                    claim.name to RequestedAttributes(
+                        name = claim.name,
+                        names = setOf(claim.name),
+                        restrictions = anoncredRestrictions(request),
+                        nonRevoked = null,
                     )
-                }
+                },
+                predicates = request.predicates.associate { predicate ->
+                    predicate.name to AnoncredsInputFieldFilter(
+                        type = ClaimType.NUMBER.toString(),
+                        name = predicate.name,
+                        gt = predicate.value.takeIf { predicate.operator == PredicateOperator.GREATER_THAN },
+                        gte = predicate.value.takeIf { predicate.operator == PredicateOperator.GREATER_THAN_OR_EQUAL },
+                        lt = predicate.value.takeIf { predicate.operator == PredicateOperator.LESS_THAN },
+                        lte = predicate.value.takeIf { predicate.operator == PredicateOperator.LESS_THAN_OR_EQUAL },
+                    )
+                },
             ),
-            domain = domain,
-            challenge = challenge,
         )
     }
 
@@ -435,18 +481,34 @@ class IdentusJWTCredentialManager(
     }
 
     override suspend fun preparePresentationProof(credential: SdkCredential, message: SdkMessage) {
+        Logger.d {"message prepare "+ message.toString() }
         if (credential is ProvableCredential) {
             try {
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Creating proof presentation for request ${message.id} with credential ${credential.id}"
+                }
                 val presentation = sdk.agent.preparePresentationForRequestProof(
                     RequestPresentation.fromMessage(message),
                     credential,
                 )
                 sdk.agent.sendMessage(presentation.makeMessage())
                 _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
+                db.pendingProofRequestDao().deletePending(message.id)
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Proof presentation sent for request ${message.id}"
+                }
             } catch (e: EdgeAgentError.CredentialNotValidForPresentationRequest) {
-                Logger.e(IdentusJWTCredentialManager::class.toString()) {
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
                     "Error presenting proof: ${e.message}"
                 }
+            } catch (e: Exception) {
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                    "Failed to send proof presentation: ${e.message}"
+                }
+            }
+        } else {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Credential ${credential.id} cannot create presentations"
             }
         }
     }
@@ -472,7 +534,7 @@ class IdentusJWTCredentialManager(
         val claims = extractClaimsFromAnonCredential(sdkCredential)
 
         claims.forEach { claim ->
-            Logger.d(IdentusJWTCredentialManager::class.simpleName.toString()) {
+            Logger.d(IdentusAnonCredentialManager::class.simpleName.toString()) {
                 "Mapped claim [${claim.name}] with value: ${claim.value}"
             }
         }
@@ -637,7 +699,101 @@ class IdentusJWTCredentialManager(
 
     override suspend fun toSdkCredential(credential: Credential): SdkCredential =
         sdk.agent.getAllCredentials().first().find { it.id == credential.id }!!
-    private fun filter(credential: Credential){
 
+    private fun anoncredRestrictions(request: VerificationRequest): Map<String, String> {
+        return buildMap {
+            request.schema?.let { put("schema_id", it) }
+            request.issuer?.let { put("issuer_did", it) }
+        }
+    }
+
+    private data class ProofRequestCriteria(
+        val attributes: Set<String>,
+        val predicates: Set<String>,
+    )
+
+    private fun proofRequestCriteria(message: SdkMessage): ProofRequestCriteria {
+        val request = RequestPresentation.fromMessage(message)
+        val attachmentJson = request.attachments.firstNotNullOf { it.data.getDataAsJsonString() }
+        val json = JSONObject(attachmentJson)
+
+        return if (json.has("requested_attributes") || json.has("requested_predicates")) {
+            ProofRequestCriteria(
+                attributes = anoncredRequestedAttributes(json.optJSONObject("requested_attributes")),
+                predicates = anoncredRequestedPredicates(json.optJSONObject("requested_predicates")),
+            )
+        } else {
+            ProofRequestCriteria(
+                attributes = presentationExchangeRequestedAttributes(json),
+                predicates = emptySet(),
+            )
+        }
+    }
+
+    private fun credentialContainsAllRequestedClaims(
+        credential: SdkCredential,
+        criteria: ProofRequestCriteria,
+    ): Boolean {
+        val claimNames = toUiCredential(credential).claims.mapTo(mutableSetOf()) { it.name }
+        return claimNames.containsAll(criteria.attributes) && claimNames.containsAll(criteria.predicates)
+    }
+
+    private fun anoncredRequestedAttributes(requestedAttributes: JSONObject?): Set<String> {
+        if (requestedAttributes == null) return emptySet()
+
+        val result = mutableSetOf<String>()
+        val keys = requestedAttributes.keys()
+        while (keys.hasNext()) {
+            val attribute = requestedAttributes.optJSONObject(keys.next()) ?: continue
+            attribute.optString("name").takeIf { it.isNotBlank() }?.let { result.add(it) }
+            attribute.optJSONArray("names")?.let { names ->
+                for (index in 0 until names.length()) {
+                    names.optString(index).takeIf { it.isNotBlank() }?.let { result.add(it) }
+                }
+            }
+        }
+        return result
+    }
+
+    private fun anoncredRequestedPredicates(requestedPredicates: JSONObject?): Set<String> {
+        if (requestedPredicates == null) return emptySet()
+
+        val result = mutableSetOf<String>()
+        val keys = requestedPredicates.keys()
+        while (keys.hasNext()) {
+            val predicate = requestedPredicates.optJSONObject(keys.next()) ?: continue
+            predicate.optString("name").takeIf { it.isNotBlank() }?.let { result.add(it) }
+        }
+        return result
+    }
+
+    private fun presentationExchangeRequestedAttributes(json: JSONObject): Set<String> {
+        val fields = json
+            .optJSONObject("presentation_definition")
+            ?.optJSONArray("input_descriptors")
+            ?: return emptySet()
+
+        val result = mutableSetOf<String>()
+        for (descriptorIndex in 0 until fields.length()) {
+            val constraintFields = fields
+                .optJSONObject(descriptorIndex)
+                ?.optJSONObject("constraints")
+                ?.optJSONArray("fields")
+                ?: continue
+
+            for (fieldIndex in 0 until constraintFields.length()) {
+                val field = constraintFields.optJSONObject(fieldIndex) ?: continue
+                field.optString("name").takeIf { it.isNotBlank() }?.let { result.add(it) }
+                field.optJSONArray("path")?.let { paths ->
+                    for (pathIndex in 0 until paths.length()) {
+                        paths.optString(pathIndex)
+                            .substringAfterLast('.', "")
+                            .takeIf { it.isNotBlank() }
+                            ?.let { result.add(it) }
+                    }
+                }
+            }
+        }
+        return result
     }
 }
