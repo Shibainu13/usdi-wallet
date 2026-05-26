@@ -40,7 +40,7 @@ ktor-override = "3.0.1"
 
 # Third-party SDKs
 kermit = "2.0.8"
-identus = "4.0.0-mod3"
+identus = "4.0.0-mod4"
 eudi = "0.28.1"
 junit = "4.13.2"
 

@@ -101,9 +101,5 @@ configurations.all {
             useVersion(libs.versions.ktor.override.get())
             because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
         }
-        if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
-            useVersion(libs.versions.datetime.get())
-            because("Identus SDK requires kotlinx-datetime at runtime")
-        }
     }
 }

@@ -39,7 +39,6 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
-            implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
@@ -94,10 +93,6 @@ configurations.all {
         if (requested.group == "io.ktor") {
             useVersion(libs.versions.ktor.override.get())
             because("EUDI SDK requires Ktor 3.x — overrides EUDI strict constraints")
-        }
-        if (requested.group == "org.jetbrains.kotlinx" && requested.name == "kotlinx-datetime") {
-            useVersion(libs.versions.datetime.get())
-            because("Identus SDK requires kotlinx-datetime at runtime")
         }
     }
 }

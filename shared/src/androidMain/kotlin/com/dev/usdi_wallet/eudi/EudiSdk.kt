@@ -72,7 +72,7 @@ class EudiSdk private constructor() {
                 useStrongBoxForKeys = true,
             )
             .configureOpenId4Vci {
-                withIssuerUrl("https://13.90.44.25/pid-issuer")
+                withIssuerUrl("https://usdi-wallet.duckdns.org/pid-issuer")
                 withClientAuthenticationType(
                     OpenId4VciManager.ClientAuthenticationType.None("wallet-dev")
                 )

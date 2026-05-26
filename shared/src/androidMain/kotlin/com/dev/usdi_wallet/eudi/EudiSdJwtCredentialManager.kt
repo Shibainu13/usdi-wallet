@@ -10,10 +10,13 @@ import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import eu.europa.ec.eudi.iso18013.transfer.response.DisclosedDocument
 import eu.europa.ec.eudi.iso18013.transfer.response.DisclosedDocuments
-import eu.europa.ec.eudi.iso18013.transfer.response.DocItem
-import eu.europa.ec.eudi.iso18013.transfer.response.device.MsoMdocItem
+import eu.europa.ec.eudi.wallet.document.CreateDocumentSettings
 import eu.europa.ec.eudi.wallet.document.Document
+import eu.europa.ec.eudi.wallet.document.DocumentExtensions.getDefaultCreateDocumentSettings
+import eu.europa.ec.eudi.wallet.document.DocumentExtensions.getDefaultKeyUnlockData
 import eu.europa.ec.eudi.wallet.document.IssuedDocument
+import eu.europa.ec.eudi.wallet.document.format.MsoMdocFormat
+import eu.europa.ec.eudi.wallet.document.format.SdJwtVcFormat
 import eu.europa.ec.eudi.wallet.issue.openid4vci.IssueEvent
 import eu.europa.ec.eudi.wallet.issue.openid4vci.Offer
 import eu.europa.ec.eudi.wallet.issue.openid4vci.OfferResult
@@ -21,9 +24,7 @@ import eu.europa.ec.eudi.wallet.transfer.openId4vp.SdJwtVcItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import org.multipaz.crypto.Algorithm
 
@@ -71,26 +72,76 @@ class EudiSdJwtCredentialManager(
                         when (issueEvent) {
                             is IssueEvent.DocumentIssued -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Document issued: ${issueEvent.document.id}"
+                                    "Document issued: $issueEvent"
                                 }
                                 // getDocuments() will now return this document
                             }
                             is IssueEvent.DocumentFailed -> {
                                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Document issuance failed: ${issueEvent.cause}"
+                                    "Document issuance failed: $issueEvent"
                                 }
                             }
                             is IssueEvent.Started -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Issuance started, total: ${issueEvent.total}"
+                                    "Issuance started, total: $issueEvent"
                                 }
+                            }
+                            is IssueEvent.DocumentRequiresCreateSettings -> {
+                                val isEuPid = when (val format = issueEvent.offeredDocument.documentFormat) {
+                                    is MsoMdocFormat -> format.docType == "eu.europa.ec.eudi.pid.1"
+                                    is SdJwtVcFormat -> format.vct == "urn:eudi:pid:1"
+                                    else -> false
+                                }
+                                val createDocumentSettings = when {
+                                    isEuPid -> sdk.wallet.getDefaultCreateDocumentSettings(
+                                        offeredDocument = issueEvent.offeredDocument,
+                                        numberOfCredentials = 1,
+                                        credentialPolicy = CreateDocumentSettings.CredentialPolicy.RotateUse
+                                    )
+
+
+                                    else -> sdk.wallet.getDefaultCreateDocumentSettings(
+                                        offeredDocument = issueEvent.offeredDocument,
+                                        numberOfCredentials = 1,
+                                        credentialPolicy = CreateDocumentSettings.CredentialPolicy.RotateUse
+                                    )
+                                }
+                                // Resume with settings
+                                issueEvent.resume(createDocumentSettings)
+                            }
+                            is IssueEvent.DocumentRequiresUserAuth -> {
+                                // Document requires user authentication to sign
+                                val signingAlgorithm = issueEvent.signingAlgorithm
+                                val document = issueEvent.document
+
+                                // Create keyUnlockData (e.g., prompt for biometrics)
+                                val keyUnlockData = issueEvent.keysRequireAuth.mapValues { (keyAlias, secureArea) ->
+                                    getDefaultKeyUnlockData(secureArea, keyAlias)
+                                }
+
+                                // Resume after authentication
+                                issueEvent.resume(keyUnlockData)
+
+                                // Or cancel the process
+                                // issueEvent.cancel("User cancelled authentication")
+                            }
+
+                            is IssueEvent.DocumentDeferred -> {
+                                // Issuance is deferred (will be issued later)
+                                val documentId = issueEvent.documentId
+                                val documentName = issueEvent.name
+                                val docType = issueEvent.docType
                             }
                             is IssueEvent.Finished -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
                                     "Issuance finished"
                                 }
                             }
-                            else -> {}
+                            is IssueEvent.Failure -> {
+                                Logger.d(EudiSdJwtCredentialManager::class.toString()) {
+                                    "Issuance failed: $issueEvent"
+                                }
+                            }
                         }
                     }
                 }
@@ -154,12 +205,33 @@ class EudiSdJwtCredentialManager(
     override suspend fun sendVerificationRequest(request: VerificationRequest, domain: String, challenge: String) { TODO("Not yet implemented") }
     override suspend fun getRevokedCredential(): Flow<List<Document>> = flow { emit(emptyList()) }
 
-    override fun toUiCredential(sdkCredential: Document): Credential = Credential(
-        id = sdkCredential.id,
-        issuer = sdkCredential.issuerMetadata.toString(),
-        subject = sdkCredential.name,
-        protocol = "OPENID4VC",
-    )
+    override fun toUiCredential(sdkCredential: Document): Credential {
+        val claims = when (sdkCredential) {
+            is IssuedDocument -> {
+                sdkCredential.data.claims.filter { it.identifier != "picture" }.map { claim ->
+                    Claim(
+                        name = claim.identifier,
+                        type = when (claim.value) {
+                            is Boolean -> ClaimType.BOOLEAN
+                            is Number -> ClaimType.NUMBER
+                            is ByteArray -> ClaimType.BYTEARRAY
+                            else -> ClaimType.STRING
+                        },
+                        value = claim.value.toString()
+                    )
+                }
+            }
+            else -> emptyList()
+        }
+
+        return Credential(
+            id = sdkCredential.id,
+            issuer = sdkCredential.issuerMetadata?.issuerDisplay.toString(),
+            subject = sdkCredential.name,
+            claims = claims,
+            protocol = "OPENID4CI"
+        )
+    }
 
     override suspend fun toSdkCredential(credential: Credential): Document =
         sdk.wallet.getDocumentById(credential.id)!!
