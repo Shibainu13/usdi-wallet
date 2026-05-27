@@ -487,11 +487,31 @@ class IdentusAnonCredentialManager(
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "Creating proof presentation for request ${message.id} with credential ${credential.id}"
                 }
+
                 val presentation = sdk.agent.preparePresentationForRequestProof(
                     RequestPresentation.fromMessage(message),
                     credential,
                 )
-                sdk.agent.sendMessage(presentation.makeMessage())
+                val outMessage = presentation.makeMessage()
+
+                Logger.d {
+                    """
+                     Sending proof presentation:
+                     request.id=${message.id}
+                     request.thid=${message.thid}
+                     presentation.id=${outMessage.id}
+                     presentation.thid=${outMessage.thid}
+                     presentation.from=${outMessage.from}
+                     presentation.to=${outMessage.to}
+                     presentation.piuri=${outMessage.piuri}
+                     """.trimIndent()
+                }
+
+                val response = sdk.agent.sendMessage(outMessage)
+
+                Logger.d {
+                    "sendMessage response=$response"
+                }
                 _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
                 db.pendingProofRequestDao().deletePending(message.id)
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {

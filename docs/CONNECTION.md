@@ -204,7 +204,7 @@ Expect the responce
  If not exist then create one
 ```shell
 curl -X POST \
-  'http://192.168.1.9:8085/credential-definition-registry/definitions' \
+  'http://{host}:8085/credential-definition-registry/definitions' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -213,7 +213,7 @@ curl -X POST \
     "version": "1.0.0",
     "tag": "birthday",
     "author": "did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6",
-    "schemaId": "http://192.168.1.9:8085/schema-registry/schemas/67ec5454-0f39-3ab3-8a56-494907be5fac/schema",
+    "schemaId": "http://{host}:8085/schema-registry/schemas/{guid}/schema",
     "signatureType": "CL",
     "supportRevocation": false
   }'
@@ -275,7 +275,44 @@ Replace `guid` in schemaId in step 3 and `credentialDefinitionId` in step 4with 
    "domain": "birthday"
    }'
     ```
+    ```shell
+   $ curl --location 'http://13.90.44.25:8085/present-proof/presentations' \
+   --header 'Content-Type: application/json' \
+   --header 'Accept: application/json' \
+   --header 'apikey: VERIFIER_API_KEY' \
+   --data '{
+   "connectionId": "a3549c47-08ac-4427-ad0c-4014a9b9a2b0",
+   "credentialFormat": "AnonCreds",
+   "proofs": [],
+   "anoncredPresentationRequest": {
+   "requested_attributes": {
+   "birthday_attr": {
+   "name": "birthday",
+   "restrictions": [
+   {
+   "cred_def_id": "http://13.90.44.25:8085/credential-definition-registry/definitions/3af343b0-1dbd-31ba-a897-e21124cae0da/definition"
+   }
+   ]
+   },
+   "location_attr": {
+   "name": "location",
+   "restrictions": [
+   {
+   "cred_def_id": "http://13.90.44.25:8085/credential-definition-registry/definitions/3af343b0-1dbd-31ba-a897-e21124cae0da/definition"
+   }
+   ]
+   }
+   },
+   "requested_predicates": {},
+   "name": "Birthday proof",
+   "nonce": "100220042601234567890",
+   "version": "1.0"
+   }
+   }'
+    ```
+
 Replace with you service and schema address.
 ### Run the application
 
 Please use an Android development IDE (IntelliJ IDEA, Android Studio, etc.) to run the app on an emulator for now. Other methods will be updated later.
+Present now verified success with verifier also server, next day develop verifier is device
