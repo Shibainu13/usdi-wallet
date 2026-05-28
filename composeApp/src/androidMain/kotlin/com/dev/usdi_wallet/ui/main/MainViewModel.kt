@@ -4,6 +4,10 @@ import android.app.Application
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
@@ -17,10 +21,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import co.touchlab.kermit.Logger
-import com.dev.usdi_wallet.eudi.EudiProtocol
 
 enum class WalletTab(
     val title: String,
@@ -36,7 +36,7 @@ data class PendingProofRequest(
     val id: String,
     val protocolId: String,
     val credentials: List<Credential>,
-    val onCredentialSelected: suspend (Credential) -> Unit,
+    val onCredentialSelected: suspend (Credential, List<String>) -> Unit,
 )
 
 data class RevokedCredentialAlert(
@@ -128,10 +128,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         id = "${protocol.protocolId}-$index",
                                         protocolId = protocol.protocolId,
                                         credentials = credentials,
-                                        onCredentialSelected = { credential ->
+                                        onCredentialSelected = { credential, disclosedClaimLabels ->
                                             protocol.credentialManager.preparePresentationProof(
                                                 protocol.credentialManager.toSdkCredential(credential),
                                                 request,
+                                                disclosedClaimLabels,
                                             )
                                             dismissProofRequest()
                                         },

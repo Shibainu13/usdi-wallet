@@ -12,6 +12,7 @@ import eu.europa.ec.eudi.wallet.provider.WalletAttestationsProvider
 import eu.europa.ec.eudi.wallet.logging.Logger as SdkLogger
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.ClientIdScheme
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.Format
+import eu.europa.ec.eudi.wallet.transfer.openId4vp.PreregisteredVerifier
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import java.io.File
@@ -85,7 +86,18 @@ class EudiSdk private constructor() {
                 clearBleCache = true,
             )
             .configureOpenId4Vp {
-                withClientIdSchemes(ClientIdScheme.X509SanDns)
+                withClientIdSchemes(
+                    ClientIdScheme.X509SanDns,
+                    ClientIdScheme.Preregistered(
+                        preregisteredVerifiers = listOf(
+                            PreregisteredVerifier(
+                                clientId = "Verifier",
+                                legalName = "EUDI wallet verifier",
+                                verifierApi = "https://usdi-wallet.duckdns.org",
+                            )
+                        )
+                    )
+                )
                 withSchemes(
                     "openid4vp",
                     "eudi-openid4vp",

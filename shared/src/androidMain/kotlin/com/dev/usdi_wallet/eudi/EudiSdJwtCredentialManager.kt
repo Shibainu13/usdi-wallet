@@ -165,12 +165,15 @@ class EudiSdJwtCredentialManager(
                 val processedRequest = message.processedRequest
                 val document = sdk.wallet.getDocumentById(credential.id) as IssuedDocument
 
+                Logger.d(EudiSdJwtCredentialManager::class.toString()) {
+                    "Disclosed labels: $disclosedClaimLabels"
+                }
                 val disclosedDocuments = DisclosedDocuments(
                     DisclosedDocument(
                         documentId = document.id,
                         disclosedItems = disclosedClaimLabels?.map { label ->
                             SdJwtVcItem(
-                                path = label.split("."),
+                                path = listOf(label),
                             )
                         } ?: emptyList(),
                     )

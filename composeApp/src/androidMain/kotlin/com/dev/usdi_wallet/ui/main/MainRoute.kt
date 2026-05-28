@@ -55,8 +55,8 @@ fun MainRoute(
         ProofRequestSheet(
             request = it,
             onDismiss = viewModel::dismissProofRequest,
-            onSelectCredential = { credential ->
-                scope.launch { it.onCredentialSelected(credential) }
+            onSelectCredential = { credential, disclosedClaimLabels ->
+                scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
             }
         )
     }
