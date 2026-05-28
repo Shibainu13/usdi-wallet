@@ -41,6 +41,7 @@ import com.dev.usdi_wallet.domain.credential.PredicateOperator
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
     MANUAL("Manual"),
+    SERVER_HTTP("Server HTTP"),
 }
 
 @Composable
@@ -88,36 +89,38 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item {
-                    ContactDropdown(
-                        contacts = contacts,
-                        selectedContact = uiState.selectedContact,
-                        onContactSelected = viewModel::onContactSelected,
-                    )
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = viewModel::onDomainChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Domain") },
-                    )
-                }
-
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.challenge,
-                            onValueChange = viewModel::onChallengeChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Challenge") },
+                if (selectedTab != VerificationTab.SERVER_HTTP) {
+                    item {
+                        ContactDropdown(
+                            contacts = contacts,
+                            selectedContact = uiState.selectedContact,
+                            onContactSelected = viewModel::onContactSelected,
                         )
-                        Button(onClick = viewModel::regenerateChallenge) {
-                            Text("Regenerate")
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = uiState.domain,
+                            onValueChange = viewModel::onDomainChanged,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Domain") },
+                        )
+                    }
+
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = uiState.challenge,
+                                onValueChange = viewModel::onChallengeChanged,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Challenge") },
+                            )
+                            Button(onClick = viewModel::regenerateChallenge) {
+                                Text("Regenerate")
+                            }
                         }
                     }
                 }
@@ -205,12 +208,167 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                             }
                         }
                     }
+
+                    VerificationTab.SERVER_HTTP -> {
+                        item {
+                            ServerHttpConnectionCard(
+                                uiState = uiState,
+                                onBaseUrlChange = viewModel::onServerBaseUrlChanged,
+                                onApiKeyChange = viewModel::onServerApiKeyChanged,
+                                onConnectionLabelChange = viewModel::onServerConnectionLabelChanged,
+                                onConnectionIdChange = viewModel::onServerConnectionIdChanged,
+                                onCredentialDefinitionIdChange = viewModel::onServerCredentialDefinitionIdChanged,
+                                onProofRequestNameChange = viewModel::onServerProofRequestNameChanged,
+                                onCreateInvitation = viewModel::createServerConnectionInvitation,
+                                onCheckConnection = viewModel::checkServerConnection,
+                            )
+                        }
+
+                        itemsIndexed(uiState.manualClaimRows, key = { _, row -> row.id }) { _, row ->
+                            ManualClaimRowCard(
+                                row = row,
+                                canRemove = uiState.manualClaimRows.size > 1,
+                                onNameChange = { viewModel.onManualRowNameChanged(row.id, it) },
+                                onTypeChange = { viewModel.onManualRowTypeChanged(row.id, it) },
+                                onConstraintChange = { viewModel.onManualRowConstraintChanged(row.id, it) },
+                                onPredicateOperatorChange = {
+                                    viewModel.onManualRowPredicateOperatorChanged(row.id, it)
+                                },
+                                onPredicateValueChange = {
+                                    viewModel.onManualRowPredicateValueChanged(row.id, it)
+                                },
+                                onRemove = { viewModel.removeManualRow(row.id) },
+                            )
+                        }
+
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Button(
+                                    onClick = viewModel::addManualRow,
+                                    enabled = !uiState.isLoading,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text("Add proof claim")
+                                }
+                                Button(
+                                    onClick = viewModel::sendServerProofRequest,
+                                    enabled = !uiState.isLoading,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text("Send via server")
+                                }
+
+                                if (uiState.serverResult.isNotBlank()) {
+                                    Text(uiState.serverResult)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
+        }
+    }
+}
+
+@Composable
+private fun ServerHttpConnectionCard(
+    uiState: VerificationRequestUiState,
+    onBaseUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onConnectionLabelChange: (String) -> Unit,
+    onConnectionIdChange: (String) -> Unit,
+    onCredentialDefinitionIdChange: (String) -> Unit,
+    onProofRequestNameChange: (String) -> Unit,
+    onCreateInvitation: () -> Unit,
+    onCheckConnection: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedTextField(
+                value = uiState.serverBaseUrl,
+                onValueChange = onBaseUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Cloud agent URL") },
+                placeholder = { Text("http://10.0.2.2:8085") },
+            )
+
+            OutlinedTextField(
+                value = uiState.serverApiKey,
+                onValueChange = onApiKeyChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("API key") },
+            )
+
+            OutlinedTextField(
+                value = uiState.serverConnectionLabel,
+                onValueChange = onConnectionLabelChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Connection label") },
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Button(
+                    onClick = onCreateInvitation,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("New holder")
+                }
+                Button(
+                    onClick = onCheckConnection,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Check")
+                }
+            }
+
+            OutlinedTextField(
+                value = uiState.serverConnectionId,
+                onValueChange = onConnectionIdChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Holder connection ID") },
+            )
+
+            if (uiState.serverConnectionState.isNotBlank()) {
+                Text("State: ${uiState.serverConnectionState}")
+            }
+
+            OutlinedTextField(
+                value = uiState.serverInvitationUrl,
+                onValueChange = {},
+                modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
+                label = { Text("Invitation URL for holder device") },
+                minLines = 2,
+            )
+
+            OutlinedTextField(
+                value = uiState.serverCredentialDefinitionId,
+                onValueChange = onCredentialDefinitionIdChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Credential definition ID") },
+            )
+
+            OutlinedTextField(
+                value = uiState.serverProofRequestName,
+                onValueChange = onProofRequestNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Proof request name") },
+            )
         }
     }
 }

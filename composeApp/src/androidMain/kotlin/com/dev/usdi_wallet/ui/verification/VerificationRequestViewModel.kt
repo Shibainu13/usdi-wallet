@@ -12,6 +12,7 @@ import com.dev.usdi_wallet.domain.credential.Predicate
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import kotlinx.coroutines.flow.Flow
@@ -58,12 +59,23 @@ data class VerificationRequestUiState(
     val claimItems: List<ClaimCheckItem> = emptyList(),
 
     val manualClaimRows: List<ManualClaimRow> = listOf(ManualClaimRow()),
+
+    val serverBaseUrl: String = "",
+    val serverApiKey: String = "",
+    val serverConnectionLabel: String = "usdi-mobile-verifier",
+    val serverConnectionId: String = "",
+    val serverInvitationUrl: String = "",
+    val serverConnectionState: String = "",
+    val serverCredentialDefinitionId: String = "",
+    val serverProofRequestName: String = "Mobile verifier proof",
+    val serverResult: String = "",
 )
 
 class VerificationRequestViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
         IdentusJWTProtocol.getInstance(application, viewModelScope)
     )
+    private val cloudAgentVerifierClient = CloudAgentVerifierClient()
 
     private val _uiState = MutableStateFlow(VerificationRequestUiState())
     val uiState: StateFlow<VerificationRequestUiState> = _uiState.asStateFlow()
@@ -212,6 +224,30 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         updateRow(id) { it.copy(predicateValue = value) }
     }
 
+    fun onServerBaseUrlChanged(value: String) {
+        _uiState.update { it.copy(serverBaseUrl = value) }
+    }
+
+    fun onServerApiKeyChanged(value: String) {
+        _uiState.update { it.copy(serverApiKey = value) }
+    }
+
+    fun onServerConnectionLabelChanged(value: String) {
+        _uiState.update { it.copy(serverConnectionLabel = value) }
+    }
+
+    fun onServerConnectionIdChanged(value: String) {
+        _uiState.update { it.copy(serverConnectionId = value) }
+    }
+
+    fun onServerCredentialDefinitionIdChanged(value: String) {
+        _uiState.update { it.copy(serverCredentialDefinitionId = value) }
+    }
+
+    fun onServerProofRequestNameChanged(value: String) {
+        _uiState.update { it.copy(serverProofRequestName = value) }
+    }
+
     private fun updateRow(id: String, transform: (ManualClaimRow) -> ManualClaimRow) {
         _uiState.update { state ->
             state.copy(manualClaimRows = state.manualClaimRows.map {
@@ -249,6 +285,124 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             return
         }
         send(buildRequestFromRows(contact, validRows), _uiState.value.domain, _uiState.value.challenge)
+    }
+
+    fun createServerConnectionInvitation() {
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank()) {
+            _uiState.update { it.copy(error = "Enter cloud agent URL first") }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
+        viewModelScope.launch {
+            try {
+                val invitation = cloudAgentVerifierClient.createConnectionInvitation(
+                    baseUrl = state.serverBaseUrl,
+                    apiKey = state.serverApiKey.ifBlank { null },
+                    label = state.serverConnectionLabel,
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        serverConnectionId = invitation.connectionId,
+                        serverInvitationUrl = invitation.invitationUrl,
+                        serverConnectionState = invitation.state.orEmpty(),
+                        serverResult = if (invitation.invitationUrl.isBlank()) {
+                            "Connection invitation created, but the response did not include an invitation URL"
+                        } else {
+                            "Connection invitation created"
+                        },
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(VerificationRequestViewModel::class.toString()) {
+                    "Failed to create server connection invitation: ${e.message}"
+                }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to create invitation: ${e.message}") }
+            }
+        }
+    }
+
+    fun checkServerConnection() {
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank() || state.serverConnectionId.isBlank()) {
+            _uiState.update { it.copy(error = "Enter cloud agent URL and connection ID first") }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
+        viewModelScope.launch {
+            try {
+                val connection = cloudAgentVerifierClient.getConnection(
+                    baseUrl = state.serverBaseUrl,
+                    apiKey = state.serverApiKey.ifBlank { null },
+                    connectionId = state.serverConnectionId,
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        serverConnectionState = connection.state.orEmpty(),
+                        serverInvitationUrl = connection.invitationUrl.ifBlank { it.serverInvitationUrl },
+                        serverResult = "Connection state: ${connection.state.orEmpty()}",
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(VerificationRequestViewModel::class.toString()) {
+                    "Failed to check server connection: ${e.message}"
+                }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to check connection: ${e.message}") }
+            }
+        }
+    }
+
+    fun sendServerProofRequest() {
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank() || state.serverConnectionId.isBlank()) {
+            _uiState.update { it.copy(error = "Enter cloud agent URL and connection ID first") }
+            return
+        }
+
+        val rows = state.manualClaimRows.filter { it.name.isNotBlank() }
+        if (rows.isEmpty()) {
+            _uiState.update { it.copy(error = "Add at least one proof claim") }
+            return
+        }
+
+        val request = buildRequestFromRows(
+            contact = Contact(holder = state.serverConnectionId, name = "Cloud agent", protocol = "HTTP"),
+            rows = rows,
+        )
+
+        _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
+        viewModelScope.launch {
+            try {
+                val result = cloudAgentVerifierClient.sendAnonCredProofRequest(
+                    baseUrl = state.serverBaseUrl,
+                    apiKey = state.serverApiKey.ifBlank { null },
+                    connectionId = state.serverConnectionId,
+                    claims = request.claims,
+                    predicates = request.predicates,
+                    credentialDefinitionId = state.serverCredentialDefinitionId.ifBlank { null },
+                    requestName = state.serverProofRequestName,
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        success = true,
+                        serverResult = listOfNotNull(
+                            result.presentationId?.let { id -> "Presentation ID: $id" },
+                            result.status?.let { status -> "Status: $status" },
+                        ).joinToString("\n").ifBlank { result.raw },
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(VerificationRequestViewModel::class.toString()) {
+                    "Failed to send server proof request: ${e.message}"
+                }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to send proof request: ${e.message}") }
+            }
+        }
     }
 
     private fun send(
