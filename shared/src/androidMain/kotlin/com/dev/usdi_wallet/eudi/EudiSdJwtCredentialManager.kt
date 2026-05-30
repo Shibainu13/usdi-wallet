@@ -180,7 +180,7 @@ class EudiSdJwtCredentialManager(
                 )
                 val response = processedRequest.generateResponse(
                     disclosedDocuments,
-                    Algorithm.ES256,
+                    Algorithm.ESP256,
                 ).getOrThrow()
 
                 sdk.wallet.sendResponse(response)
