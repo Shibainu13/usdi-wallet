@@ -108,6 +108,7 @@ class IdentusAnonCredentialManager(
         return sdk.agent.getAllCredentials().first().filter { credential ->
             credential is ProvableCredential &&
                 credential.revoked != true &&
+                credentialMatchesRequestedCredentialDefinition(credential, criteria) &&
                 credentialContainsAllRequestedClaims(credential, criteria)
         }
     }
@@ -730,6 +731,7 @@ class IdentusAnonCredentialManager(
     private data class ProofRequestCriteria(
         val attributes: Set<String>,
         val predicates: Set<String>,
+        val credentialDefinitionIds: Set<String>,
     )
 
     private fun proofRequestCriteria(message: SdkMessage): ProofRequestCriteria {
@@ -741,12 +743,33 @@ class IdentusAnonCredentialManager(
             ProofRequestCriteria(
                 attributes = anoncredRequestedAttributes(json.optJSONObject("requested_attributes")),
                 predicates = anoncredRequestedPredicates(json.optJSONObject("requested_predicates")),
+                credentialDefinitionIds = anoncredRequestedCredentialDefinitionIds(json),
             )
         } else {
             ProofRequestCriteria(
                 attributes = presentationExchangeRequestedAttributes(json),
                 predicates = emptySet(),
+                credentialDefinitionIds = emptySet(),
             )
+        }
+    }
+
+    private fun credentialMatchesRequestedCredentialDefinition(
+        credential: SdkCredential,
+        criteria: ProofRequestCriteria,
+    ): Boolean {
+        if (criteria.credentialDefinitionIds.isEmpty()) return true
+
+        val credentialDefinitionId = credentialDefinitionId(credential) ?: return false
+        return normalizeCredentialDefinitionId(credentialDefinitionId) in criteria.credentialDefinitionIds
+    }
+
+    private fun credentialDefinitionId(credential: SdkCredential): String? {
+        return when (credential) {
+            is AnonCredential -> credential.credentialDefinitionID
+            else -> credential.properties["credentialDefinitionID"] as? String
+                ?: credential.properties["credentialDefinitionId"] as? String
+                ?: credential.properties["cred_def_id"] as? String
         }
     }
 
@@ -785,6 +808,53 @@ class IdentusAnonCredentialManager(
             predicate.optString("name").takeIf { it.isNotBlank() }?.let { result.add(it) }
         }
         return result
+    }
+
+    private fun anoncredRequestedCredentialDefinitionIds(json: JSONObject): Set<String> {
+        val result = mutableSetOf<String>()
+        collectCredentialDefinitionIds(json.optJSONObject("requested_attributes"), result)
+        collectCredentialDefinitionIds(json.optJSONObject("requested_predicates"), result)
+        return result
+    }
+
+    private fun collectCredentialDefinitionIds(requestedItems: JSONObject?, result: MutableSet<String>) {
+        if (requestedItems == null) return
+
+        val keys = requestedItems.keys()
+        while (keys.hasNext()) {
+            val requestedItem = requestedItems.optJSONObject(keys.next()) ?: continue
+            requestedItem.optJSONArray("restrictions")?.let { restrictions ->
+                for (index in 0 until restrictions.length()) {
+                    val restriction = restrictions.optJSONObject(index) ?: continue
+                    restriction.optString("cred_def_id")
+                        .takeIf { it.isNotBlank() }
+                        ?.let(::normalizeCredentialDefinitionId)
+                        ?.let { result.add(it) }
+                }
+            }
+        }
+    }
+
+    private fun normalizeCredentialDefinitionId(value: String): String? {
+        val trimmed = value.trim().trimEnd('/')
+        if (trimmed.isBlank()) return null
+
+        val definitionRegistryMarker = "/definitions/"
+        if (definitionRegistryMarker in trimmed) {
+            return trimmed.substringAfter(definitionRegistryMarker)
+                .substringBefore('/')
+                .takeIf { it.isNotBlank() }
+        }
+
+        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            trimmed.substringBefore('?')
+                .substringBefore('#')
+                .trimEnd('/')
+                .substringAfterLast('/')
+                .takeIf { it.isNotBlank() }
+        } else {
+            trimmed
+        }
     }
 
     private fun presentationExchangeRequestedAttributes(json: JSONObject): Set<String> {
