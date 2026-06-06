@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.eudi
 
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.domain.auth.WalletAuthManager
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
@@ -26,10 +27,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import org.multipaz.crypto.Algorithm
 
 class EudiSdJwtCredentialManager(
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
+    private val walletAuthManager: WalletAuthManager,
 ) : CredentialManager<Document, EudiMessage> {
 
     private val sdk = EudiSdk.getInstance()
@@ -111,19 +114,22 @@ class EudiSdJwtCredentialManager(
                             }
                             is IssueEvent.DocumentRequiresUserAuth -> {
                                 // Document requires user authentication to sign
-                                val signingAlgorithm = issueEvent.signingAlgorithm
-                                val document = issueEvent.document
+                                scope.launch {
+                                    val authenticated = walletAuthManager.requestAuth()
 
-                                // Create keyUnlockData (e.g., prompt for biometrics)
-                                val keyUnlockData = issueEvent.keysRequireAuth.mapValues { (keyAlias, secureArea) ->
-                                    getDefaultKeyUnlockData(secureArea, keyAlias)
+                                    // Create keyUnlockData (e.g., prompt for biometrics)
+                                    if (authenticated) {
+                                        val keyUnlockData = issueEvent.keysRequireAuth.mapValues { (keyAlias, secureArea) ->
+                                            getDefaultKeyUnlockData(secureArea, keyAlias)
+                                        }
+                                        issueEvent.resume(keyUnlockData)
+                                    } else {
+                                        issueEvent.cancel("User cancel authentication")
+                                        Logger.w(EudiSdJwtCredentialManager::class.toString()) {
+                                            "User cancelled authentication during issuance"
+                                        }
+                                    }
                                 }
-
-                                // Resume after authentication
-                                issueEvent.resume(keyUnlockData)
-
-                                // Or cancel the process
-                                // issueEvent.cancel("User cancelled authentication")
                             }
 
                             is IssueEvent.DocumentDeferred -> {

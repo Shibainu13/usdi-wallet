@@ -1,10 +1,16 @@
 package com.dev.usdi_wallet.ui.main
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.dev.usdi_wallet.ui.auth.LockScreen
+import com.dev.usdi_wallet.ui.auth.LockState
+import com.dev.usdi_wallet.ui.auth.LockViewModel
 import com.dev.usdi_wallet.ui.contact.ContactScreen
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialScreen
@@ -15,14 +21,27 @@ import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
 @Composable
 fun MainNavHost(
     navController: NavHostController,
+    lockViewModel: LockViewModel,
     contactViewModel: ContactViewModel,
     credentialViewModel: CredentialViewModel,
     verificationRequestViewModel: VerificationRequestViewModel,
 ) {
+    val lockState = lockViewModel.state.collectAsStateWithLifecycle()
     NavHost(
         navController = navController,
-        startDestination = WalletTab.CONTACTS.rootRoute
+        startDestination = WalletTab.AUTH.rootRoute
     ) {
+
+        composable(route = WalletTab.AUTH.rootRoute) {
+            LockScreen(viewModel = lockViewModel)
+            LaunchedEffect(lockState) {
+                if (lockState == LockState.Authenticated) {
+                    navController.navigate(WalletTab.CONTACTS.rootRoute) {
+                        popUpTo(WalletTab.AUTH.rootRoute) { inclusive = true }
+                    }
+                }
+            }
+        }
 
         // ===== CONTACTS GRAPH =====
         navigation(

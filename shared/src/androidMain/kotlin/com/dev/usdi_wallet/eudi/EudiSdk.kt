@@ -69,7 +69,7 @@ class EudiSdk private constructor() {
             .configureLogging(level = SdkLogger.LEVEL_DEBUG)
             .configureDocumentKeyCreation(
                 userAuthenticationRequired = true,
-                userAuthenticationTimeout = 30_000.milliseconds,
+                userAuthenticationTimeout = 600_000.milliseconds,
                 useStrongBoxForKeys = true,
             )
             .configureOpenId4Vci {

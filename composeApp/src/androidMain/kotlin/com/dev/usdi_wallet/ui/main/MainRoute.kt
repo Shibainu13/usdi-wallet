@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dev.usdi_wallet.ui.auth.LockViewModel
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
@@ -16,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 @Composable
 fun MainRoute(
     viewModel: MainViewModel,
+    lockViewModel: LockViewModel = composeViewModel(),
     contactViewModel: ContactViewModel = composeViewModel(),
     credentialViewModel: CredentialViewModel = composeViewModel(),
     verificationRequestViewModel: VerificationRequestViewModel = composeViewModel(),
@@ -43,6 +45,7 @@ fun MainRoute(
         navHost = {
             MainNavHost(
                 navController = navController,
+                lockViewModel = lockViewModel,
                 contactViewModel = contactViewModel,
                 credentialViewModel = credentialViewModel,
                 verificationRequestViewModel = verificationRequestViewModel

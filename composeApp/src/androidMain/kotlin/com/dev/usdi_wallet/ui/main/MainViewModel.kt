@@ -27,6 +27,7 @@ enum class WalletTab(
     val rootRoute: String,
     val icon: ImageVector
 ) {
+    AUTH("Authenticate", "authenticate_root", Icons.Default.Lock),
     CONTACTS("Contacts", "contacts_root", Icons.Default.People),
     CREDENTIALS("Credentials", "credentials_root", Icons.Default.Badge),
     VERIFY("Verify", "verify_root", Icons.Default.CheckCircle),
