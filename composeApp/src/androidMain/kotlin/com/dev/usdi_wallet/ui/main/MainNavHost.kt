@@ -21,28 +21,14 @@ import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
 @Composable
 fun MainNavHost(
     navController: NavHostController,
-    lockViewModel: LockViewModel,
     contactViewModel: ContactViewModel,
     credentialViewModel: CredentialViewModel,
     verificationRequestViewModel: VerificationRequestViewModel,
 ) {
-    val lockState = lockViewModel.state.collectAsStateWithLifecycle()
     NavHost(
         navController = navController,
-        startDestination = WalletTab.AUTH.rootRoute
+        startDestination = WalletTab.CONTACTS.rootRoute
     ) {
-
-        composable(route = WalletTab.AUTH.rootRoute) {
-            LockScreen(viewModel = lockViewModel)
-            LaunchedEffect(lockState) {
-                if (lockState == LockState.Authenticated) {
-                    navController.navigate(WalletTab.CONTACTS.rootRoute) {
-                        popUpTo(WalletTab.AUTH.rootRoute) { inclusive = true }
-                    }
-                }
-            }
-        }
-
         // ===== CONTACTS GRAPH =====
         navigation(
             startDestination = "contacts/list",
