@@ -37,7 +37,7 @@ class EudiSdJwtCredentialManager(
 
     private val sdk = EudiSdk.getInstance()
     private val _proofRequestToProcess = MutableStateFlow<List<EudiMessage>>(emptyList())
-    private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
+    private val _documents by lazy { MutableStateFlow(sdk.wallet.getDocuments { it is IssuedDocument }) }
 
     override suspend fun handleInbound(message: EudiMessage, connectionManager: ConnectionManager<EudiMessage>?) {
         when(message) {
@@ -77,7 +77,7 @@ class EudiSdJwtCredentialManager(
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
                                     "Document issued: $issueEvent"
                                 }
-                                // getDocuments() will now return this document
+                                _documents.value += issueEvent.document
                             }
                             is IssueEvent.DocumentFailed -> {
                                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
@@ -202,9 +202,7 @@ class EudiSdJwtCredentialManager(
         }
     }
 
-    override fun getCredentials(): Flow<List<Document>> = flow {
-        emit(sdk.wallet.getDocuments { it is IssuedDocument })
-    }
+    override fun getCredentials(): Flow<List<Document>> = _documents.asStateFlow()
 
     override fun getProofRequestsToProcess(): Flow<List<EudiMessage>> = _proofRequestToProcess.asStateFlow()
     override fun getVerificationResults(): Flow<List<VerificationResult>> = flow { emit(emptyList()) }

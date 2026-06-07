@@ -191,12 +191,6 @@ class EudiSdk private constructor() {
         }
     }
 
-    // Receive intent url -> call startRemotePresentation immediately.
-    // once TransferEvent.RequestReceived is observed, send a message to the flow, containing the processedRequest.
-    // CredentialManager picks up the message with handleInbound, call handlePresentation to push the message to the _proofRequestToProcess flow
-    // The UI catches this, display UI to choose credential & disclosed items -> submitting this will call CredentialManager.preparePresentationProof
-    // CredentialManager.preparePresentationProof will compose the disclosed documents, generate and send the response.
-
     companion object {
         private lateinit var instance: EudiSdk
 
