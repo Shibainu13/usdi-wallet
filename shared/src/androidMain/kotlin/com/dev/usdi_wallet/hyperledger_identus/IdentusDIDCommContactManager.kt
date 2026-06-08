@@ -60,6 +60,9 @@ class IdentusDIDCommContactManager : ContactManager {
 
     override fun getContacts(): Flow<List<Contact>> =
         sdk.pluto.getAllDidPairs().map { pairs ->
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "New contact: $pairs"
+            }
             pairs.map { toUsdiContact(it) }
         }
 

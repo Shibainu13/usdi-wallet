@@ -31,29 +31,29 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("io.ktor:ktor-client-core:3.0.1")
-
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
-
-            implementation("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
+            implementation(libs.ktor.client.core)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.androidx.lifecycle.viewmodel)
             implementation(kotlin("reflect"))
-            implementation("co.touchlab:kermit:2.0.8")
-
+            implementation(libs.kermit)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
         }
         androidMain.dependencies {
-            implementation("io.ktor:ktor-client-okhttp:3.0.1")
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.logging)
 
-            implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
-            implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
-            implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+            implementation(libs.androidx.lifecycle.livedata.ktx)
+            implementation(libs.androidx.lifecycle.viewmodel.ktx)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
 
-            implementation("app.cash.sqldelight:android-driver:2.0.2")
-
-            implementation("org.hyperledger.identus:sdk:4.0.0")
+            implementation(libs.sqldelight.android.driver)
+            implementation(libs.identus.sdk)
+            implementation(libs.eudi.wallet.core)
+            implementation(libs.androidx.biometric)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -76,5 +76,23 @@ android {
     }
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    packaging {
+        resources {
+            pickFirsts += "google/protobuf/*.proto"
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "com/nimbusds/jose/**"
+            pickFirsts += "com/nimbusds/jwt/**"
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.ktor") {
+            useVersion(libs.versions.ktor.override.get())
+            because("EUDI SDK requires Ktor 3.x — overrides EUDI strict constraints")
+        }
     }
 }

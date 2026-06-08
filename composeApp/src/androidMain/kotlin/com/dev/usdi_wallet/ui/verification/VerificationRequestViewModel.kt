@@ -14,6 +14,7 @@ import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.eudi.EudiProtocol
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -62,7 +63,8 @@ data class VerificationRequestUiState(
 
 class VerificationRequestViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope)
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        EudiProtocol.getInstance(application, viewModelScope),
     )
 
     private val _uiState = MutableStateFlow(VerificationRequestUiState())

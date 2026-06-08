@@ -25,7 +25,9 @@ class IdentusDIDCommConnectionManager(
         sdk.agent.let {
             it.handleReceivedMessagesEvents().collect { list ->
                 list.forEach { msg ->
-                    Logger.d("Received message $msg")
+                    Logger.d(IdentusDIDCommConnectionManager::class.toString()) {
+                        "Received message $msg"
+                    }
                     msgHandler(msg)
                 }
             }

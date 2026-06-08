@@ -7,6 +7,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dev.usdi_wallet.ui.auth.LockScreen
+import com.dev.usdi_wallet.ui.auth.LockState
+import com.dev.usdi_wallet.ui.auth.LockViewModel
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
@@ -23,10 +26,16 @@ fun MainRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val lockViewModel: LockViewModel = composeViewModel()
+    val lockState by lockViewModel.state.collectAsStateWithLifecycle()
+
+    if (lockState !is LockState.Authenticated) {
+        LockScreen(viewModel = lockViewModel)
+        return
+    }
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
-
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
     } ?: WalletTab.CONTACTS
@@ -55,8 +64,8 @@ fun MainRoute(
         ProofRequestSheet(
             request = it,
             onDismiss = viewModel::dismissProofRequest,
-            onSelectCredential = { credential ->
-                scope.launch { it.onCredentialSelected(credential) }
+            onSelectCredential = { credential, disclosedClaimLabels ->
+                scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
             }
         )
     }

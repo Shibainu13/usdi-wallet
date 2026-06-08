@@ -146,7 +146,7 @@ class IdentusJWTCredentialManager(
         return Credential(
             id = json.getString("id"),
             issuer = json.getString("issuer"),
-            subject = json.optString("subject", null),
+            subject = json.optString("subject", "null"),
             protocol = json.getString("protocol"),
             claims = claims
         )
@@ -166,7 +166,7 @@ class IdentusJWTCredentialManager(
         return Claim(
             name = json.getString("name"),
             type = ClaimType.valueOf(json.getString("type").uppercase()),
-            pattern = json.optString("pattern", null),
+            pattern = json.optString("pattern", "null"),
             value = json.opt("value"),
             enum = json.optJSONArray("enum")?.let { toList(it) },
             const = json.optJSONArray("const")?.let { toList(it) }
@@ -181,15 +181,13 @@ class IdentusJWTCredentialManager(
         return list
     }
 
-
-
     override suspend fun removeCredential(id: String) {
         TODO("Not yet implemented")
     }
 
     override suspend fun handleInbound(
         message: SdkMessage,
-        connectionManager: ConnectionManager<SdkMessage>,
+        connectionManager: ConnectionManager<SdkMessage>?,
     ) {
         initCompleted.await()
 
@@ -199,7 +197,7 @@ class IdentusJWTCredentialManager(
 
         when (message.piuri) {
             ProtocolType.DidcommOfferCredential.value
-                -> handleOfferCredential(message, connectionManager)
+                -> handleOfferCredential(message, connectionManager!!)
             ProtocolType.DidcommIssueCredential.value
                 -> handleIssueCredential(message)
             ProtocolType.DidcommRequestPresentation.value if message.direction == SdkMessage.Direction.RECEIVED
@@ -433,7 +431,11 @@ class IdentusJWTCredentialManager(
         return "https://domain.com/path?_oob=$encoded"
     }
 
-    override suspend fun preparePresentationProof(credential: SdkCredential, message: SdkMessage) {
+    override suspend fun preparePresentationProof(
+        credential: SdkCredential,
+        message: SdkMessage,
+        disclosedClaimLabels: List<String>?,
+    ) {
         if (credential is ProvableCredential) {
             try {
                 val presentation = sdk.agent.preparePresentationForRequestProof(
@@ -450,7 +452,7 @@ class IdentusJWTCredentialManager(
         }
     }
 
-    override suspend fun getRevokedCredential(): StateFlow<List<SdkCredential>> {
+    override suspend fun getRevokedCredential(): Flow<List<SdkCredential>> {
         sdk.agent.observeRevokedCredentials().collect { list ->
             val newRevokedCredentials = list.filter { newCredential ->
                 revokedCredentials.value.none { notifiedCredentials ->

@@ -7,11 +7,13 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.eudi.EudiProtocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -20,12 +22,13 @@ import kotlin.collections.emptyList
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
         IdentusJWTProtocol.getInstance(application, viewModelScope),
+        EudiProtocol.getInstance(application, viewModelScope),
     )
     val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.contactManager.getContacts() }
+            protocols.map { it.contactManager.getContacts().onStart { emit(emptyList()) } }
         ) { contactArrays ->
             contactArrays.toList().flatten()
         }.stateIn(

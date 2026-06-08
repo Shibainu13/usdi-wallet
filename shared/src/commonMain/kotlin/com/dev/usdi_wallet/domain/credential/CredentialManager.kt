@@ -13,15 +13,19 @@ interface CredentialManager<CredentialType, MessageType> {
     suspend fun removeCredential(id: String)
     suspend fun handleInbound(
         message: MessageType,
-        connectionManager: ConnectionManager<MessageType>,
+        connectionManager: ConnectionManager<MessageType>?,
     )
     suspend fun sendVerificationRequest(
         request: VerificationRequest,
         domain: String,
         challenge: String,
     )
-    suspend fun preparePresentationProof(credential: CredentialType, message: MessageType)
-    suspend fun getRevokedCredential(): StateFlow<List<CredentialType>>
+    suspend fun preparePresentationProof(
+        credential: CredentialType,
+        message: MessageType,
+        disclosedClaimLabels: List<String>? = null,
+    )
+    suspend fun getRevokedCredential(): Flow<List<CredentialType>>
     fun toUiCredential(sdkCredential: CredentialType): Credential
     suspend fun toSdkCredential(credential: Credential): CredentialType
     // fun getLocalCredentials(): Flow<List<Credential>>
