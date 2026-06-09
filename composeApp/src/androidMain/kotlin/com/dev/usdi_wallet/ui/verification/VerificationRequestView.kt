@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -221,23 +222,26 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 onProofRequestNameChange = viewModel::onServerProofRequestNameChanged,
                                 onCreateInvitation = viewModel::createServerConnectionInvitation,
                                 onCheckConnection = viewModel::checkServerConnection,
+                                onLoadSchemas = viewModel::loadServerSchemas,
+                                onSchemaSelected = viewModel::onServerSchemaSelected,
                             )
                         }
 
-                        itemsIndexed(uiState.manualClaimRows, key = { _, row -> row.id }) { _, row ->
-                            ManualClaimRowCard(
+                        itemsIndexed(uiState.serverSchemaClaimRows, key = { _, row -> row.id }) { _, row ->
+                            ServerSchemaClaimRowCard(
                                 row = row,
-                                canRemove = uiState.manualClaimRows.size > 1,
-                                onNameChange = { viewModel.onManualRowNameChanged(row.id, it) },
-                                onTypeChange = { viewModel.onManualRowTypeChanged(row.id, it) },
-                                onConstraintChange = { viewModel.onManualRowConstraintChanged(row.id, it) },
+                                onCheckedChange = {
+                                    viewModel.onServerSchemaRowChecked(row.id, it)
+                                },
+                                onConstraintChange = {
+                                    viewModel.onServerSchemaRowConstraintChanged(row.id, it)
+                                },
                                 onPredicateOperatorChange = {
-                                    viewModel.onManualRowPredicateOperatorChanged(row.id, it)
+                                    viewModel.onServerSchemaRowPredicateOperatorChanged(row.id, it)
                                 },
                                 onPredicateValueChange = {
-                                    viewModel.onManualRowPredicateValueChanged(row.id, it)
+                                    viewModel.onServerSchemaRowPredicateValueChanged(row.id, it)
                                 },
-                                onRemove = { viewModel.removeManualRow(row.id) },
                             )
                         }
 
@@ -247,15 +251,8 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Button(
-                                    onClick = viewModel::addManualRow,
-                                    enabled = !uiState.isLoading,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text("Add proof claim")
-                                }
-                                Button(
                                     onClick = viewModel::sendServerProofRequest,
-                                    enabled = !uiState.isLoading,
+                                    enabled = !uiState.isLoading && uiState.selectedServerSchema != null,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text("Send via server")
@@ -288,6 +285,8 @@ private fun ServerHttpConnectionCard(
     onProofRequestNameChange: (String) -> Unit,
     onCreateInvitation: () -> Unit,
     onCheckConnection: () -> Unit,
+    onLoadSchemas: () -> Unit,
+    onSchemaSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -360,7 +359,22 @@ private fun ServerHttpConnectionCard(
                 value = uiState.serverCredentialDefinitionId,
                 onValueChange = onCredentialDefinitionIdChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Credential definition ID") },
+                label = { Text("Credential definition ID override") },
+                placeholder = { Text("Auto: {cloud-agent}/credential-definition-registry/definitions/{guid}/definition") },
+            )
+
+            Button(
+                onClick = onLoadSchemas,
+                enabled = !uiState.isLoading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Load AnonCred schemas")
+            }
+
+            ServerSchemaDropdown(
+                schemas = uiState.serverSchemas,
+                selectedSchema = uiState.selectedServerSchema,
+                onSchemaSelected = onSchemaSelected,
             )
 
             OutlinedTextField(
@@ -371,6 +385,31 @@ private fun ServerHttpConnectionCard(
             )
         }
     }
+}
+
+@Composable
+private fun ServerSchemaDropdown(
+    schemas: List<com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema>,
+    selectedSchema: com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema?,
+    onSchemaSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema) -> Unit,
+) {
+    SelectorField(
+        label = "AnonCred schema",
+        value = selectedSchema?.let { schema ->
+            listOf(schema.name, schema.version)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { schema.guid.ifBlank { schema.id } }
+        }.orEmpty(),
+        options = schemas,
+        optionLabel = { schema ->
+            listOf(schema.name, schema.version)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { schema.guid.ifBlank { schema.id } }
+        },
+        onOptionSelected = onSchemaSelected,
+    )
 }
 
 @Composable
@@ -506,6 +545,84 @@ private fun ManualClaimRowCard(
 }
 
 @Composable
+private fun ServerSchemaClaimRowCard(
+    row: ServerSchemaClaimRow,
+    onCheckedChange: (Boolean) -> Unit,
+    onConstraintChange: (String) -> Unit,
+    onPredicateOperatorChange: (PredicateOperator?) -> Unit,
+    onPredicateValueChange: (String) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = row.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Schema attribute: ${row.attrName}")
+                    Text(text = "Expected type: ${row.valueType.label}")
+                }
+                Checkbox(
+                    checked = row.checked,
+                    onCheckedChange = onCheckedChange,
+                )
+            }
+
+            if (row.checked) {
+                if (row.valueType == ServerSchemaClaimValueType.NUMBER || row.valueType == ServerSchemaClaimValueType.DATE) {
+                    PredicateEditor(
+                        selectedOperator = row.predicateOperator,
+                        predicateValue = row.predicateValue,
+                        valueLabel = if (row.valueType == ServerSchemaClaimValueType.DATE) {
+                            "Predicate value (yyyy-MM-dd)"
+                        } else {
+                            "Predicate value"
+                        },
+                        onOperatorSelected = onPredicateOperatorChange,
+                        onValueChanged = onPredicateValueChange,
+                    )
+                    OutlinedTextField(
+                        value = row.constraint,
+                        onValueChange = onConstraintChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = {
+                            Text(
+                                if (row.valueType == ServerSchemaClaimValueType.DATE) {
+                                    "Reveal constraint (yyyy-MM-dd)"
+                                } else {
+                                    "Reveal constraint (number)"
+                                },
+                            )
+                        },
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = row.constraint,
+                        onValueChange = onConstraintChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = {
+                            Text(
+                                when (row.valueType) {
+                                    ServerSchemaClaimValueType.STRING -> "Constraint"
+                                    ServerSchemaClaimValueType.BOOLEAN -> "Constraint (true/false)"
+                                    ServerSchemaClaimValueType.DATE -> "Constraint (yyyy-MM-dd)"
+                                    ServerSchemaClaimValueType.NUMBER -> "Constraint"
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ClaimTypeDropdown(
     selectedType: ClaimType,
     onTypeSelected: (ClaimType) -> Unit,
@@ -523,6 +640,7 @@ private fun ClaimTypeDropdown(
 private fun PredicateEditor(
     selectedOperator: PredicateOperator?,
     predicateValue: String,
+    valueLabel: String = "Value",
     onOperatorSelected: (PredicateOperator?) -> Unit,
     onValueChanged: (String) -> Unit,
 ) {
@@ -539,7 +657,7 @@ private fun PredicateEditor(
             value = predicateValue,
             onValueChange = onValueChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Value") },
+            label = { Text(valueLabel) },
         )
     }
 }

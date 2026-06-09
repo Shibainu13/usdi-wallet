@@ -12,6 +12,7 @@ import com.dev.usdi_wallet.domain.credential.Predicate
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.UUID
 
 data class ClaimCheckItem(
@@ -41,6 +44,24 @@ data class ManualClaimRow(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "",
     val type: ClaimType = ClaimType.STRING,
+    val constraint: String = "",
+    val predicateOperator: PredicateOperator? = null,
+    val predicateValue: String = "",
+)
+
+enum class ServerSchemaClaimValueType(val suffix: String, val label: String) {
+    STRING("str", "string"),
+    NUMBER("num", "number"),
+    BOOLEAN("bool", "boolean"),
+    DATE("date", "date"),
+}
+
+data class ServerSchemaClaimRow(
+    val id: String = UUID.randomUUID().toString(),
+    val attrName: String,
+    val displayName: String,
+    val valueType: ServerSchemaClaimValueType,
+    val checked: Boolean = false,
     val constraint: String = "",
     val predicateOperator: PredicateOperator? = null,
     val predicateValue: String = "",
@@ -68,6 +89,9 @@ data class VerificationRequestUiState(
     val serverConnectionState: String = "",
     val serverCredentialDefinitionId: String = "",
     val serverProofRequestName: String = "Mobile verifier proof",
+    val serverSchemas: List<CloudAgentAnonCredSchema> = emptyList(),
+    val selectedServerSchema: CloudAgentAnonCredSchema? = null,
+    val serverSchemaClaimRows: List<ServerSchemaClaimRow> = emptyList(),
     val serverResult: String = "",
 )
 
@@ -248,11 +272,78 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         _uiState.update { it.copy(serverProofRequestName = value) }
     }
 
+    fun onServerSchemaSelected(schema: CloudAgentAnonCredSchema) {
+        _uiState.update {
+            it.copy(
+                selectedServerSchema = schema,
+                serverSchemaClaimRows = schema.attrNames.map { attrName -> attrName.toServerSchemaClaimRow() },
+            )
+        }
+    }
+
+    fun onServerSchemaRowConstraintChanged(id: String, constraint: String) {
+        updateServerSchemaRow(id) { it.copy(constraint = constraint) }
+    }
+
+    fun onServerSchemaRowChecked(id: String, checked: Boolean) {
+        updateServerSchemaRow(id) { it.copy(checked = checked) }
+    }
+
+    fun onServerSchemaRowPredicateOperatorChanged(id: String, operator: PredicateOperator?) {
+        updateServerSchemaRow(id) { it.copy(predicateOperator = operator, predicateValue = if (operator == null) "" else it.predicateValue) }
+    }
+
+    fun onServerSchemaRowPredicateValueChanged(id: String, value: String) {
+        updateServerSchemaRow(id) { it.copy(predicateValue = value) }
+    }
+
     private fun updateRow(id: String, transform: (ManualClaimRow) -> ManualClaimRow) {
         _uiState.update { state ->
             state.copy(manualClaimRows = state.manualClaimRows.map {
                 if (it.id == id) transform(it) else it
             })
+        }
+    }
+
+    private fun updateServerSchemaRow(id: String, transform: (ServerSchemaClaimRow) -> ServerSchemaClaimRow) {
+        _uiState.update { state ->
+            state.copy(serverSchemaClaimRows = state.serverSchemaClaimRows.map {
+                if (it.id == id) transform(it) else it
+            })
+        }
+    }
+
+    fun loadServerSchemas() {
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank()) {
+            _uiState.update { it.copy(error = "Enter cloud agent URL first") }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
+        viewModelScope.launch {
+            try {
+                val schemas = cloudAgentVerifierClient.getAnonCredSchemas(
+                    baseUrl = state.serverBaseUrl,
+                    apiKey = state.serverApiKey.ifBlank { null },
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        serverSchemas = schemas,
+                        selectedServerSchema = schemas.firstOrNull(),
+                        serverSchemaClaimRows = schemas.firstOrNull()?.attrNames
+                            ?.map { attrName -> attrName.toServerSchemaClaimRow() }
+                            .orEmpty(),
+                        serverResult = "Loaded ${schemas.size} AnoncredSchemaV1 schema(s)",
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(VerificationRequestViewModel::class.toString()) {
+                    "Failed to load server schemas: ${e.message}"
+                }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to load schemas: ${e.message}") }
+            }
         }
     }
 
@@ -363,15 +454,26 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             return
         }
 
-        val rows = state.manualClaimRows.filter { it.name.isNotBlank() }
-        if (rows.isEmpty()) {
+        if (state.selectedServerSchema == null) {
+            _uiState.update { it.copy(error = "Load and select an AnonCred schema first") }
+            return
+        }
+
+        val selectedRows = state.serverSchemaClaimRows.filter { it.checked }
+        val validationError = validateServerSchemaRows(selectedRows)
+        if (validationError != null) {
+            _uiState.update { it.copy(error = validationError) }
+            return
+        }
+
+        if (selectedRows.isEmpty()) {
             _uiState.update { it.copy(error = "Add at least one proof claim") }
             return
         }
 
-        val request = buildRequestFromRows(
+        val request = buildRequestFromServerSchemaRows(
             contact = Contact(holder = state.serverConnectionId, name = "Cloud agent", protocol = "HTTP"),
-            rows = rows,
+            rows = selectedRows,
         )
 
         _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
@@ -383,7 +485,9 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     connectionId = state.serverConnectionId,
                     claims = request.claims,
                     predicates = request.predicates,
-                    credentialDefinitionId = state.serverCredentialDefinitionId.ifBlank { null },
+                    credentialDefinitionId = state.serverCredentialDefinitionId
+                        .ifBlank { state.selectedServerSchema.credentialDefinitionId(state.serverBaseUrl) }
+                        .ifBlank { null },
                     requestName = state.serverProofRequestName,
                 )
                 _uiState.update {
@@ -410,12 +514,16 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         domain: String,
         challenge: String
     ) {
+        Logger.d("Request: $request");
+        Logger.d("Domain: $domain");
+        Logger.d("Challenge: $challenge");
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             try {
-                protocols.forEach { protocol ->
+                val request= protocols.forEach { protocol ->
                     protocol.credentialManager.sendVerificationRequest(request, domain, challenge)
                 }
+                Logger.d("Request result : $request");
                 _uiState.update { it.copy(isLoading = false, success = true) }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
@@ -461,6 +569,105 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 )
             }
         return VerificationRequest(contact.holder, claims, predicates)
+    }
+
+    private fun buildRequestFromServerSchemaRows(
+        contact: Contact,
+        rows: List<ServerSchemaClaimRow>,
+    ): VerificationRequest {
+        val claims = rows
+            .filter { !it.supportsPredicate() || it.predicateOperator == null }
+            .map {
+                Claim(
+                    name = it.attrName,
+                    type = it.valueType.toClaimType(),
+                    pattern = it.constraint.ifBlank { null },
+                )
+            }
+
+        val predicates = rows
+            .filter { it.supportsPredicate() && it.predicateOperator != null }
+            .mapNotNull { row ->
+                val value = row.predicateIntValue() ?: return@mapNotNull null
+                Predicate(
+                    name = row.attrName,
+                    operator = row.predicateOperator!!,
+                    value = value,
+                )
+            }
+        return VerificationRequest(contact.holder, claims, predicates)
+    }
+
+    private fun validateServerSchemaRows(rows: List<ServerSchemaClaimRow>): String? {
+        rows.forEach { row ->
+            if (row.supportsPredicate() && row.predicateOperator != null) {
+                if (row.predicateIntValue() == null) return when (row.valueType) {
+                    ServerSchemaClaimValueType.DATE -> "${row.displayName} predicate must be a date in yyyy-MM-dd format"
+                    else -> "${row.displayName} must be an integer number"
+                }
+                return@forEach
+            }
+
+            val value = row.constraint.trim()
+            if (value.isBlank()) return@forEach
+
+            when (row.valueType) {
+                ServerSchemaClaimValueType.STRING -> Unit
+                ServerSchemaClaimValueType.NUMBER -> if (value.toDoubleOrNull() == null) {
+                    return "${row.displayName} must be a number"
+                }
+                ServerSchemaClaimValueType.BOOLEAN -> if (!value.equals("true", ignoreCase = true) && !value.equals("false", ignoreCase = true)) {
+                    return "${row.displayName} must be true or false"
+                }
+                ServerSchemaClaimValueType.DATE -> if (!isIsoDate(value)) {
+                    return "${row.displayName} must be a date in yyyy-MM-dd format"
+                }
+            }
+        }
+        return null
+    }
+
+    private fun ServerSchemaClaimRow.supportsPredicate(): Boolean =
+        valueType == ServerSchemaClaimValueType.NUMBER || valueType == ServerSchemaClaimValueType.DATE
+
+    private fun ServerSchemaClaimRow.predicateIntValue(): Int? =
+        when (valueType) {
+            ServerSchemaClaimValueType.DATE -> predicateValue.trim().takeIf { isIsoDate(it) }
+                ?.replace("-", "")
+                ?.toIntOrNull()
+            else -> predicateValue.toIntOrNull()
+        }
+
+    private fun String.toServerSchemaClaimRow(): ServerSchemaClaimRow {
+        val suffix = substringAfterLast("_", missingDelimiterValue = "")
+        val type = ServerSchemaClaimValueType.entries.firstOrNull { it.suffix == suffix }
+            ?: ServerSchemaClaimValueType.STRING
+        val displayName = if (suffix == type.suffix) substringBeforeLast("_") else this
+        return ServerSchemaClaimRow(
+            attrName = this,
+            displayName = displayName.ifBlank { this },
+            valueType = type,
+        )
+    }
+
+    private fun ServerSchemaClaimValueType.toClaimType(): ClaimType =
+        when (this) {
+            ServerSchemaClaimValueType.STRING,
+            ServerSchemaClaimValueType.DATE -> ClaimType.STRING
+            ServerSchemaClaimValueType.NUMBER -> ClaimType.NUMBER
+            ServerSchemaClaimValueType.BOOLEAN -> ClaimType.BOOLEAN
+        }
+
+    private fun isIsoDate(value: String): Boolean {
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        format.isLenient = false
+        return runCatching { format.parse(value) }.getOrNull() != null
+    }
+
+    private fun CloudAgentAnonCredSchema?.credentialDefinitionId(baseUrl: String): String {
+        val guid = this?.guid.orEmpty()
+        if (guid.isBlank() || baseUrl.isBlank()) return ""
+        return "${baseUrl.trimEnd('/')}/credential-definition-registry/definitions/$guid/definition"
     }
 
     fun onErrorShown() = _uiState.update { it.copy(error = null) }

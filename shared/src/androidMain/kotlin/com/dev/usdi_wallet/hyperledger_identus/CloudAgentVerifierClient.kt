@@ -28,9 +28,30 @@ data class CloudAgentProofRequestResult(
     val raw: String,
 )
 
+data class CloudAgentAnonCredSchema(
+    val guid: String,
+    val id: String,
+    val name: String,
+    val version: String,
+    val attrNames: List<String>,
+)
+
 class CloudAgentVerifierClient(
     private val httpClient: HttpClient = HttpClient(OkHttp),
 ) {
+    suspend fun getAnonCredSchemas(
+        baseUrl: String,
+        apiKey: String?,
+    ): List<CloudAgentAnonCredSchema> {
+        val responseText = httpClient.get(endpoint(baseUrl, "schema-registry/schemas")) {
+            apiKey(apiKey)
+        }.bodyAsText()
+
+        return schemaItems(responseText)
+            .filter { it.optString("type") == "AnoncredSchemaV1" }
+            .mapNotNull { it.toAnonCredSchema() }
+    }
+
     suspend fun createConnectionInvitation(
         baseUrl: String,
         apiKey: String?,
@@ -167,6 +188,49 @@ class CloudAgentVerifierClient(
 
     private fun numericNonce(): String =
         System.currentTimeMillis().toString() + (100000..999999).random().toString()
+
+    private fun schemaItems(responseText: String): List<JSONObject> {
+        val trimmed = responseText.trim()
+        if (trimmed.startsWith("[")) {
+            return JSONArray(trimmed).jsonObjects()
+        }
+
+        val response = JSONObject(trimmed)
+        val list = response.optJSONArray("contents")
+            ?: response.optJSONArray("items")
+            ?: response.optJSONArray("schemas")
+            ?: return emptyList()
+        return list.jsonObjects()
+    }
+
+    private fun JSONArray.jsonObjects(): List<JSONObject> =
+        (0 until length()).mapNotNull { index -> optJSONObject(index) }
+
+    private fun JSONObject.toAnonCredSchema(): CloudAgentAnonCredSchema? {
+        val schema = optJSONObject("schema") ?: this
+        val attrs = (schema.optJSONArray("attrNames") ?: optJSONArray("attrNames"))
+            ?.let { array ->
+                (0 until array.length()).mapNotNull { index ->
+                    array.optString(index).ifBlank { null }
+                }
+            }
+            ?: emptyList()
+
+        if (attrs.isEmpty()) return null
+
+        val guid = optString("guid")
+        val id = optString("id")
+            .ifBlank { optString("schemaId") }
+            .ifBlank { optString("self") }
+
+        return CloudAgentAnonCredSchema(
+            guid = guid,
+            id = id,
+            name = schema.optString("name").ifBlank { optString("name") }.ifBlank { guid },
+            version = schema.optString("version").ifBlank { optString("version") },
+            attrNames = attrs,
+        )
+    }
 
     private fun connectionId(response: JSONObject): String =
         response.optString("connectionId")

@@ -129,8 +129,7 @@ class IdentusAnonCredentialManager(
         list.forEach { jsonArray.put(toJson(it)) }
 
         file.writeText(jsonArray.toString())
-        // update memory cache
-        //_localCredentials.value = list
+
     }
     private fun loadAll(): List<Credential> {
         Logger.d { "File path: ${file.absolutePath}" }
@@ -488,13 +487,14 @@ class IdentusAnonCredentialManager(
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "Creating proof presentation for request ${message.id} with credential ${credential.id}"
                 }
-
+                Logger.d("Step1 debug");
                 val presentation = sdk.agent.preparePresentationForRequestProof(
                     RequestPresentation.fromMessage(message),
                     credential,
                 )
+                Logger.d("Step2 debug");
                 val outMessage = presentation.makeMessage()
-
+                Logger.d("Step3 debug");
                 Logger.d {
                     """
                      Sending proof presentation:
@@ -507,7 +507,7 @@ class IdentusAnonCredentialManager(
                      presentation.piuri=${outMessage.piuri}
                      """.trimIndent()
                 }
-
+                Logger.d("Message sent to server: ${outMessage}")
                 val response = sdk.agent.sendMessage(outMessage)
 
                 Logger.d {
@@ -730,8 +730,14 @@ class IdentusAnonCredentialManager(
 
     private data class ProofRequestCriteria(
         val attributes: Set<String>,
-        val predicates: Set<String>,
+        val predicates: List<RequestedPredicate>,
         val credentialDefinitionIds: Set<String>,
+    )
+
+    private data class RequestedPredicate(
+        val name: String,
+        val operator: String,
+        val value: Long,
     )
 
     private fun proofRequestCriteria(message: SdkMessage): ProofRequestCriteria {
@@ -748,7 +754,7 @@ class IdentusAnonCredentialManager(
         } else {
             ProofRequestCriteria(
                 attributes = presentationExchangeRequestedAttributes(json),
-                predicates = emptySet(),
+                predicates = emptyList(),
                 credentialDefinitionIds = emptySet(),
             )
         }
@@ -759,26 +765,30 @@ class IdentusAnonCredentialManager(
         criteria: ProofRequestCriteria,
     ): Boolean {
         if (criteria.credentialDefinitionIds.isEmpty()) return true
-
         val credentialDefinitionId = credentialDefinitionId(credential) ?: return false
+
         return normalizeCredentialDefinitionId(credentialDefinitionId) in criteria.credentialDefinitionIds
     }
 
     private fun credentialDefinitionId(credential: SdkCredential): String? {
-        return when (credential) {
-            is AnonCredential -> credential.credentialDefinitionID
-            else -> credential.properties["credentialDefinitionID"] as? String
-                ?: credential.properties["credentialDefinitionId"] as? String
-                ?: credential.properties["cred_def_id"] as? String
+        if (credential is AnonCredential) {
+            return credential.credentialDefinitionID
         }
+        val properties = credential.properties
+        return properties["credentialDefinitionID"] as? String
     }
 
     private fun credentialContainsAllRequestedClaims(
         credential: SdkCredential,
         criteria: ProofRequestCriteria,
     ): Boolean {
-        val claimNames = toUiCredential(credential).claims.mapTo(mutableSetOf()) { it.name }
-        return claimNames.containsAll(criteria.attributes) && claimNames.containsAll(criteria.predicates)
+        val claims = toUiCredential(credential).claims
+        val claimNames = claims.mapTo(mutableSetOf()) { it.name }
+        val predicateNames = criteria.predicates.mapTo(mutableSetOf()) { it.name }
+
+        return claimNames.containsAll(criteria.attributes) &&
+            claimNames.containsAll(predicateNames) &&
+            credentialSatisfiesRequestedPredicates(claims, criteria.predicates)
     }
 
     private fun anoncredRequestedAttributes(requestedAttributes: JSONObject?): Set<String> {
@@ -798,14 +808,45 @@ class IdentusAnonCredentialManager(
         return result
     }
 
-    private fun anoncredRequestedPredicates(requestedPredicates: JSONObject?): Set<String> {
-        if (requestedPredicates == null) return emptySet()
+    private fun credentialSatisfiesRequestedPredicates(
+        claims: List<Claim>,
+        predicates: List<RequestedPredicate>,
+    ): Boolean {
+        if (predicates.isEmpty()) return true
+        Logger.d("List predicate: ${predicates}");
+        val claimsByName = claims.associateBy { it.name }
+        return predicates.all { predicate ->
+            val claimValue = claimsByName[predicate.name]?.value?.toPredicateLong() ?: return@all false
+            when (predicate.operator) {
+                ">" -> claimValue > predicate.value
+                ">=" -> claimValue >= predicate.value
+                "<" -> claimValue < predicate.value
+                "<=" -> claimValue <= predicate.value
+                else -> false
+            }
+        }
+    }
 
-        val result = mutableSetOf<String>()
+    private fun Any.toPredicateLong(): Long? {
+        return when (this) {
+            is Number -> toLong()
+            is String -> trim().toLongOrNull()
+            else -> null
+        }
+    }
+
+    private fun anoncredRequestedPredicates(requestedPredicates: JSONObject?): List<RequestedPredicate> {
+        if (requestedPredicates == null) return emptyList()
+
+        val result = mutableListOf<RequestedPredicate>()
         val keys = requestedPredicates.keys()
         while (keys.hasNext()) {
             val predicate = requestedPredicates.optJSONObject(keys.next()) ?: continue
-            predicate.optString("name").takeIf { it.isNotBlank() }?.let { result.add(it) }
+            val name = predicate.optString("name").takeIf { it.isNotBlank() } ?: continue
+            val operator = predicate.optString("p_type").takeIf { it.isNotBlank() } ?: continue
+            if (!predicate.has("p_value")) continue
+            val value = predicate.optLong("p_value")
+            result.add(RequestedPredicate(name, operator, value))
         }
         return result
     }

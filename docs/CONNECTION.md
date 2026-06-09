@@ -310,7 +310,13 @@ Replace `guid` in schemaId in step 3 and `credentialDefinitionId` in step 4with 
    }
    }'
     ```
-
+Anoncred just has string
+so at now
+use str:string
+num: number
+bool: boolean
+date: date
+At now just think with it, need to change later.
 Replace with you service and schema address.
 ### Run the application
 
