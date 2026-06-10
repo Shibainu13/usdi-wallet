@@ -26,6 +26,8 @@ import org.hyperledger.identus.walletsdk.edgeagent.EdgeAgent
 import org.hyperledger.identus.walletsdk.edgeagent.EdgeAgentError
 import org.hyperledger.identus.walletsdk.edgeagent.mediation.BasicMediatorHandler
 import org.hyperledger.identus.walletsdk.edgeagent.mediation.MediationHandler
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.mediation.MediationGrant
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.mediation.MediationRequest
 import org.hyperledger.identus.walletsdk.mercury.MercuryImpl
 import org.hyperledger.identus.walletsdk.mercury.resolvers.DIDCommWrapper
 import org.hyperledger.identus.walletsdk.pluto.PlutoImpl
@@ -60,7 +62,9 @@ class HyperledgerIdentusSdk private constructor() {
         }
 
         startPluto(context)
+        val hadRegisteredMediator = handler.bootRegisteredMediator() != null
         agent.start()
+        enrollMediatorBeforePickup(hadRegisteredMediator)
         try {
             agent.startFetchingMessages()
         } catch (_: Exception) {}
@@ -153,6 +157,27 @@ class HyperledgerIdentusSdk private constructor() {
             mercury = mercury,
             store = BasicMediatorHandler.PlutoMediatorRepositoryImpl(pluto)
         )
+    }
+
+    private suspend fun enrollMediatorBeforePickup(hadRegisteredMediator: Boolean) {
+        val mediator = handler.mediator ?: return
+
+        if (hadRegisteredMediator) {
+            val mediateRequest = MediationRequest(
+                from = mediator.hostDID,
+                to = mediator.mediatorDID
+            ).makeMessage()
+            val response = mercury.sendMessageParseResponse(mediateRequest)
+                ?: throw EdgeAgentError.MediationRequestFailedError()
+
+            val grant = MediationGrant(response)
+            val routingDID = DID(grant.body.routingDid)
+            if (routingDID != mediator.routingDID) {
+                pluto.storeMediator(mediator.mediatorDID, mediator.hostDID, routingDID)
+            }
+        }
+
+        handler.updateKeyListWithDIDs(arrayOf(mediator.hostDID))
     }
 
     private fun createAgent(handler: MediationHandler): EdgeAgent {

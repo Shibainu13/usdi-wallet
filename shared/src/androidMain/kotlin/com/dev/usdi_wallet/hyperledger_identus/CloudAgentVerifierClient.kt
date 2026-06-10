@@ -5,6 +5,7 @@ import com.dev.usdi_wallet.domain.credential.Predicate
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.request.accept
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -36,6 +37,15 @@ data class CloudAgentAnonCredSchema(
     val attrNames: List<String>,
 )
 
+data class CloudAgentCredentialDefinition(
+    val guid: String,
+    val id: String,
+    val schemaId: String,
+    val name: String,
+    val version: String,
+    val tag: String,
+)
+
 class CloudAgentVerifierClient(
     private val httpClient: HttpClient = HttpClient(OkHttp),
 ) {
@@ -50,6 +60,33 @@ class CloudAgentVerifierClient(
         return schemaItems(responseText)
             .filter { it.optString("type") == "AnoncredSchemaV1" }
             .mapNotNull { it.toAnonCredSchema() }
+    }
+
+    suspend fun getCredentialDefinitions(
+        baseUrl: String,
+        apiKey: String?,
+    ): List<CloudAgentCredentialDefinition> {
+        val responseText = httpClient.get(endpoint(baseUrl, "credential-definition-registry/definitions")) {
+            accept(ContentType.Application.Json)
+            apiKey(apiKey)
+        }.bodyAsText()
+
+        return responseItems(responseText)
+            .mapNotNull { it.toCredentialDefinition() }
+    }
+
+    suspend fun getAnonCredSchemaById(
+        baseUrl: String,
+        apiKey: String?,
+        schemaId: String,
+    ): CloudAgentAnonCredSchema? {
+        if (schemaId.isBlank()) return null
+        val responseText = httpClient.get(schemaEndpoint(baseUrl, schemaId)) {
+            accept(ContentType.Application.Json)
+            apiKey(apiKey)
+        }.bodyAsText()
+
+        return JSONObject(responseText).toAnonCredSchema()
     }
 
     suspend fun createConnectionInvitation(
@@ -190,6 +227,10 @@ class CloudAgentVerifierClient(
         System.currentTimeMillis().toString() + (100000..999999).random().toString()
 
     private fun schemaItems(responseText: String): List<JSONObject> {
+        return responseItems(responseText)
+    }
+
+    private fun responseItems(responseText: String): List<JSONObject> {
         val trimmed = responseText.trim()
         if (trimmed.startsWith("[")) {
             return JSONArray(trimmed).jsonObjects()
@@ -229,6 +270,26 @@ class CloudAgentVerifierClient(
             name = schema.optString("name").ifBlank { optString("name") }.ifBlank { guid },
             version = schema.optString("version").ifBlank { optString("version") },
             attrNames = attrs,
+        )
+    }
+
+    private fun JSONObject.toCredentialDefinition(): CloudAgentCredentialDefinition? {
+        val guid = optString("guid")
+        if (guid.isBlank()) return null
+
+        val credentialDefinition = optJSONObject("credentialDefinition")
+            ?: optJSONObject("definition")
+            ?: this
+
+        return CloudAgentCredentialDefinition(
+            guid = guid,
+            id = optString("id")
+                .ifBlank { optString("credentialDefinitionId") }
+                .ifBlank { optString("self") },
+            schemaId = optString("schemaId").ifBlank { credentialDefinition.optString("schemaId") },
+            name = optString("name").ifBlank { credentialDefinition.optString("name") }.ifBlank { guid },
+            version = optString("version").ifBlank { credentialDefinition.optString("version") },
+            tag = optString("tag").ifBlank { credentialDefinition.optString("tag") },
         )
     }
 
@@ -283,6 +344,13 @@ class CloudAgentVerifierClient(
 
     private fun endpoint(baseUrl: String, path: String): String =
         "${baseUrl.trimEnd('/')}/$path"
+
+    private fun schemaEndpoint(baseUrl: String, schemaId: String): String =
+        if (schemaId.startsWith("http://") || schemaId.startsWith("https://")) {
+            schemaId
+        } else {
+            endpoint(baseUrl, schemaId.trimStart('/'))
+        }
 
     private fun io.ktor.client.request.HttpRequestBuilder.apiKey(apiKey: String?) {
         if (!apiKey.isNullOrBlank()) {

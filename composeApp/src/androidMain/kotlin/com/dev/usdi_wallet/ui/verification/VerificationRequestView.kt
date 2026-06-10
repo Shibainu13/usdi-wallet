@@ -222,8 +222,8 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 onProofRequestNameChange = viewModel::onServerProofRequestNameChanged,
                                 onCreateInvitation = viewModel::createServerConnectionInvitation,
                                 onCheckConnection = viewModel::checkServerConnection,
-                                onLoadSchemas = viewModel::loadServerSchemas,
-                                onSchemaSelected = viewModel::onServerSchemaSelected,
+                                onLoadCredentialDefinitions = viewModel::loadServerCredentialDefinitions,
+                                onCredentialDefinitionSelected = viewModel::onServerCredentialDefinitionSelected,
                             )
                         }
 
@@ -252,7 +252,7 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                             ) {
                                 Button(
                                     onClick = viewModel::sendServerProofRequest,
-                                    enabled = !uiState.isLoading && uiState.selectedServerSchema != null,
+                                    enabled = !uiState.isLoading && uiState.selectedServerCredentialDefinition != null,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text("Send via server")
@@ -285,8 +285,8 @@ private fun ServerHttpConnectionCard(
     onProofRequestNameChange: (String) -> Unit,
     onCreateInvitation: () -> Unit,
     onCheckConnection: () -> Unit,
-    onLoadSchemas: () -> Unit,
-    onSchemaSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema) -> Unit,
+    onLoadCredentialDefinitions: () -> Unit,
+    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -364,17 +364,17 @@ private fun ServerHttpConnectionCard(
             )
 
             Button(
-                onClick = onLoadSchemas,
+                onClick = onLoadCredentialDefinitions,
                 enabled = !uiState.isLoading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Load AnonCred schemas")
+                Text("Load credential definitions")
             }
 
-            ServerSchemaDropdown(
-                schemas = uiState.serverSchemas,
-                selectedSchema = uiState.selectedServerSchema,
-                onSchemaSelected = onSchemaSelected,
+            ServerCredentialDefinitionDropdown(
+                credentialDefinitions = uiState.serverCredentialDefinitions,
+                selectedCredentialDefinition = uiState.selectedServerCredentialDefinition,
+                onCredentialDefinitionSelected = onCredentialDefinitionSelected,
             )
 
             OutlinedTextField(
@@ -388,27 +388,27 @@ private fun ServerHttpConnectionCard(
 }
 
 @Composable
-private fun ServerSchemaDropdown(
-    schemas: List<com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema>,
-    selectedSchema: com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema?,
-    onSchemaSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema) -> Unit,
+private fun ServerCredentialDefinitionDropdown(
+    credentialDefinitions: List<com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition>,
+    selectedCredentialDefinition: com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition?,
+    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
 ) {
     SelectorField(
-        label = "AnonCred schema",
-        value = selectedSchema?.let { schema ->
-            listOf(schema.name, schema.version)
+        label = "Credential definition",
+        value = selectedCredentialDefinition?.let { credentialDefinition ->
+            listOf(credentialDefinition.name, credentialDefinition.version, credentialDefinition.tag)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
-                .ifBlank { schema.guid.ifBlank { schema.id } }
+                .ifBlank { credentialDefinition.guid.ifBlank { credentialDefinition.id } }
         }.orEmpty(),
-        options = schemas,
-        optionLabel = { schema ->
-            listOf(schema.name, schema.version)
+        options = credentialDefinitions,
+        optionLabel = { credentialDefinition ->
+            listOf(credentialDefinition.name, credentialDefinition.version, credentialDefinition.tag)
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
-                .ifBlank { schema.guid.ifBlank { schema.id } }
+                .ifBlank { credentialDefinition.guid.ifBlank { credentialDefinition.id } }
         },
-        onOptionSelected = onSchemaSelected,
+        onOptionSelected = onCredentialDefinitionSelected,
     )
 }
 

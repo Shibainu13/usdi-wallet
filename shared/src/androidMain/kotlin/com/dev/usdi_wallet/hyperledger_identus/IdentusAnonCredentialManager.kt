@@ -104,13 +104,24 @@ class IdentusAnonCredentialManager(
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Finding matching credentials for proof request ${proofRequest.id}: $criteria"
         }
+        val result= sdk.agent.getAllCredentials().first().filter { credential ->
+            val matchesCredentialDefinition =
+                credentialMatchesRequestedCredentialDefinition(credential, criteria)
 
-        return sdk.agent.getAllCredentials().first().filter { credential ->
+            val containsAllClaims =
+                credentialContainsAllRequestedClaims(credential, criteria)
+
+            Logger.d("Checking credential: $credential")
+            Logger.d("credentialMatchesRequestedCredentialDefinition = $matchesCredentialDefinition")
+            Logger.d("credentialContainsAllRequestedClaims = $containsAllClaims")
             credential is ProvableCredential &&
                 credential.revoked != true &&
-                credentialMatchesRequestedCredentialDefinition(credential, criteria) &&
-                credentialContainsAllRequestedClaims(credential, criteria)
+                    matchesCredentialDefinition &&
+                    containsAllClaims
         }
+
+        Logger.d("Credential full list: ${result} ")
+        return result
     }
 
     override suspend fun getCredential(id: String): Credential? {
@@ -766,11 +777,17 @@ class IdentusAnonCredentialManager(
     ): Boolean {
         if (criteria.credentialDefinitionIds.isEmpty()) return true
         val credentialDefinitionId = credentialDefinitionId(credential) ?: return false
+        Logger.d("credentialDefinitionId $credentialDefinitionId");
+        Logger.d("credentialDefinitionIds from proof ${criteria.credentialDefinitionIds}");
 
-        return normalizeCredentialDefinitionId(credentialDefinitionId) in criteria.credentialDefinitionIds
+
+        val result =normalizeCredentialDefinitionId(credentialDefinitionId) ;
+        if (result in criteria.credentialDefinitionIds) return true;
+        return false;
     }
 
     private fun credentialDefinitionId(credential: SdkCredential): String? {
+        Logger.d("Full credential: $credential");
         if (credential is AnonCredential) {
             return credential.credentialDefinitionID
         }

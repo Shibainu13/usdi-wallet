@@ -12,7 +12,7 @@ import com.dev.usdi_wallet.domain.credential.Predicate
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
-import com.dev.usdi_wallet.hyperledger_identus.CloudAgentAnonCredSchema
+import com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -89,8 +89,8 @@ data class VerificationRequestUiState(
     val serverConnectionState: String = "",
     val serverCredentialDefinitionId: String = "",
     val serverProofRequestName: String = "Mobile verifier proof",
-    val serverSchemas: List<CloudAgentAnonCredSchema> = emptyList(),
-    val selectedServerSchema: CloudAgentAnonCredSchema? = null,
+    val serverCredentialDefinitions: List<CloudAgentCredentialDefinition> = emptyList(),
+    val selectedServerCredentialDefinition: CloudAgentCredentialDefinition? = null,
     val serverSchemaClaimRows: List<ServerSchemaClaimRow> = emptyList(),
     val serverResult: String = "",
 )
@@ -272,13 +272,14 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         _uiState.update { it.copy(serverProofRequestName = value) }
     }
 
-    fun onServerSchemaSelected(schema: CloudAgentAnonCredSchema) {
+    fun onServerCredentialDefinitionSelected(credentialDefinition: CloudAgentCredentialDefinition) {
         _uiState.update {
             it.copy(
-                selectedServerSchema = schema,
-                serverSchemaClaimRows = schema.attrNames.map { attrName -> attrName.toServerSchemaClaimRow() },
+                selectedServerCredentialDefinition = credentialDefinition,
+                serverSchemaClaimRows = emptyList(),
             )
         }
+        loadCredentialDefinitionSchemaRows(credentialDefinition)
     }
 
     fun onServerSchemaRowConstraintChanged(id: String, constraint: String) {
@@ -313,7 +314,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         }
     }
 
-    fun loadServerSchemas() {
+    fun loadServerCredentialDefinitions() {
         val state = _uiState.value
         if (state.serverBaseUrl.isBlank()) {
             _uiState.update { it.copy(error = "Enter cloud agent URL first") }
@@ -323,26 +324,60 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
         viewModelScope.launch {
             try {
-                val schemas = cloudAgentVerifierClient.getAnonCredSchemas(
+                val credentialDefinitions = cloudAgentVerifierClient.getCredentialDefinitions(
+                    baseUrl = state.serverBaseUrl,
+                    apiKey = state.serverApiKey.ifBlank { null },
+                )
+                val selectedCredentialDefinition = credentialDefinitions.firstOrNull()
+                val rows = selectedCredentialDefinition
+                    ?.schemaClaimRows(state.serverBaseUrl, state.serverApiKey.ifBlank { null })
+                    .orEmpty()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        serverCredentialDefinitions = credentialDefinitions,
+                        selectedServerCredentialDefinition = selectedCredentialDefinition,
+                        serverSchemaClaimRows = rows,
+                        serverResult = "Loaded ${credentialDefinitions.size} credential definition(s)",
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(VerificationRequestViewModel::class.toString()) {
+                    "Failed to load server credential definitions: ${e.message}"
+                }
+                _uiState.update { it.copy(isLoading = false, error = "Failed to load credential definitions: ${e.message}") }
+            }
+        }
+    }
+
+    private fun loadCredentialDefinitionSchemaRows(credentialDefinition: CloudAgentCredentialDefinition) {
+        val state = _uiState.value
+        if (state.serverBaseUrl.isBlank()) return
+
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val rows = credentialDefinition.schemaClaimRows(
                     baseUrl = state.serverBaseUrl,
                     apiKey = state.serverApiKey.ifBlank { null },
                 )
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        serverSchemas = schemas,
-                        selectedServerSchema = schemas.firstOrNull(),
-                        serverSchemaClaimRows = schemas.firstOrNull()?.attrNames
-                            ?.map { attrName -> attrName.toServerSchemaClaimRow() }
-                            .orEmpty(),
-                        serverResult = "Loaded ${schemas.size} AnoncredSchemaV1 schema(s)",
+                        serverSchemaClaimRows = rows,
                     )
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "Failed to load server schemas: ${e.message}"
+                    "Failed to load schema for credential definition: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to load schemas: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        serverSchemaClaimRows = emptyList(),
+                        error = "Failed to load credential definition schema: ${e.message}",
+                    )
+                }
             }
         }
     }
@@ -454,8 +489,8 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             return
         }
 
-        if (state.selectedServerSchema == null) {
-            _uiState.update { it.copy(error = "Load and select an AnonCred schema first") }
+        if (state.selectedServerCredentialDefinition == null) {
+            _uiState.update { it.copy(error = "Load and select a credential definition first") }
             return
         }
 
@@ -486,7 +521,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     claims = request.claims,
                     predicates = request.predicates,
                     credentialDefinitionId = state.serverCredentialDefinitionId
-                        .ifBlank { state.selectedServerSchema.credentialDefinitionId(state.serverBaseUrl) }
+                        .ifBlank { state.selectedServerCredentialDefinition.credentialDefinitionId(state.serverBaseUrl) }
                         .ifBlank { null },
                     requestName = state.serverProofRequestName,
                 )
@@ -664,7 +699,19 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         return runCatching { format.parse(value) }.getOrNull() != null
     }
 
-    private fun CloudAgentAnonCredSchema?.credentialDefinitionId(baseUrl: String): String {
+    private suspend fun CloudAgentCredentialDefinition.schemaClaimRows(
+        baseUrl: String,
+        apiKey: String?,
+    ): List<ServerSchemaClaimRow> =
+        cloudAgentVerifierClient.getAnonCredSchemaById(
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            schemaId = schemaId,
+        )?.attrNames
+            ?.map { attrName -> attrName.toServerSchemaClaimRow() }
+            .orEmpty()
+
+    private fun CloudAgentCredentialDefinition?.credentialDefinitionId(baseUrl: String): String {
         val guid = this?.guid.orEmpty()
         if (guid.isBlank() || baseUrl.isBlank()) return ""
         return "${baseUrl.trimEnd('/')}/credential-definition-registry/definitions/$guid/definition"

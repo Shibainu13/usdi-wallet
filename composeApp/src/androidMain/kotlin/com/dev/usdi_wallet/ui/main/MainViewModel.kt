@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import co.touchlab.kermit.Logger
 enum class WalletTab(
     val title: String,
     val rootRoute: String,
@@ -107,12 +108,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val credentials = protocol.credentialManager.findMatchingCredentials(request).map {
                         protocol.credentialManager.toUiCredential(it)
                     }
-
+                    Logger.d("Found ${credentials.size} matching credentials for request $request")
+                    Logger.d("Credentials: $credentials")
                     _uiState.update { state ->
                         if (state.pendingProofRequests.isNotEmpty()) {
                             state
                         } else {
-                            state.copy(
+
+                            Logger.d("State before copy: $state")
+                            val newState = state.copy(
                                 pendingProofRequests = listOf(
                                     PendingProofRequest(
                                         id = "${protocol.protocolId}-$index",
@@ -128,6 +132,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     ),
                                 ),
                             )
+                            Logger.d("State after copy: $newState")
+                            newState
+
                         }
                     }
                 }
