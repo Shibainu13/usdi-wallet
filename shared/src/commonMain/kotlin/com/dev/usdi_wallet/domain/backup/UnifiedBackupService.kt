@@ -85,6 +85,9 @@ class UnifiedBackupService private constructor(
         private var _instance: UnifiedBackupService? = null
 
         fun getInstance(protocols: List<Protocol<*, *>>): UnifiedBackupService {
+//            if (_instance == null) {
+//                dev.whyoleg.cryptography.providers.
+//            }
             return _instance ?: UnifiedBackupService(protocols).also { _instance = it }
         }
     }

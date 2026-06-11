@@ -62,8 +62,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     private val preferences = WalletPreferences.getInstance(application)
-    val isOnboardingComplete: StateFlow<Boolean> = preferences.isOnBoardingComplete
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnBoardingComplete
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val areAgentsRunning: StateFlow<Boolean> =
         combine(protocols.map { it.connectionManager.state }) { states ->

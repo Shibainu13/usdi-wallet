@@ -40,6 +40,7 @@ kotlin {
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.kermit)
             implementation(libs.cryptography.core)
+            implementation(libs.cryptography.provider)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)

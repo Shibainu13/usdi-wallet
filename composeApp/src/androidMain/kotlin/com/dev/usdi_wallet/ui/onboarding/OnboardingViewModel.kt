@@ -1,9 +1,14 @@
 package com.dev.usdi_wallet.ui.onboarding
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
+import com.dev.usdi_wallet.domain.backup.UnifiedBackupService
+import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.preferences.WalletPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +18,7 @@ import kotlinx.coroutines.launch
 sealed class OnboardingStep {
     object Welcome : OnboardingStep()
     object CreatePassphrase : OnboardingStep()
+    object RestoreWallet : OnboardingStep()
     object BiometricSetup : OnboardingStep()
     object Complete : OnboardingStep()
 }
@@ -22,6 +28,7 @@ data class OnboardingUiState(
     val passphrase: String = "",
     val passphraseConfirm: String = "",
     val passphraseError: String? = null,
+    val restoreError: String? = null,
     val biometricSuccess: Boolean = false,
     val isLoading: Boolean = false
 )
@@ -29,12 +36,20 @@ data class OnboardingUiState(
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = WalletPreferences.getInstance(application)
     private val authManager = AndroidWalletAuthManager.getInstance()
-
+    private val protocols = listOf<Protocol<*,*>>(
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        EudiProtocol.getInstance(application, viewModelScope),
+    )
+    private val backupService = UnifiedBackupService.getInstance(protocols)
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
-    fun onGetStarted() {
+    fun onCreateNewWallet() {
         _uiState.value = _uiState.value.copy(step = OnboardingStep.CreatePassphrase)
+    }
+
+    fun onRestoreWallet() {
+        _uiState.value = _uiState.value.copy(step = OnboardingStep.RestoreWallet)
     }
 
     fun onPassphraseConfirmed() {
@@ -49,6 +64,48 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             else -> {
                 _uiState.value = state.copy(
                     passphraseError = null,
+                    step = OnboardingStep.BiometricSetup,
+                )
+            }
+        }
+    }
+
+    fun onRestoreConfirmed(fileUri: Uri?, passphrase: String) {
+        if (fileUri == null) {
+            _uiState.value = _uiState.value.copy(restoreError = "Please select a backup file")
+            return
+        }
+        if (passphrase.isBlank()) {
+            _uiState.value = _uiState.value.copy(restoreError = "Please enter your passphrase")
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.value = uiState.value.copy(isLoading = true, restoreError = null)
+
+            val encrypted = runCatching {
+                getApplication<Application>().contentResolver
+                    .openInputStream(fileUri)
+                    ?.bufferedReader()
+                    ?.readText()
+            }.getOrNull()
+
+            if (encrypted == null) {
+                _uiState.value = uiState.value.copy(
+                    isLoading = false,
+                    restoreError = "Could not read backup file"
+                )
+                return@launch
+            }
+
+            val result = backupService.restoreEncrypted(encrypted, passphrase)
+
+            if (result.error != null) {
+                _uiState.value = _uiState.value.copy(isLoading = false, restoreError = result.error)
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    passphrase = passphrase,
                     step = OnboardingStep.BiometricSetup,
                 )
             }

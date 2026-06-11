@@ -34,17 +34,18 @@ fun MainRoute(
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    if (!isOnboardingComplete) {
+    if (isOnboardingComplete == null) return
+    else if (isOnboardingComplete == false) {
         OnboardingScreen(
             viewModel = onboardingViewModel,
             onCompleted = {  }
         )
         return
-    }
-
-    if (lockState !is LockState.Authenticated) {
-        LockScreen(viewModel = lockViewModel)
-        return
+    } else {
+        if (lockState !is LockState.Authenticated) {
+            LockScreen(viewModel = lockViewModel)
+            return
+        }
     }
 
     val currentBackStack by navController.currentBackStackEntryAsState()
