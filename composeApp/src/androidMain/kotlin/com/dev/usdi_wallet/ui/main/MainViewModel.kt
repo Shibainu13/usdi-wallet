@@ -12,6 +12,7 @@ import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.preferences.WalletPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +60,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    private val preferences = WalletPreferences.getInstance(application)
+    val isOnboardingComplete: StateFlow<Boolean> = preferences.isOnBoardingComplete
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val areAgentsRunning: StateFlow<Boolean> =
         combine(protocols.map { it.connectionManager.state }) { states ->

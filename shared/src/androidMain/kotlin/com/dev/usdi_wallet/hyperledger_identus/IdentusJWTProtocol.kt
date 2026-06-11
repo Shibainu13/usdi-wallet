@@ -2,6 +2,7 @@ package com.dev.usdi_wallet.hyperledger_identus
 
 import android.app.Application
 import androidx.lifecycle.MutableLiveData
+import com.dev.usdi_wallet.domain.backup.WalletBackupManager
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.contact.ContactManager
 import com.dev.usdi_wallet.domain.credential.CredentialManager
@@ -17,6 +18,7 @@ class IdentusJWTProtocol(
     override val connectionManager: ConnectionManager<SdkMessage>,
     override val contactManager: ContactManager,
     override val credentialManager: CredentialManager<SdkCredential, SdkMessage>,
+    override val walletBackupManager: WalletBackupManager?
 ) : Protocol<SdkCredential, SdkMessage>() {
     private val messages = MutableLiveData<List<SdkMessage>>()
 
@@ -50,6 +52,7 @@ class IdentusJWTProtocol(
                         IdentusDIDCommConnectionManager(application),
                         IdentusDIDCommContactManager(),
                         IdentusJWTCredentialManager(scope, application),
+                        IdentusBackupManager()
                     )
                 )
     }

@@ -34,11 +34,12 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
-            implementation(libs.androidx.lifecycle.viewmodel)
             implementation(kotlin("reflect"))
-            implementation(libs.kermit)
+            implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            implementation(libs.kermit)
+            implementation(libs.cryptography.core)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
@@ -49,11 +50,12 @@ kotlin {
             implementation(libs.androidx.lifecycle.livedata.ktx)
             implementation(libs.androidx.lifecycle.viewmodel.ktx)
             implementation(libs.androidx.lifecycle.runtime.ktx)
+            implementation(libs.androidx.biometric)
 
             implementation(libs.sqldelight.android.driver)
             implementation(libs.identus.sdk)
             implementation(libs.eudi.wallet.core)
-            implementation(libs.androidx.biometric)
+            implementation(libs.androidx.datastore.preferences)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -14,6 +14,7 @@ import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.preferences.WalletPreferences
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -23,6 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WalletPreferences.getInstance(application)
 
         deepLinkRouter = DeepLinkRouter(
             protocols = listOf(
