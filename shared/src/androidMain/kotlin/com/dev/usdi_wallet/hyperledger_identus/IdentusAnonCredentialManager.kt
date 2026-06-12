@@ -11,6 +11,8 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.CredentialManager
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
+import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
+import com.dev.usdi_wallet.domain.credential.ProofRequestField
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import kotlinx.coroutines.CompletableDeferred
@@ -91,6 +93,31 @@ class IdentusAnonCredentialManager(
     override fun getProofRequestsToProcess(): Flow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
 
     override fun getVerificationResults(): Flow<List<VerificationResult>> = _verificationResults.asStateFlow()
+
+    override suspend fun getProofRequestDetails(proofRequest: SdkMessage): ProofRequestDetails {
+        val request = RequestPresentation.fromMessage(proofRequest)
+        val attachmentJson = request.attachments.firstNotNullOf { it.data.getDataAsJsonString() }
+        val json = JSONObject(attachmentJson)
+        val fields = if (json.has("requested_attributes") || json.has("requested_predicates")) {
+            anoncredRequestedFields(json)
+        } else {
+            presentationExchangeRequestedFields(json)
+        }
+
+        return ProofRequestDetails(
+            verifier = proofRequest.from.toString(),
+            name = json.optString("name").takeIf { it.isNotBlank() },
+            requestedFields = fields,
+        )
+    }
+
+    override suspend fun denyProofRequest(proofRequest: SdkMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != proofRequest.id }
+        db.pendingProofRequestDao().deletePending(proofRequest.id)
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Proof request denied locally: ${proofRequest.id}"
+        }
+    }
 
     override suspend fun findMatchingCredentials(proofRequest: SdkMessage): List<SdkCredential> {
         val criteria = try {
@@ -181,7 +208,7 @@ class IdentusAnonCredentialManager(
         return Credential(
             id = json.getString("id"),
             issuer = json.getString("issuer"),
-            subject = json.optString("subject", null),
+            subject = json.opt("subject")as? String,
             protocol = json.getString("protocol"),
             claims = claims
         )
@@ -201,7 +228,7 @@ class IdentusAnonCredentialManager(
         return Claim(
             name = json.getString("name"),
             type = ClaimType.valueOf(json.getString("type").uppercase()),
-            pattern = json.optString("pattern", null),
+            pattern = json.opt("pattern")as? String,
             value = json.opt("value"),
             enum = json.optJSONArray("enum")?.let { toList(it) },
             const = json.optJSONArray("const")?.let { toList(it) }
@@ -802,10 +829,20 @@ class IdentusAnonCredentialManager(
         val claims = toUiCredential(credential).claims
         val claimNames = claims.mapTo(mutableSetOf()) { it.name }
         val predicateNames = criteria.predicates.mapTo(mutableSetOf()) { it.name }
+        Logger.d("Map request claim");
 
-        return claimNames.containsAll(criteria.attributes) &&
-            claimNames.containsAll(predicateNames) &&
-            credentialSatisfiesRequestedPredicates(claims, criteria.predicates)
+
+        val claimNamesHasAllPredicates=claimNames.containsAll(predicateNames);
+        val claimNamesHasAllAttributes=claimNames.containsAll(criteria.attributes);
+        val credentialSatifiesRequestedFromPredicate = credentialSatisfiesRequestedPredicates(claims, criteria.predicates);
+        Logger.d("claimNamesHasAllPredicates $claimNamesHasAllPredicates");
+        Logger.d("claimNamesHasAllAttributes $claimNamesHasAllAttributes");
+        Logger.d("credentialSatifiesRequestedFromPredicates $credentialSatifiesRequestedFromPredicate");
+
+
+        return  claimNamesHasAllPredicates&&
+                claimNamesHasAllAttributes &&
+                credentialSatifiesRequestedFromPredicate
     }
 
     private fun anoncredRequestedAttributes(requestedAttributes: JSONObject?): Set<String> {
@@ -865,6 +902,44 @@ class IdentusAnonCredentialManager(
             val value = predicate.optLong("p_value")
             result.add(RequestedPredicate(name, operator, value))
         }
+        return result
+    }
+
+    private fun anoncredRequestedFields(json: JSONObject): List<ProofRequestField> {
+        val result = mutableListOf<ProofRequestField>()
+        val requestedAttributes = json.optJSONObject("requested_attributes")
+        requestedAttributes?.keys()?.let { keys ->
+            while (keys.hasNext()) {
+                val attribute = requestedAttributes.optJSONObject(keys.next()) ?: continue
+                val names = mutableListOf<String>()
+                attribute.optString("name").takeIf { it.isNotBlank() }?.let { names.add(it) }
+                attribute.optJSONArray("names")?.let { array ->
+                    for (index in 0 until array.length()) {
+                        array.optString(index).takeIf { it.isNotBlank() }?.let { names.add(it) }
+                    }
+                }
+                names.distinct().forEach { name ->
+                    result.add(ProofRequestField(name = name, requirement = "Reveal value"))
+                }
+            }
+        }
+
+        val requestedPredicates = json.optJSONObject("requested_predicates")
+        requestedPredicates?.keys()?.let { keys ->
+            while (keys.hasNext()) {
+                val predicate = requestedPredicates.optJSONObject(keys.next()) ?: continue
+                val name = predicate.optString("name").takeIf { it.isNotBlank() } ?: continue
+                val operator = predicate.optString("p_type").takeIf { it.isNotBlank() } ?: continue
+                if (!predicate.has("p_value")) continue
+                result.add(
+                    ProofRequestField(
+                        name = name,
+                        requirement = "$operator ${predicate.optLong("p_value")}",
+                    )
+                )
+            }
+        }
+
         return result
     }
 
@@ -943,5 +1018,47 @@ class IdentusAnonCredentialManager(
             }
         }
         return result
+    }
+
+    private fun presentationExchangeRequestedFields(json: JSONObject): List<ProofRequestField> {
+        val descriptors = json
+            .optJSONObject("presentation_definition")
+            ?.optJSONArray("input_descriptors")
+            ?: return emptyList()
+
+        val result = mutableListOf<ProofRequestField>()
+        for (descriptorIndex in 0 until descriptors.length()) {
+            val constraintFields = descriptors
+                .optJSONObject(descriptorIndex)
+                ?.optJSONObject("constraints")
+                ?.optJSONArray("fields")
+                ?: continue
+
+            for (fieldIndex in 0 until constraintFields.length()) {
+                val field = constraintFields.optJSONObject(fieldIndex) ?: continue
+                val name = field.optString("name").takeIf { it.isNotBlank() }
+                    ?: field.optJSONArray("path")
+                        ?.optString(0)
+                        ?.substringAfterLast('.', "")
+                        ?.takeIf { it.isNotBlank() }
+                    ?: continue
+                val filter = field.optJSONObject("filter")
+                result.add(
+                    ProofRequestField(
+                        name = name,
+                        requirement = filter?.let(::formatPresentationExchangeFilter),
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    private fun formatPresentationExchangeFilter(filter: JSONObject): String? {
+        return listOfNotNull(
+            filter.optString("type").takeIf { it.isNotBlank() },
+            filter.optString("pattern").takeIf { it.isNotBlank() }?.let { "pattern: $it" },
+            filter.optString("const").takeIf { it.isNotBlank() }?.let { "const: $it" },
+        ).joinToString(", ").takeIf { it.isNotBlank() }
     }
 }

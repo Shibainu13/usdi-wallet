@@ -57,7 +57,10 @@ fun MainRoute(
             onDismiss = viewModel::dismissProofRequest,
             onSelectCredential = { credential ->
                 scope.launch { it.onCredentialSelected(credential) }
-            }
+            },
+            onDeny = {
+                scope.launch { it.onDenied() }
+            },
         )
     }
 

@@ -9,6 +9,8 @@ interface CredentialManager<CredentialType, MessageType> {
     fun getProofRequestsToProcess(): Flow<List<MessageType>>
     fun getVerificationResults(): Flow<List<VerificationResult>>
     suspend fun findMatchingCredentials(proofRequest: MessageType): List<CredentialType>
+    suspend fun getProofRequestDetails(proofRequest: MessageType): ProofRequestDetails
+    suspend fun denyProofRequest(proofRequest: MessageType)
     suspend fun getCredential(id: String): Credential?
     suspend fun saveCredential(credential: Credential)
     suspend fun removeCredential(id: String)

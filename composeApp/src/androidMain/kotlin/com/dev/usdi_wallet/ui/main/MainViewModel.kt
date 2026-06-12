@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,8 +33,10 @@ enum class WalletTab(
 data class PendingProofRequest(
     val id: String,
     val protocolId: String,
+    val details: ProofRequestDetails,
     val credentials: List<Credential>,
     val onCredentialSelected: suspend (Credential) -> Unit,
+    val onDenied: suspend () -> Unit,
 )
 
 data class RevokedCredentialAlert(
@@ -108,6 +111,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val credentials = protocol.credentialManager.findMatchingCredentials(request).map {
                         protocol.credentialManager.toUiCredential(it)
                     }
+                    val details = runCatching {
+                        protocol.credentialManager.getProofRequestDetails(request)
+                    }.getOrElse { error ->
+                        Logger.e(MainViewModel::class.toString()) {
+                            "Failed to read pr  oof request details: ${error.message}"
+                        }
+                        ProofRequestDetails(verifier = "Unknown verifier")
+                    }
                     Logger.d("Found ${credentials.size} matching credentials for request $request")
                     Logger.d("Credentials: $credentials")
                     _uiState.update { state ->
@@ -121,12 +132,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     PendingProofRequest(
                                         id = "${protocol.protocolId}-$index",
                                         protocolId = protocol.protocolId,
+                                        details = details,
                                         credentials = credentials,
                                         onCredentialSelected = { credential ->
                                             protocol.credentialManager.preparePresentationProof(
                                                 protocol.credentialManager.toSdkCredential(credential),
                                                 request,
                                             )
+                                            dismissProofRequest()
+                                        },
+                                        onDenied = {
+                                            protocol.credentialManager.denyProofRequest(request)
                                             dismissProofRequest()
                                         },
                                     ),

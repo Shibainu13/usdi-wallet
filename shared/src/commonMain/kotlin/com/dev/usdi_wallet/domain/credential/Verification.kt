@@ -15,3 +15,14 @@ data class VerificationResult(
     val isValid: Boolean,
     val timestamp: Long = Clock.System.now().toEpochMilliseconds(),
 )
+
+data class ProofRequestDetails(
+    val verifier: String,
+    val name: String? = null,
+    val requestedFields: List<ProofRequestField> = emptyList(),
+)
+
+data class ProofRequestField(
+    val name: String,
+    val requirement: String? = null,
+)

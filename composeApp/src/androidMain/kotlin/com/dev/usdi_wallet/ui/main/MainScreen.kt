@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -19,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -93,7 +96,8 @@ fun RevokedCredentialDialog(
 fun ProofRequestSheet(
     request: PendingProofRequest,
     onDismiss: () -> Unit,
-    onSelectCredential: (Credential) -> Unit
+    onSelectCredential: (Credential) -> Unit,
+    onDeny: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -104,15 +108,42 @@ fun ProofRequestSheet(
         ) {
             Text("Proof request")
             Text("Protocol: ${request.protocolId}")
+            request.details.name?.let { name ->
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Text(
+                text = "Verifier: ${request.details.verifier}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            Text("Required fields", style = MaterialTheme.typography.titleSmall)
+            if (request.details.requestedFields.isEmpty()) {
+                Text(
+                    text = "No requested fields found in this request.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    request.details.requestedFields.forEach { field ->
+                        val requirement = field.requirement?.let { " - $it" }.orEmpty()
+                        Text(
+                            text = "${field.name}$requirement",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
 
             if (request.credentials.isEmpty()) {
                 Text(
                     text = "No credentials available for this request.",
-                    modifier = Modifier.padding(bottom = 24.dp),
                 )
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    contentPadding = PaddingValues(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(request.credentials, key = { it.id }) { credential ->
@@ -131,11 +162,31 @@ fun ProofRequestSheet(
                             trailingContent = {
                                 AssistChip(
                                     onClick = { onSelectCredential(credential) },
-                                    label = { Text("Select") },
+                                    label = { Text("Accept") },
                                 )
                             },
                         )
                     }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDeny,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Deny")
+                }
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Later")
                 }
             }
         }
