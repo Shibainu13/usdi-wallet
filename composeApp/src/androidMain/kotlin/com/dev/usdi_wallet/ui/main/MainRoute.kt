@@ -41,11 +41,10 @@ fun MainRoute(
             onCompleted = {  }
         )
         return
-    } else {
-        if (lockState !is LockState.Authenticated) {
-            LockScreen(viewModel = lockViewModel)
-            return
-        }
+    }
+    if (lockState !is LockState.Authenticated) {
+        LockScreen(viewModel = lockViewModel)
+        return
     }
 
     val currentBackStack by navController.currentBackStackEntryAsState()

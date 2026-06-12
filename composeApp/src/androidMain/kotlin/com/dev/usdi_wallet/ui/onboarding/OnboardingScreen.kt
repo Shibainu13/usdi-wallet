@@ -271,10 +271,6 @@ private fun BiometricSetupStep(
     isLoading: Boolean,
     onSetup: () -> Unit,
 ) {
-    LaunchedEffect(Unit) {
-        onSetup()
-    }
-
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -302,6 +298,13 @@ private fun BiometricSetupStep(
         Spacer(modifier = Modifier.height(32.dp))
         if (isLoading) {
             CircularProgressIndicator()
+        } else {
+            Button(
+                onClick = onSetup,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Setup")
+            }
         }
     }
 }
