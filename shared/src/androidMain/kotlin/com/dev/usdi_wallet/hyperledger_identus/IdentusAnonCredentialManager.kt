@@ -254,7 +254,7 @@ class IdentusAnonCredentialManager(
 
     override suspend fun handleInbound(
         message: SdkMessage,
-        connectionManager: ConnectionManager<SdkMessage>,
+        connectionManager: ConnectionManager<SdkMessage>?,
     ) {
         initCompleted.await()
 
@@ -263,8 +263,15 @@ class IdentusAnonCredentialManager(
         processedMessageIds.add(message.id)
 
         when (message.piuri) {
-            ProtocolType.DidcommOfferCredential.value
-                -> handleOfferCredential(message, connectionManager)
+            ProtocolType.DidcommOfferCredential.value -> {
+                if (connectionManager == null) {
+                    Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                        "Cannot process credential offer ${message.id}: missing connection manager"
+                    }
+                    return
+                }
+                handleOfferCredential(message, connectionManager)
+            }
             ProtocolType.DidcommIssueCredential.value
                 -> handleIssueCredential(message)
             ProtocolType.DidcommRequestPresentation.value if message.direction == SdkMessage.Direction.RECEIVED
@@ -518,7 +525,11 @@ class IdentusAnonCredentialManager(
         return "https://domain.com/path?_oob=$encoded"
     }
 
-    override suspend fun preparePresentationProof(credential: SdkCredential, message: SdkMessage) {
+    override suspend fun preparePresentationProof(
+        credential: SdkCredential,
+        message: SdkMessage,
+        disclosedClaimLabels: List<String>?,
+    ) {
         Logger.d {"message prepare "+ message.toString() }
         if (credential is ProvableCredential) {
             try {

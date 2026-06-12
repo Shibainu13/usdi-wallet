@@ -18,21 +18,23 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
-            implementation("androidx.fragment:fragment-ktx:1.8.5")
-            implementation("androidx.recyclerview:recyclerview:1.3.2")
-            implementation("com.google.android.material:material:1.12.0")
-            implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-            implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-            implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-            implementation("androidx.navigation:navigation-compose:2.8.5")
-            implementation(project.dependencies.platform("androidx.compose:compose-bom:2024.10.00"))
-            implementation("androidx.compose.material3:material3")
+            implementation(libs.androidx.fragment.ktx)
+            implementation(libs.androidx.recyclerview)
+            implementation(libs.material)
+            implementation(libs.androidx.lifecycle.viewmodel.ktx)
+            implementation(libs.androidx.lifecycle.runtime.ktx)
+            implementation(libs.androidx.constraintlayout)
+            implementation(libs.androidx.navigation.compose)
+
+            // Compose BOM
+            implementation(project.dependencies.platform(libs.compose.bom))
+            implementation(libs.androidx.compose.material3)
 
             // Use the explicit version if the BOM is failing to resolve it
-            implementation("androidx.compose.material:material-icons-extended:1.7.5")
+            implementation(libs.androidx.compose.material.icons.extended)
         }
         commonMain.dependencies {
-            implementation("org.jetbrains.compose.runtime:runtime:1.10.0")
+            implementation(libs.jetbrains.compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
@@ -41,7 +43,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(projects.shared)
-            implementation("co.touchlab:kermit:2.0.8")
+            implementation(libs.kermit)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -68,6 +70,9 @@ android {
         resources {
             pickFirsts += "google/protobuf/*.proto"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "com/nimbusds/jose/**"
+            pickFirsts += "com/nimbusds/jwt/**"
         }
     }
     buildTypes {
@@ -86,5 +91,15 @@ dependencies {
 }
 
 configurations.all {
-    exclude(module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk14")
+    exclude(group = "net.jcip", module = "jcip-annotations")
+
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.ktor") {
+            useVersion(libs.versions.ktor.override.get())
+            because("Identus SDK requires Ktor 2.x — overrides EUDI strict constraints")
+        }
+    }
 }

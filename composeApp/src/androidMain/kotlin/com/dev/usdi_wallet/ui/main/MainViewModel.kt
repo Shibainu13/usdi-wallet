@@ -1,14 +1,18 @@
 package com.dev.usdi_wallet.ui.main
 
 import android.app.Application
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import co.touchlab.kermit.Logger
+
 enum class WalletTab(
     val title: String,
     val rootRoute: String,
@@ -35,7 +37,7 @@ data class PendingProofRequest(
     val protocolId: String,
     val details: ProofRequestDetails,
     val credentials: List<Credential>,
-    val onCredentialSelected: suspend (Credential) -> Unit,
+    val onCredentialSelected: suspend (Credential, List<String>) -> Unit,
     val onDenied: suspend () -> Unit,
 )
 
@@ -53,7 +55,8 @@ data class MainUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val protocols = listOf<Protocol<*, *>>(
-        IdentusJWTProtocol.getInstance(application,viewModelScope),
+        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        EudiProtocol.getInstance(application, viewModelScope),
     )
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -74,6 +77,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         observeRevokedCredentials()
         viewModelScope.launch {
             areAgentsRunning.collect { running ->
+                if (!running) {
+                    Logger.w(MainViewModel::class.toString()) {
+                        "At least one of the protocols is not running"
+                    }
+                }
                 _uiState.update { it.copy(isReady = running) }
             }
         }
@@ -134,10 +142,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         protocolId = protocol.protocolId,
                                         details = details,
                                         credentials = credentials,
-                                        onCredentialSelected = { credential ->
+                                        onCredentialSelected = { credential, disclosedClaimLabels ->
                                             protocol.credentialManager.preparePresentationProof(
                                                 protocol.credentialManager.toSdkCredential(credential),
                                                 request,
+                                                disclosedClaimLabels,
                                             )
                                             dismissProofRequest()
                                         },

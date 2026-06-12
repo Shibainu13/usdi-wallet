@@ -1,5 +1,6 @@
 package com.dev.usdi_wallet.ui.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,9 +28,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import org.json.JSONArray
 import org.json.JSONObject
@@ -96,9 +103,12 @@ fun RevokedCredentialDialog(
 fun ProofRequestSheet(
     request: PendingProofRequest,
     onDismiss: () -> Unit,
-    onSelectCredential: (Credential) -> Unit,
     onDeny: () -> Unit,
+    onSelectCredential: (Credential, List<String>) -> Unit,
 ) {
+    var selectedCredential by remember { mutableStateOf<Credential?>(null) }
+    var selectedClaims by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -106,7 +116,7 @@ fun ProofRequestSheet(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Proof request")
+            Text("Proof request", style = MaterialTheme.typography.titleMedium)
             Text("Protocol: ${request.protocolId}")
             request.details.name?.let { name ->
                 Text(
@@ -137,35 +147,109 @@ fun ProofRequestSheet(
                 }
             }
 
-            if (request.credentials.isEmpty()) {
-                Text(
-                    text = "No credentials available for this request.",
-                )
+            if (selectedCredential == null) {
+                if (request.credentials.isEmpty()) {
+                    Text(
+                        text = "No credentials available for this request.",
+                        modifier = Modifier.padding(bottom = 24.dp),
+                    )
+                } else {
+                    Text("Select a credential to present:")
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(request.credentials, key = { it.id }) { credential ->
+                            ListItem(
+                                headlineContent = {
+                                    Text(credential.subject ?: credential.id)
+                                },
+                                supportingContent = {
+                                    Text(credential.issuer)
+                                },
+                                trailingContent = {
+                                    AssistChip(
+                                        onClick = {
+                                            selectedCredential = credential
+                                            selectedClaims = credential.claims
+                                                .filter { it.type != ClaimType.BYTEARRAY }
+                                                .map { it.name }
+                                                .toSet()
+                                        },
+                                        label = { Text("Select") },
+                                    )
+                                },
+                            )
+                        }
+                    }
+                }
             } else {
+                val credential = selectedCredential!!
+                val selectableClaims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
+                val requiresDisclosedClaims = request.protocolId == "OPENID4VC"
+                Text("Select claims to disclose:")
+                Text(
+                    text = credential.subject ?: credential.id,
+                    style = MaterialTheme.typography.labelMedium
+                )
+
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false),
                 ) {
-                    items(request.credentials, key = { it.id }) { credential ->
-                        ListItem(
-                            headlineContent = {
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(credential.issuer)
-                                    credential.claims.forEach { claim ->
-                                        Text(
-                                            text = "${claim.name}: ${formatClaimValue(claim.value)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                        )
+                    items(selectableClaims) { claim ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedClaims = if (claim.name in selectedClaims) {
+                                        selectedClaims - claim.name
+                                    } else {
+                                        selectedClaims + claim.name
                                     }
                                 }
-                            },
-                            trailingContent = {
-                                AssistChip(
-                                    onClick = { onSelectCredential(credential) },
-                                    label = { Text("Accept") },
-                                )
-                            },
-                        )
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = claim.name in selectedClaims,
+                                onCheckedChange = { checked ->
+                                    selectedClaims = if (checked) {
+                                        selectedClaims + claim.name
+                                    } else {
+                                        selectedClaims - claim.name
+                                    }
+                                }
+                            )
+                            Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Text(claim.name)
+                                claim.value?.let {
+                                    Text(
+                                        text = formatClaimValue(it),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                ) {
+                    TextButton(onClick = { selectedCredential = null }) {
+                        Text("Back")
+                    }
+                    Button(
+                        onClick = {
+                            onSelectCredential(credential, selectedClaims.toList())
+                        },
+                        enabled = !requiresDisclosedClaims || selectedClaims.isNotEmpty()
+                    ) {
+                        Text("Present")
                     }
                 }
             }

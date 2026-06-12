@@ -87,10 +87,22 @@ class HyperledgerIdentusSdk private constructor() {
         (pluto as PlutoImpl).start(context)
     }
 
-    fun stopAgent() {
+    suspend fun stopAgent() {
         agent.let {
             it.stopFetchingMessages()
             it.stop()
+        }
+    }
+
+    suspend fun pauseAgent() {
+        if (this::agent.isInitialized) {
+            agent.stopFetchingMessages()
+        }
+    }
+
+    fun resumeAgent() {
+        if (this::agent.isInitialized) {
+            agent.startFetchingMessages()
         }
     }
 
