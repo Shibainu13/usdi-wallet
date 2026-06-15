@@ -38,6 +38,7 @@ import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
+import com.dev.usdi_wallet.domain.credential.VerificationResult
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
@@ -135,6 +136,12 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 text = { Text(tab.title) },
                             )
                         }
+                    }
+                }
+
+                verificationResults.firstOrNull()?.let { result ->
+                    item {
+                        VerificationResultCard(result)
                     }
                 }
 
@@ -269,6 +276,28 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
 
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerificationResultCard(result: VerificationResult) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = if (result.isValid) "Verification successful" else "Verification failed",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            if (result.attributes.isEmpty()) {
+                Text(text = "Message ID: ${result.messageId}")
+            } else {
+                result.attributes.forEach { (name, value) ->
+                    Text(text = "$name: $value")
+                }
             }
         }
     }

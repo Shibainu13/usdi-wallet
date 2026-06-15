@@ -27,6 +27,7 @@ data class CloudAgentProofRequestResult(
     val presentationId: String?,
     val status: String?,
     val raw: String,
+    val revealedAttributes: Map<String, String> = emptyMap(),
 )
 
 data class CloudAgentAnonCredSchema(
@@ -168,6 +169,7 @@ class CloudAgentVerifierClient(
                 .ifBlank { response.optString("state") }
                 .ifBlank { null },
             raw = responseText,
+            revealedAttributes = extractAnonCredRevealedAttributes(response),
         )
     }
 

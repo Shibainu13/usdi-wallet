@@ -531,10 +531,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     it.copy(
                         isLoading = false,
                         success = true,
-                        serverResult = listOfNotNull(
-                            result.presentationId?.let { id -> "Presentation ID: $id" },
-                            result.status?.let { status -> "Status: $status" },
-                        ).joinToString("\n").ifBlank { result.raw },
+                        serverResult = formatServerProofRequestResult(result),
                     )
                 }
             } catch (e: Exception) {
@@ -569,6 +566,17 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 _uiState.update { it.copy(isLoading = false, error = "Failed to send: ${e.message}") }
             }
         }
+    }
+
+    private fun formatServerProofRequestResult(result: com.dev.usdi_wallet.hyperledger_identus.CloudAgentProofRequestResult): String {
+        return listOfNotNull(
+            result.presentationId?.let { id -> "Presentation ID: $id" },
+            result.status?.let { status -> "Status: $status" },
+            result.revealedAttributes
+                .takeIf { it.isNotEmpty() }
+                ?.entries
+                ?.joinToString("\n") { (name, value) -> "$name: $value" },
+        ).joinToString("\n").ifBlank { result.raw }
     }
 
     private fun buildRequestFromItems(contact: Contact, items: List<ClaimCheckItem>): VerificationRequest {

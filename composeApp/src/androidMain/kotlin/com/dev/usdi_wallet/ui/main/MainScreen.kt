@@ -37,8 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
-import org.json.JSONArray
-import org.json.JSONObject
+import com.dev.usdi_wallet.ui.common.formatClaimName
+import com.dev.usdi_wallet.ui.common.formatClaimValue
 
 
 @Composable
@@ -108,6 +108,7 @@ fun ProofRequestSheet(
 ) {
     var selectedCredential by remember { mutableStateOf<Credential?>(null) }
     var selectedClaims by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val requiresDisclosedClaims = request.protocolId == "OPENID4VC"
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -140,7 +141,7 @@ fun ProofRequestSheet(
                     request.details.requestedFields.forEach { field ->
                         val requirement = field.requirement?.let { " - $it" }.orEmpty()
                         Text(
-                            text = "${field.name}$requirement",
+                            text = "${formatClaimName(field.name)}$requirement",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -162,21 +163,33 @@ fun ProofRequestSheet(
                         items(request.credentials, key = { it.id }) { credential ->
                             ListItem(
                                 headlineContent = {
-                                    Text(credential.subject ?: credential.id)
+                                    if (requiresDisclosedClaims) {
+                                        Text(credential.subject ?: credential.id)
+                                    } else {
+                                        CredentialSelectHeadline(credential)
+                                    }
                                 },
-                                supportingContent = {
-                                    Text(credential.issuer)
+                                supportingContent = if (requiresDisclosedClaims) {
+                                    { CredentialClaimValues(credential) }
+                                } else {
+                                    null
                                 },
                                 trailingContent = {
                                     AssistChip(
                                         onClick = {
-                                            selectedCredential = credential
-                                            selectedClaims = credential.claims
-                                                .filter { it.type != ClaimType.BYTEARRAY }
-                                                .map { it.name }
-                                                .toSet()
+                                            if (requiresDisclosedClaims) {
+                                                selectedCredential = credential
+                                                selectedClaims = credential.claims
+                                                    .filter { it.type != ClaimType.BYTEARRAY }
+                                                    .map { it.name }
+                                                    .toSet()
+                                            } else {
+                                                onSelectCredential(credential, emptyList())
+                                            }
                                         },
-                                        label = { Text("Select") },
+                                        label = {
+                                            Text(if (requiresDisclosedClaims) "Select" else "Accept")
+                                        },
                                     )
                                 },
                             )
@@ -186,7 +199,6 @@ fun ProofRequestSheet(
             } else {
                 val credential = selectedCredential!!
                 val selectableClaims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
-                val requiresDisclosedClaims = request.protocolId == "OPENID4VC"
                 Text("Select claims to disclose:")
                 Text(
                     text = credential.subject ?: credential.id,
@@ -222,7 +234,7 @@ fun ProofRequestSheet(
                                 }
                             )
                             Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(claim.name)
+                                Text(formatClaimName(claim.name))
                                 claim.value?.let {
                                     Text(
                                         text = formatClaimValue(it),
@@ -277,57 +289,29 @@ fun ProofRequestSheet(
     }
 }
 
-private fun formatClaimValue(value: Any?): String {
-    return when (value) {
-        null -> "N/A"
-        is JSONObject -> formatJsonObjectClaimValue(value)
-        is JSONArray -> formatJsonArrayClaimValue(value)
-        is Map<*, *> -> formatMapClaimValue(value)
-        is List<*> -> value.joinToString(", ") { formatClaimValue(it) }
-        is String -> rawValueFromJsonString(value) ?: value
-        else -> rawMemberValue(value)?.toString() ?: value.toString()
+@Composable
+private fun CredentialSelectHeadline(credential: Credential) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(credential.issuer)
+        CredentialClaimValues(credential)
     }
 }
 
-private fun formatJsonObjectClaimValue(value: JSONObject): String {
-    value.opt("raw")?.let { return it.toString() }
+@Composable
+private fun CredentialClaimValues(credential: Credential) {
+    val claims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
 
-    return value.keys().asSequence().joinToString(", ") { key ->
-        "$key: ${formatClaimValue(value.opt(key))}"
+    if (claims.isEmpty()) {
+        Text(credential.issuer)
+        return
     }
-}
 
-private fun formatJsonArrayClaimValue(value: JSONArray): String {
-    return (0 until value.length()).joinToString(", ") { index ->
-        formatClaimValue(value.opt(index))
-    }
-}
-
-private fun formatMapClaimValue(value: Map<*, *>): String {
-    value["raw"]?.let { return it.toString() }
-
-    return value.entries.joinToString(", ") { (key, itemValue) ->
-        "$key: ${formatClaimValue(itemValue)}"
-    }
-}
-
-private fun rawValueFromJsonString(value: String): String? {
-    return runCatching {
-        formatJsonObjectClaimValue(JSONObject(value))
-    }.getOrNull()
-}
-
-private fun rawMemberValue(value: Any): Any? {
-    value.javaClass.methods
-        .firstOrNull { method -> method.name == "getRaw" && method.parameterTypes.isEmpty() }
-        ?.let { method -> return runCatching { method.invoke(value) }.getOrNull() }
-
-    return value.javaClass.declaredFields
-        .firstOrNull { field -> field.name == "raw" }
-        ?.let { field ->
-            runCatching {
-                field.isAccessible = true
-                field.get(value)
-            }.getOrNull()
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        claims.forEach { claim ->
+            Text(
+                text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
+    }
 }

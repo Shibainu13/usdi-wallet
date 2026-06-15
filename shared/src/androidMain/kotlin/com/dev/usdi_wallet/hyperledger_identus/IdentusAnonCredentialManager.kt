@@ -374,8 +374,14 @@ class IdentusAnonCredentialManager(
         }
         try {
             val isValid = sdk.agent.handlePresentation(message)
+            val attributes = extractAnonCredRevealedAttributes(message.toJsonString())
+                .ifEmpty { extractAnonCredRevealedAttributes(message.toString()) }
             _verificationResults.update { current ->
-                current + VerificationResult(message.id, isValid)
+                current + VerificationResult(
+                    messageId = message.id,
+                    isValid = isValid,
+                    attributes = attributes,
+                )
             }
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Verification result for $message: $isValid"
