@@ -82,7 +82,7 @@ fun CredentialScreen(viewModel: CredentialViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(text = "Issuer: ${credential.issuer}")
                     Text(text = "Protocol: ${credential.protocol}")
-                    Logger.d("Claims: ${credential.claims}")
+                    Logger.d("CredentialView.kt.CredentialScreen: Claims: ${credential.claims}")
                     credential.claims.forEach { claim ->
                         Text(text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}")
                     }

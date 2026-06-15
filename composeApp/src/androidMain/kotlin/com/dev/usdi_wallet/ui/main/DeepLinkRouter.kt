@@ -17,7 +17,7 @@ class DeepLinkRouter(
         val uri = intent.data ?: return
 
         Logger.d(DeepLinkRouter::class.toString()) {
-            "Handling deep link: $uri"
+            "DeepLinkRouter.kt.handle: Handling deep link: $uri"
         }
 
         routeToContactManager(uri.toString())
@@ -30,13 +30,13 @@ class DeepLinkRouter(
 
         if (protocol == null) {
             Logger.w(DeepLinkRouter::class.toString()) {
-                "No contact protocol found for $uri"
+                "DeepLinkRouter.kt.routeToContactManager: No contact protocol found for $uri"
             }
             return
         }
 
         Logger.d(DeepLinkRouter::class.toString()) {
-            "Routing $uri to ${protocol::class.simpleName}"
+            "DeepLinkRouter.kt.routeToContactManager: Routing $uri to ${protocol::class.simpleName}"
         }
 
         scope.launch {

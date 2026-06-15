@@ -79,7 +79,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             areAgentsRunning.collect { running ->
                 if (!running) {
                     Logger.w(MainViewModel::class.toString()) {
-                        "At least one of the protocols is not running"
+                        "MainViewModel.kt.init: At least one of the protocols is not running"
                     }
                 }
                 _uiState.update { it.copy(isReady = running) }
@@ -123,18 +123,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         protocol.credentialManager.getProofRequestDetails(request)
                     }.getOrElse { error ->
                         Logger.e(MainViewModel::class.toString()) {
-                            "Failed to read pr  oof request details: ${error.message}"
+                            "MainViewModel.kt.observeProtocolProofRequests: Failed to read proof request details: ${error.message}"
                         }
                         ProofRequestDetails(verifier = "Unknown verifier")
                     }
-                    Logger.d("Found ${credentials.size} matching credentials for request $request")
-                    Logger.d("Credentials: $credentials")
+                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Found ${credentials.size} matching credentials for request $request")
+                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Credentials: $credentials")
                     _uiState.update { state ->
                         if (state.pendingProofRequests.isNotEmpty()) {
                             state
                         } else {
 
-                            Logger.d("State before copy: $state")
+                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State before copy: $state")
                             val newState = state.copy(
                                 pendingProofRequests = listOf(
                                     PendingProofRequest(
@@ -157,7 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     ),
                                 ),
                             )
-                            Logger.d("State after copy: $newState")
+                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State after copy: $newState")
                             newState
 
                         }

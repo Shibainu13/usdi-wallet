@@ -26,7 +26,9 @@ class IdentusDIDCommContactManager : ContactManager {
 
     override suspend fun parseInvitation(invitation: String) {
         try {
-            Logger.d(this::class.toString()) {"Parsing invitation..."}
+            Logger.d(this::class.toString()) {
+                "IdentusDIDCommContactManager.kt.parseInvitation: Parsing invitation"
+            }
 
             when (val invitation = sdk.agent.parseInvitation(invitation)) {
                 is OutOfBandInvitation -> {
@@ -46,9 +48,13 @@ class IdentusDIDCommContactManager : ContactManager {
                 }
             }
 
-            Logger.d(this::class.toString()) {"Invitation accepted"}
+            Logger.d(this::class.toString()) {
+                "IdentusDIDCommContactManager.kt.parseInvitation: Invitation accepted"
+            }
         } catch (e: Exception) {
-            Logger.e(this::class.toString()) {"Error while parsing invitation $invitation: ${e.message}"}
+            Logger.e(this::class.toString()) {
+                "IdentusDIDCommContactManager.kt.parseInvitation: Error while parsing invitation $invitation: ${e.message}"
+            }
         }
     }
 
@@ -56,7 +62,9 @@ class IdentusDIDCommContactManager : ContactManager {
         val result = sdk.pluto.getAllDidPairs().map { pairs ->
             pairs.map { toUsdiContact(it) }
         }
-        Logger.d(this::class.toString()) {"Getting contacts: $result"}
+        Logger.d(this::class.toString()) {
+            "IdentusDIDCommContactManager.kt.getContacts: Getting contacts: $result"
+        }
         return result
     }
 
@@ -71,7 +79,9 @@ class IdentusDIDCommContactManager : ContactManager {
             name = didPair.name ?: "Unknown",
             protocol = DIDCOMM1,
         )
-        Logger.d(this::class.toString()) {"Converting to contact: $result"}
+        Logger.d(this::class.toString()) {
+            "IdentusDIDCommContactManager.kt.toUsdiContact: Converting to contact: $result"
+        }
         return result
     }
 
