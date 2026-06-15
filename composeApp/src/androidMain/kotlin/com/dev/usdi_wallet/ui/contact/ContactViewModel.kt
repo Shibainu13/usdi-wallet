@@ -50,7 +50,9 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun submitInvitation(invitation: String) {
-        Logger.d(ContactViewModel::class.toString()) {"Received invitation: $invitation"}
+        Logger.d(ContactViewModel::class.toString()) {
+            "ContactViewModel.kt.submitInvitation: Received invitation: $invitation"
+        }
         val trimmed = invitation.trim()
         if (trimmed.isBlank()) {
             _uiState.update { it.copy(error = "Empty invitation") }
@@ -63,12 +65,14 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
             try {
                 val protocol = protocols.first { it.contactManager.canHandle(trimmed) }
                 Logger.d(ContactViewModel::class.toString()) {
-                    "The invitation will be handled by ${protocol.protocolId}"
+                    "ContactViewModel.kt.submitInvitation: The invitation will be handled by ${protocol.protocolId}"
                 }
                 protocol.contactManager.parseInvitation(trimmed)
                 _uiState.update { it.copy(isLoading = false, snackbarMessage = "Invitation accepted") }
             } catch (e: Exception) {
-                Logger.e(ContactViewModel::class.toString()) { "Invitation error: ${e.message}" }
+                Logger.e(ContactViewModel::class.toString()) {
+                    "ContactViewModel.kt.submitInvitation: Invitation error: ${e.message}"
+                }
                 _uiState.update {
                     it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
                 }

@@ -23,7 +23,7 @@ class EudiConnectionManager(
         } catch (e: Exception) {
             _state.value = ConnectionState.ERROR
             Logger.e(EudiConnectionManager::class.toString()) {
-                "Failed to start eudi sdk: ${e.message}"
+                "EudiConnectionManager.kt.start: Failed to start eudi sdk: ${e.message}"
             }
         }
     }
@@ -36,7 +36,7 @@ class EudiConnectionManager(
         sdk.eudiMessageFlow.collect { list ->
             list.forEach { msg ->
                 Logger.d(EudiConnectionManager::class.toString()) {
-                    "Received message $msg"
+                    "EudiConnectionManager.kt.receiveMessage: Received message $msg"
                 }
                 msgHandler(msg)
             }

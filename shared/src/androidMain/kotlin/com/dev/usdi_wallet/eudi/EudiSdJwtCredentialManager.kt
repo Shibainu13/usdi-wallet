@@ -7,6 +7,8 @@ import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
+import com.dev.usdi_wallet.domain.credential.ProofRequestField
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import eu.europa.ec.eudi.iso18013.transfer.response.DisclosedDocument
@@ -51,7 +53,7 @@ class EudiSdJwtCredentialManager(
             _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
         } else {
             Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                "Expected message of type EudiMessage.PresentationRequest, received $message"
+                "EudiSdJwtCredentialManager.kt.handlePresentationRequest: Expected message of type EudiMessage.PresentationRequest, received $message"
             }
         }
     }
@@ -66,7 +68,7 @@ class EudiSdJwtCredentialManager(
                     val txCodeSpec = offer.txCodeSpec
 
                     Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                        "Received offer from $issuerName, tx = $txCodeSpec: $offeredDocuments"
+                        "EudiSdJwtCredentialManager.kt.handleIssueCredential: Received offer from $issuerName, tx = $txCodeSpec: $offeredDocuments"
                     }
 
                     sdk.openId4VciManager.issueDocumentByOffer(
@@ -75,18 +77,18 @@ class EudiSdJwtCredentialManager(
                         when (issueEvent) {
                             is IssueEvent.DocumentIssued -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Document issued: $issueEvent"
+                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Document issued: $issueEvent"
                                 }
                                 _documents.value += issueEvent.document
                             }
                             is IssueEvent.DocumentFailed -> {
                                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Document issuance failed: $issueEvent"
+                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Document issuance failed: $issueEvent"
                                 }
                             }
                             is IssueEvent.Started -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Issuance started, total: $issueEvent"
+                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance started, total: $issueEvent"
                                 }
                             }
                             is IssueEvent.DocumentRequiresCreateSettings -> {
@@ -126,7 +128,7 @@ class EudiSdJwtCredentialManager(
                                     } else {
                                         issueEvent.cancel("User cancel authentication")
                                         Logger.w(EudiSdJwtCredentialManager::class.toString()) {
-                                            "User cancelled authentication during issuance"
+                                            "EudiSdJwtCredentialManager.kt.handleIssueCredential: User cancelled authentication during issuance"
                                         }
                                     }
                                 }
@@ -140,12 +142,12 @@ class EudiSdJwtCredentialManager(
                             }
                             is IssueEvent.Finished -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Issuance finished"
+                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance finished"
                                 }
                             }
                             is IssueEvent.Failure -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "Issuance failed: $issueEvent"
+                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance failed: $issueEvent"
                                 }
                             }
                         }
@@ -154,7 +156,7 @@ class EudiSdJwtCredentialManager(
                 is OfferResult.Failure -> {
                     val error = result.cause
                     Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                        "Failed to handle EUDI issue credential: $error"
+                        "EudiSdJwtCredentialManager.kt.handleIssueCredential: Failed to handle EUDI issue credential: $error"
                     }
                 }
             }
@@ -172,7 +174,7 @@ class EudiSdJwtCredentialManager(
                 val document = sdk.wallet.getDocumentById(credential.id) as IssuedDocument
 
                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                    "Disclosed labels: $disclosedClaimLabels"
+                    "EudiSdJwtCredentialManager.kt.preparePresentationProof: Disclosed labels: $disclosedClaimLabels"
                 }
                 val disclosedDocuments = DisclosedDocuments(
                     DisclosedDocument(
@@ -192,12 +194,12 @@ class EudiSdJwtCredentialManager(
                 sdk.wallet.sendResponse(response)
             } catch (e: Exception) {
                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                    "Failed to prepare presentation: $e"
+                    "EudiSdJwtCredentialManager.kt.preparePresentationProof: Failed to prepare presentation: $e"
                 }
             }
         } else {
             Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                "Expected message of type EudiMessage.PresentationRequest, received $message"
+                "EudiSdJwtCredentialManager.kt.preparePresentationProof: Expected message of type EudiMessage.PresentationRequest, received $message"
             }
         }
     }
@@ -206,6 +208,35 @@ class EudiSdJwtCredentialManager(
 
     override fun getProofRequestsToProcess(): Flow<List<EudiMessage>> = _proofRequestToProcess.asStateFlow()
     override fun getVerificationResults(): Flow<List<VerificationResult>> = flow { emit(emptyList()) }
+
+    override suspend fun findMatchingCredentials(proofRequest: EudiMessage): List<Document> {
+        if (proofRequest !is EudiMessage.PresentationRequest) return emptyList()
+        return _documents.value.filterIsInstance<IssuedDocument>()
+    }
+
+    override suspend fun getProofRequestDetails(proofRequest: EudiMessage): ProofRequestDetails {
+        return when (proofRequest) {
+            is EudiMessage.PresentationRequest -> ProofRequestDetails(
+                verifier = "EUDI verifier",
+                name = "Presentation request",
+                requestedFields = listOf(
+                    ProofRequestField(
+                        name = "Selected document claims",
+                        requirement = "Requested by verifier",
+                    )
+                ),
+            )
+            is EudiMessage.CredentialOffer -> ProofRequestDetails(
+                verifier = "EUDI issuer",
+                name = "Credential offer",
+            )
+        }
+    }
+
+    override suspend fun denyProofRequest(proofRequest: EudiMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != proofRequest.id }
+    }
+
     override suspend fun getCredential(id: String): Credential? { TODO("Not yet implemented") }
     override suspend fun saveCredential(credential: Credential) { TODO("Not yet implemented") }
     override suspend fun removeCredential(id: String) { TODO("Not yet implemented") }

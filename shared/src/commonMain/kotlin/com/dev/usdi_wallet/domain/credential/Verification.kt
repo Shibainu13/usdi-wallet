@@ -14,4 +14,16 @@ data class VerificationResult(
     val messageId: String,
     val isValid: Boolean,
     val timestamp: Long = Clock.System.now().toEpochMilliseconds(),
+    val attributes: Map<String, String> = emptyMap(),
+)
+
+data class ProofRequestDetails(
+    val verifier: String,
+    val name: String? = null,
+    val requestedFields: List<ProofRequestField> = emptyList(),
+)
+
+data class ProofRequestField(
+    val name: String,
+    val requirement: String? = null,
 )
