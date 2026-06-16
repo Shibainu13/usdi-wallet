@@ -26,8 +26,8 @@ class IdentusDIDCommContactManager : ContactManager {
 
     override suspend fun parseInvitation(invitation: String) {
         try {
-            Logger.d(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: Parsing invitation"
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "Parsing invitation"
             }
 
             when (val invitation = sdk.agent.parseInvitation(invitation)) {
@@ -48,12 +48,12 @@ class IdentusDIDCommContactManager : ContactManager {
                 }
             }
 
-            Logger.d(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: Invitation accepted"
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "Invitation accepted"
             }
         } catch (e: Exception) {
-            Logger.e(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: Error while parsing invitation $invitation: ${e.message}"
+            Logger.e(IdentusDIDCommContactManager::class.toString()) {
+                "Error while parsing invitation $invitation: ${e.message}"
             }
         }
     }
@@ -62,8 +62,8 @@ class IdentusDIDCommContactManager : ContactManager {
         val result = sdk.pluto.getAllDidPairs().map { pairs ->
             pairs.map { toUsdiContact(it) }
         }
-        Logger.d(this::class.toString()) {
-            "IdentusDIDCommContactManager.kt.getContacts: Getting contacts: $result"
+        Logger.d(IdentusDIDCommContactManager::class.toString()) {
+            "Getting contacts: $result"
         }
         return result
     }
@@ -79,10 +79,9 @@ class IdentusDIDCommContactManager : ContactManager {
             name = didPair.name ?: "Unknown",
             protocol = DIDCOMM1,
         )
-        Logger.d(this::class.toString()) {
-            "IdentusDIDCommContactManager.kt.toUsdiContact: Converting to contact: $result"
+        Logger.d(IdentusDIDCommContactManager::class.toString()) {
+            "Converting to contact: $result"
         }
         return result
     }
-
 }

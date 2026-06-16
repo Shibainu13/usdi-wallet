@@ -75,7 +75,7 @@ class IdentusAnonCredentialManager(
             }
 
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.init: Processed message IDs: $processedMessageIds"
+                "Processed message IDs: $processedMessageIds"
             }
 
             db.pendingProofRequestDao().getAllIds().forEach { id ->
@@ -115,7 +115,7 @@ class IdentusAnonCredentialManager(
         _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != proofRequest.id }
         db.pendingProofRequestDao().deletePending(proofRequest.id)
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "IdentusAnonCredentialManager.kt.denyProofRequest: Proof request denied locally: ${proofRequest.id}"
+            "Proof request denied locally: ${proofRequest.id}"
         }
     }
 
@@ -124,12 +124,12 @@ class IdentusAnonCredentialManager(
             proofRequestCriteria(proofRequest)
         } catch (e: Exception) {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.findMatchingCredentials: Invalid proof request ${proofRequest.id}: ${e.message}"
+                "Invalid proof request ${proofRequest.id}: ${e.message}"
             }
             return emptyList()
         }
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "IdentusAnonCredentialManager.kt.findMatchingCredentials: Finding matching credentials for proof request ${proofRequest.id}: $criteria"
+            "Finding matching credentials for proof request ${proofRequest.id}: $criteria"
         }
         val result= sdk.agent.getAllCredentials().first().filter { credential ->
             val matchesCredentialDefinition =
@@ -138,16 +138,24 @@ class IdentusAnonCredentialManager(
             val containsAllClaims =
                 credentialContainsAllRequestedClaims(credential, criteria)
 
-            Logger.d("IdentusAnonCredentialManager.kt.findMatchingCredentials: Checking credential: $credential")
-            Logger.d("IdentusAnonCredentialManager.kt.findMatchingCredentials: credentialMatchesRequestedCredentialDefinition=$matchesCredentialDefinition")
-            Logger.d("IdentusAnonCredentialManager.kt.findMatchingCredentials: credentialContainsAllRequestedClaims=$containsAllClaims")
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Checking credential: $credential"
+            }
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "credentialMatchesRequestedCredentialDefinition=$matchesCredentialDefinition"
+            }
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "credentialContainsAllRequestedClaims=$containsAllClaims"
+            }
             credential is ProvableCredential &&
                 credential.revoked != true &&
                     matchesCredentialDefinition &&
                     containsAllClaims
         }
 
-        Logger.d("IdentusAnonCredentialManager.kt.findMatchingCredentials: Credential full list: $result")
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Credential full list: $result"
+        }
         return result
     }
 
@@ -170,7 +178,9 @@ class IdentusAnonCredentialManager(
 
     }
     private fun loadAll(): List<Credential> {
-        Logger.d { "IdentusAnonCredentialManager.kt.loadAll: File path: ${file.absolutePath}" }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "File path: ${file.absolutePath}"
+        }
         if (!file.exists()) return emptyList()
 
         val content = file.readText()
@@ -182,7 +192,9 @@ class IdentusAnonCredentialManager(
         for (i in 0 until jsonArray.length()) {
             result.add(fromJson(jsonArray.getJSONObject(i)))
         }
-        Logger.d { "IdentusAnonCredentialManager.kt.loadAll: Loaded credential count: ${result.size}" }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Loaded credential count: ${result.size}"
+        }
         return result
     }
     private fun toJson(credential: Credential): JSONObject {
@@ -266,7 +278,7 @@ class IdentusAnonCredentialManager(
             ProtocolType.DidcommOfferCredential.value -> {
                 if (connectionManager == null) {
                     Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                        "IdentusAnonCredentialManager.kt.handleInbound: Cannot process credential offer ${message.id}: missing connection manager"
+                        "Cannot process credential offer ${message.id}: missing connection manager"
                     }
                     return
                 }
@@ -287,7 +299,7 @@ class IdentusAnonCredentialManager(
     ) {
         try {
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleOfferCredential: Received credential offer: $message"
+                "Received credential offer: $message"
             }
             val offer = OfferCredential.fromMessage(message)
             val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
@@ -301,7 +313,7 @@ class IdentusAnonCredentialManager(
             val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
             connectionManager.sendMessage(request.makeMessage())
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleOfferCredential: Credential request sent: $request"
+                "Credential request sent: $request"
             }
 
             db.messageReadStatusDao().insertMessage(
@@ -312,7 +324,7 @@ class IdentusAnonCredentialManager(
             )
         } catch (e: Exception) {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleOfferCredential: Failed to process credential offer: ${e.message}"
+                "Failed to process credential offer: ${e.message}"
             }
         }
     }
@@ -320,12 +332,12 @@ class IdentusAnonCredentialManager(
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleIssueCredential: Received issue offer: $message"
+                "Received issue offer: $message"
             }
             val issueCredential = IssueCredential.fromMessage(message)
             val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleIssueCredential: Credential received: $credential"
+                "Credential received: $credential"
             }
 
             db.messageReadStatusDao().insertMessage(
@@ -336,7 +348,7 @@ class IdentusAnonCredentialManager(
             )
         } catch (e: Exception) {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleIssueCredential: Failed to receive credential: ${e.message}"
+                "Failed to receive credential: ${e.message}"
             }
         }
     }
@@ -346,7 +358,7 @@ class IdentusAnonCredentialManager(
             _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
         }
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "IdentusAnonCredentialManager.kt.handlePresentationRequest: Presentation request received: $message"
+            "Presentation request received: $message"
         }
 
         db.pendingProofRequestDao().insertPending(
@@ -367,10 +379,10 @@ class IdentusAnonCredentialManager(
 
     private suspend fun handleVerification(message: SdkMessage) {
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "IdentusAnonCredentialManager.kt.handleVerification: Received verification: $message"
+            "Received verification: $message"
         }
         Logger.d(IdentusAnonCredentialManager::class.toString()){
-            "IdentusAnonCredentialManager.kt.handleVerification: Received proof verification result from server"
+            "Received proof verification result from server"
         }
         try {
             val isValid = sdk.agent.handlePresentation(message)
@@ -384,7 +396,7 @@ class IdentusAnonCredentialManager(
                 )
             }
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleVerification: Verification result for $message: $isValid"
+                "Verification result for $message: $isValid"
             }
 
             db.messageReadStatusDao().insertMessage(
@@ -395,7 +407,7 @@ class IdentusAnonCredentialManager(
             )
         } catch (e: Exception) {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.handleVerification: Failed to verify presentation: ${e.message}"
+                "Failed to verify presentation: ${e.message}"
             }
             _verificationResults.update { current ->
                 current + VerificationResult(message.id, isValid = false)
@@ -409,7 +421,7 @@ class IdentusAnonCredentialManager(
         challenge: String,
     ) {
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "IdentusAnonCredentialManager.kt.sendVerificationRequest: Sending AnonCred proof request to ${request.destination}; attributes=${request.claims.map { it.name }}, predicates=${request.predicates}"
+            "Sending AnonCred proof request to ${request.destination}; attributes=${request.claims.map { it.name }}, predicates=${request.predicates}"
         }
         sdk.agent.initiatePresentationRequest(
             type = CredentialType.ANONCREDS_PROOF_REQUEST,
@@ -437,122 +449,36 @@ class IdentusAnonCredentialManager(
         )
     }
 
-    suspend fun generatePresentationOOBInvitation(
-        claims: List<Claim>,
-        challenge: String,
-        domain: String,
-    ): String {
-        val invitationId = UUID.randomUUID().toString()
-        val requestId    = UUID.randomUUID().toString()
-        val attachmentId = UUID.randomUUID().toString()
-        val defId        = UUID.randomUUID().toString()
-        val newPeerDID   = sdk.agent.createNewPeerDID(
-            services = emptyArray(),
-            updateMediator = true
-        )
-
-        // Build input_descriptors from claims
-        val inputDescriptors = claims.map { claim ->
-            mapOf(
-                "id"   to UUID.randomUUID().toString(),
-                "name" to claim.name,
-                "constraints" to mapOf(
-                    "fields" to listOf(
-                        mapOf(
-                            "path"   to listOf("\$.vc.credentialSubject.${claim.name}", "\$.credentialSubject.${claim.name}"),
-                            "id"     to UUID.randomUUID().toString(),
-                            "name"   to claim.name,
-                            "filter" to mapOf(
-                                "type"    to claim.type.toString(),
-                                "pattern" to claim.pattern,
-                            ).filterValues { it != null },
-                        )
-                    )
-                )
-            )
-        }
-
-        val invitation = mapOf(
-            "id"   to invitationId,
-            "type" to "https://didcomm.org/out-of-band/2.0/invitation",
-            "from" to sdk.agent.getAllRegisteredPeerDIDs(),
-            "body" to mapOf(
-                "goal_code" to "present-vp",
-                "goal"      to "Request proof presentation",
-                "accept"    to listOf("didcomm/v2"),
-            ),
-            "attachments" to listOf(
-                mapOf(
-                    "id"         to attachmentId,
-                    "media_type" to "application/json",
-                    "data" to mapOf(
-                        "json" to mapOf(
-                            "id"   to requestId,
-                            "type" to "https://didcomm.atalaprism.io/present-proof/3.0/request-presentation",
-                            "body" to mapOf(
-                                "goal_code"    to "Request Proof Presentation",
-                                "will_confirm" to false,
-                                "proof_types"  to emptyList<Any>(),
-                            ),
-                            "attachments" to listOf(
-                                mapOf(
-                                    "id"         to UUID.randomUUID().toString(),
-                                    "media_type" to "application/json",
-                                    "data" to mapOf(
-                                        "json" to mapOf(
-                                            "options" to mapOf(
-                                                "challenge" to challenge,
-                                                "domain"    to domain,
-                                            ),
-                                            "presentation_definition" to mapOf(
-                                                "id"                to defId,
-                                                "input_descriptors" to inputDescriptors,
-                                                "format" to mapOf(
-                                                    "jwt" to mapOf("alg" to listOf("ES256K"))
-                                                ),
-                                            ),
-                                        )
-                                    ),
-                                    "format" to "prism/jwt",
-                                )
-                            ),
-                            "thid" to invitationId,
-                            "from" to newPeerDID,
-                        )
-                    ),
-                )
-            ),
-            "created_time" to System.currentTimeMillis() / 1000,
-            "expires_time" to (System.currentTimeMillis() / 1000) + 300,
-        )
-
-        val json    = Json.encodeToString(invitation)
-        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
-        return "https://domain.com/path?_oob=$encoded"
-    }
-
     override suspend fun preparePresentationProof(
         credential: SdkCredential,
         message: SdkMessage,
         disclosedClaimLabels: List<String>?,
     ) {
-        Logger.d { "IdentusAnonCredentialManager.kt.preparePresentationProof: Preparing message $message" }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Preparing message $message"
+        }
         if (credential is ProvableCredential) {
             try {
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "IdentusAnonCredentialManager.kt.preparePresentationProof: Creating proof presentation for request ${message.id} with credential ${credential.id}"
+                    "Creating proof presentation for request ${message.id} with credential ${credential.id}"
                 }
-                Logger.d("IdentusAnonCredentialManager.kt.preparePresentationProof: Preparing presentation for proof request")
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Preparing presentation for proof request"
+                }
                 val presentation = sdk.agent.preparePresentationForRequestProof(
                     RequestPresentation.fromMessage(message),
                     credential,
                 )
-                Logger.d("IdentusAnonCredentialManager.kt.preparePresentationProof: Presentation prepared")
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Presentation prepared"
+                }
                 val outMessage = presentation.makeMessage()
-                Logger.d("IdentusAnonCredentialManager.kt.preparePresentationProof: Presentation message created")
-                Logger.d {
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Presentation message created"
+                }
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     """
-                     IdentusAnonCredentialManager.kt.preparePresentationProof: Sending proof presentation:
+                     Sending proof presentation:
                      request.id=${message.id}
                      request.thid=${message.thid}
                      presentation.id=${outMessage.id}
@@ -562,29 +488,31 @@ class IdentusAnonCredentialManager(
                      presentation.piuri=${outMessage.piuri}
                      """.trimIndent()
                 }
-                Logger.d("IdentusAnonCredentialManager.kt.preparePresentationProof: Message sent to server: $outMessage")
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Message sent to server: $outMessage"
+                }
                 val response = sdk.agent.sendMessage(outMessage)
 
-                Logger.d {
-                    "IdentusAnonCredentialManager.kt.preparePresentationProof: sendMessage response=$response"
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "sendMessage response=$response"
                 }
                 _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
                 db.pendingProofRequestDao().deletePending(message.id)
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "IdentusAnonCredentialManager.kt.preparePresentationProof: Proof presentation sent for request ${message.id}"
+                    "Proof presentation sent for request ${message.id}"
                 }
             } catch (e: EdgeAgentError.CredentialNotValidForPresentationRequest) {
                 Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                    "IdentusAnonCredentialManager.kt.preparePresentationProof: Error presenting proof: ${e.message}"
+                    "Error presenting proof: ${e.message}"
                 }
             } catch (e: Exception) {
                 Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                    "IdentusAnonCredentialManager.kt.preparePresentationProof: Failed to send proof presentation: ${e.message}"
+                    "Failed to send proof presentation: ${e.message}"
                 }
             }
         } else {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "IdentusAnonCredentialManager.kt.preparePresentationProof: Credential ${credential.id} cannot create presentations"
+                "Credential ${credential.id} cannot create presentations"
             }
         }
     }
@@ -610,8 +538,8 @@ class IdentusAnonCredentialManager(
         val claims = extractClaimsFromAnonCredential(sdkCredential)
 
         claims.forEach { claim ->
-            Logger.d(IdentusAnonCredentialManager::class.simpleName.toString()) {
-                "IdentusAnonCredentialManager.kt.toUiCredential: Mapped claim [${claim.name}] with value: ${claim.value}"
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Mapped claim [${claim.name}] with value: ${claim.value}"
             }
         }
 
@@ -821,8 +749,12 @@ class IdentusAnonCredentialManager(
     ): Boolean {
         if (criteria.credentialDefinitionIds.isEmpty()) return true
         val credentialDefinitionId = credentialDefinitionId(credential) ?: return false
-        Logger.d("IdentusAnonCredentialManager.kt.credentialMatchesRequestedCredentialDefinition: credentialDefinitionId=$credentialDefinitionId")
-        Logger.d("IdentusAnonCredentialManager.kt.credentialMatchesRequestedCredentialDefinition: credentialDefinitionIds from proof=${criteria.credentialDefinitionIds}")
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "credentialDefinitionId=$credentialDefinitionId"
+        }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "credentialDefinitionIds from proof=${criteria.credentialDefinitionIds}"
+        }
 
 
         val result =normalizeCredentialDefinitionId(credentialDefinitionId) ;
@@ -831,7 +763,9 @@ class IdentusAnonCredentialManager(
     }
 
     private fun credentialDefinitionId(credential: SdkCredential): String? {
-        Logger.d("IdentusAnonCredentialManager.kt.credentialDefinitionId: Full credential: $credential")
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Full credential: $credential"
+        }
         if (credential is AnonCredential) {
             return credential.credentialDefinitionID
         }
@@ -846,18 +780,24 @@ class IdentusAnonCredentialManager(
         val claims = toUiCredential(credential).claims
         val claimNames = claims.mapTo(mutableSetOf()) { it.name }
         val predicateNames = criteria.predicates.mapTo(mutableSetOf()) { it.name }
-        Logger.d("IdentusAnonCredentialManager.kt.credentialContainsAllRequestedClaims: Mapping requested claims")
-
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Mapping requested claims"
+        }
 
         val claimNamesHasAllPredicates=claimNames.containsAll(predicateNames);
         val claimNamesHasAllAttributes=claimNames.containsAll(criteria.attributes);
         val credentialSatifiesRequestedFromPredicate = credentialSatisfiesRequestedPredicates(claims, criteria.predicates);
-        Logger.d("IdentusAnonCredentialManager.kt.credentialContainsAllRequestedClaims: claimNamesHasAllPredicates=$claimNamesHasAllPredicates")
-        Logger.d("IdentusAnonCredentialManager.kt.credentialContainsAllRequestedClaims: claimNamesHasAllAttributes=$claimNamesHasAllAttributes")
-        Logger.d("IdentusAnonCredentialManager.kt.credentialContainsAllRequestedClaims: credentialSatisfiesRequestedPredicates=$credentialSatifiesRequestedFromPredicate")
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "claimNamesHasAllPredicates=$claimNamesHasAllPredicates"
+        }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "claimNamesHasAllAttributes=$claimNamesHasAllAttributes"
+        }
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "credentialSatisfiesRequestedPredicates=$credentialSatifiesRequestedFromPredicate"
+        }
 
-
-        return  claimNamesHasAllPredicates&&
+        return  claimNamesHasAllPredicates &&
                 claimNamesHasAllAttributes &&
                 credentialSatifiesRequestedFromPredicate
     }
@@ -884,7 +824,9 @@ class IdentusAnonCredentialManager(
         predicates: List<RequestedPredicate>,
     ): Boolean {
         if (predicates.isEmpty()) return true
-        Logger.d("IdentusAnonCredentialManager.kt.credentialSatisfiesRequestedPredicates: Predicate list: $predicates")
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Predicate list: $predicates"
+        }
         val claimsByName = claims.associateBy { it.name }
         return predicates.all { predicate ->
             val claimValue = claimsByName[predicate.name]?.value?.toPredicateLong() ?: return@all false

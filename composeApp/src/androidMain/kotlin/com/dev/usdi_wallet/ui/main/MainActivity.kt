@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
@@ -14,6 +13,8 @@ import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.ui.theme.WalletColors
+import com.dev.usdi_wallet.ui.theme.WalletTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -35,8 +36,8 @@ class MainActivity : AppCompatActivity() {
         deepLinkRouter.handle(intent)
 
         setContent {
-            MaterialTheme {
-                Surface {
+            WalletTheme{
+                Surface(color = WalletColors.Surface) {
                     MainRoute(viewModel = viewModel)
                 }
             }

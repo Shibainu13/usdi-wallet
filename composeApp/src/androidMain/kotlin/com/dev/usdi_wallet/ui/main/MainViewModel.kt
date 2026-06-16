@@ -123,18 +123,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         protocol.credentialManager.getProofRequestDetails(request)
                     }.getOrElse { error ->
                         Logger.e(MainViewModel::class.toString()) {
-                            "MainViewModel.kt.observeProtocolProofRequests: Failed to read proof request details: ${error.message}"
+                            "Failed to read proof request details: ${error.message}"
                         }
                         ProofRequestDetails(verifier = "Unknown verifier")
                     }
-                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Found ${credentials.size} matching credentials for request $request")
-                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Credentials: $credentials")
+                    Logger.d(MainViewModel::class.toString()) {
+                        "Found ${credentials.size} matching credentials for request $request"
+                    }
+                    Logger.d(MainViewModel::class.toString()) {
+                        "Credentials: $credentials"
+                    }
                     _uiState.update { state ->
                         if (state.pendingProofRequests.isNotEmpty()) {
                             state
                         } else {
 
-                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State before copy: $state")
+                            Logger.d(MainViewModel::class.toString()) {
+                                "State before copy: $state"
+                            }
                             val newState = state.copy(
                                 pendingProofRequests = listOf(
                                     PendingProofRequest(
@@ -157,7 +163,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     ),
                                 ),
                             )
-                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State after copy: $newState")
+                            Logger.d(MainViewModel::class.toString()) {
+                                "State after copy: $newState"
+                            }
                             newState
 
                         }

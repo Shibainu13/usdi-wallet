@@ -53,7 +53,7 @@ class EudiSdJwtCredentialManager(
             _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
         } else {
             Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                "EudiSdJwtCredentialManager.kt.handlePresentationRequest: Expected message of type EudiMessage.PresentationRequest, received $message"
+                "Expected message of type EudiMessage.PresentationRequest, received $message"
             }
         }
     }
@@ -68,7 +68,7 @@ class EudiSdJwtCredentialManager(
                     val txCodeSpec = offer.txCodeSpec
 
                     Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                        "EudiSdJwtCredentialManager.kt.handleIssueCredential: Received offer from $issuerName, tx = $txCodeSpec: $offeredDocuments"
+                        "Received offer from $issuerName, tx = $txCodeSpec: $offeredDocuments"
                     }
 
                     sdk.openId4VciManager.issueDocumentByOffer(
@@ -77,18 +77,18 @@ class EudiSdJwtCredentialManager(
                         when (issueEvent) {
                             is IssueEvent.DocumentIssued -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Document issued: $issueEvent"
+                                    "Document issued: $issueEvent"
                                 }
                                 _documents.value += issueEvent.document
                             }
                             is IssueEvent.DocumentFailed -> {
                                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Document issuance failed: $issueEvent"
+                                    "Document issuance failed: $issueEvent"
                                 }
                             }
                             is IssueEvent.Started -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance started, total: $issueEvent"
+                                    "Issuance started, total: $issueEvent"
                                 }
                             }
                             is IssueEvent.DocumentRequiresCreateSettings -> {
@@ -128,7 +128,7 @@ class EudiSdJwtCredentialManager(
                                     } else {
                                         issueEvent.cancel("User cancel authentication")
                                         Logger.w(EudiSdJwtCredentialManager::class.toString()) {
-                                            "EudiSdJwtCredentialManager.kt.handleIssueCredential: User cancelled authentication during issuance"
+                                            "User cancelled authentication during issuance"
                                         }
                                     }
                                 }
@@ -142,12 +142,12 @@ class EudiSdJwtCredentialManager(
                             }
                             is IssueEvent.Finished -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance finished"
+                                    "Issuance finished"
                                 }
                             }
                             is IssueEvent.Failure -> {
                                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                                    "EudiSdJwtCredentialManager.kt.handleIssueCredential: Issuance failed: $issueEvent"
+                                    "Issuance failed: $issueEvent"
                                 }
                             }
                         }
@@ -156,7 +156,7 @@ class EudiSdJwtCredentialManager(
                 is OfferResult.Failure -> {
                     val error = result.cause
                     Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                        "EudiSdJwtCredentialManager.kt.handleIssueCredential: Failed to handle EUDI issue credential: $error"
+                        "Failed to handle EUDI issue credential: $error"
                     }
                 }
             }
@@ -174,7 +174,7 @@ class EudiSdJwtCredentialManager(
                 val document = sdk.wallet.getDocumentById(credential.id) as IssuedDocument
 
                 Logger.d(EudiSdJwtCredentialManager::class.toString()) {
-                    "EudiSdJwtCredentialManager.kt.preparePresentationProof: Disclosed labels: $disclosedClaimLabels"
+                    "Disclosed labels: $disclosedClaimLabels"
                 }
                 val disclosedDocuments = DisclosedDocuments(
                     DisclosedDocument(
@@ -194,12 +194,12 @@ class EudiSdJwtCredentialManager(
                 sdk.wallet.sendResponse(response)
             } catch (e: Exception) {
                 Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                    "EudiSdJwtCredentialManager.kt.preparePresentationProof: Failed to prepare presentation: $e"
+                    "Failed to prepare presentation: $e"
                 }
             }
         } else {
             Logger.e(EudiSdJwtCredentialManager::class.toString()) {
-                "EudiSdJwtCredentialManager.kt.preparePresentationProof: Expected message of type EudiMessage.PresentationRequest, received $message"
+                "Expected message of type EudiMessage.PresentationRequest, received $message"
             }
         }
     }
@@ -219,12 +219,20 @@ class EudiSdJwtCredentialManager(
             is EudiMessage.PresentationRequest -> ProofRequestDetails(
                 verifier = "EUDI verifier",
                 name = "Presentation request",
-                requestedFields = listOf(
-                    ProofRequestField(
-                        name = "Selected document claims",
-                        requirement = "Requested by verifier",
-                    )
-                ),
+                requestedFields = proofRequest.processedRequest.requestedDocuments.flatMap { requestedDocument ->
+                    requestedDocument.requestedItems
+                        .keys
+                        .map { docItem ->
+                            val fieldName = when (docItem) {
+//                                is MsoMdocItem -> "${docItem.namespace}.${docItem.elementIdentifier}"
+                                is SdJwtVcItem -> docItem.path
+                                else -> null
+                            }
+                            ProofRequestField(
+                                name = "From ${requestedDocument.documentId}: $fieldName"
+                            )
+                        }
+                },
             )
             is EudiMessage.CredentialOffer -> ProofRequestDetails(
                 verifier = "EUDI issuer",
