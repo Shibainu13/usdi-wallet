@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -39,6 +41,7 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.formatClaimValue
+import com.dev.usdi_wallet.ui.theme.WalletColors
 
 
 @Composable
@@ -46,29 +49,50 @@ fun MainScreen(
     isReady: Boolean,
     currentTab: WalletTab,
     onTabSelected: (WalletTab) -> Unit,
-    navHost: @Composable () -> Unit
+    navHost: @Composable () -> Unit,
 ) {
     Scaffold(
+        containerColor = WalletColors.Surface,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = WalletColors.White,
+                tonalElevation = 0.dp,
+            ) {
                 WalletTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = currentTab == tab,
                         onClick = { onTabSelected(tab) },
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
-                        label = { Text(tab.title) }
+                        icon = {
+                            Icon(
+                                tab.icon,
+                                contentDescription = tab.title,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        },
+                        label = {
+                            Text(
+                                tab.title,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = WalletColors.Primary,
+                            selectedTextColor = WalletColors.Primary,
+                            indicatorColor = WalletColors.PrimaryLight,
+                            unselectedIconColor = WalletColors.TextTertiary,
+                            unselectedTextColor = WalletColors.TextTertiary,
+                        ),
                     )
                 }
             }
         }
     ) { padding ->
-
         if (!isReady) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = WalletColors.Primary)
             }
         } else {
             Box(modifier = Modifier.padding(padding)) {

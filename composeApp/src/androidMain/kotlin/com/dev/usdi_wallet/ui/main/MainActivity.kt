@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Logger.d(MainActivity::class.toString()) { "MainActivity.kt.onNewIntent: Received new intent: $intent" }
+        Logger.d(MainActivity::class.toString()) { "Received new intent: $intent" }
         setIntent(intent)
         deepLinkRouter.handle(intent)
     }

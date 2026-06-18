@@ -30,6 +30,7 @@ enum class WalletTab(
     CONTACTS("Contacts", "contacts_root", Icons.Default.People),
     CREDENTIALS("Credentials", "credentials_root", Icons.Default.Badge),
     VERIFY("Verify", "verify_root", Icons.Default.CheckCircle),
+    SETTINGS("Settings", "settings_root", Icons.Default.Settings)
 }
 
 data class PendingProofRequest(
@@ -79,7 +80,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             areAgentsRunning.collect { running ->
                 if (!running) {
                     Logger.w(MainViewModel::class.toString()) {
-                        "MainViewModel.kt.init: At least one of the protocols is not running"
+                        "At least one of the protocols is not running"
                     }
                 }
                 _uiState.update { it.copy(isReady = running) }
