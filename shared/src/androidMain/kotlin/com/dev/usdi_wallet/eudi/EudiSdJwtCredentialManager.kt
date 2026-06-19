@@ -7,6 +7,8 @@ import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.CredentialManager
+import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
+import com.dev.usdi_wallet.domain.credential.ProofRequestField
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import eu.europa.ec.eudi.iso18013.transfer.response.DisclosedDocument
@@ -206,6 +208,43 @@ class EudiSdJwtCredentialManager(
 
     override fun getProofRequestsToProcess(): Flow<List<EudiMessage>> = _proofRequestToProcess.asStateFlow()
     override fun getVerificationResults(): Flow<List<VerificationResult>> = flow { emit(emptyList()) }
+
+    override suspend fun findMatchingCredentials(proofRequest: EudiMessage): List<Document> {
+        if (proofRequest !is EudiMessage.PresentationRequest) return emptyList()
+        return _documents.value.filterIsInstance<IssuedDocument>()
+    }
+
+    override suspend fun getProofRequestDetails(proofRequest: EudiMessage): ProofRequestDetails {
+        return when (proofRequest) {
+            is EudiMessage.PresentationRequest -> ProofRequestDetails(
+                verifier = "EUDI verifier",
+                name = "Presentation request",
+                requestedFields = proofRequest.processedRequest.requestedDocuments.flatMap { requestedDocument ->
+                    requestedDocument.requestedItems
+                        .keys
+                        .map { docItem ->
+                            val fieldName = when (docItem) {
+//                                is MsoMdocItem -> "${docItem.namespace}.${docItem.elementIdentifier}"
+                                is SdJwtVcItem -> docItem.path
+                                else -> null
+                            }
+                            ProofRequestField(
+                                name = "From ${requestedDocument.documentId}: $fieldName"
+                            )
+                        }
+                },
+            )
+            is EudiMessage.CredentialOffer -> ProofRequestDetails(
+                verifier = "EUDI issuer",
+                name = "Credential offer",
+            )
+        }
+    }
+
+    override suspend fun denyProofRequest(proofRequest: EudiMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != proofRequest.id }
+    }
+
     override suspend fun getCredential(id: String): Credential? { TODO("Not yet implemented") }
     override suspend fun saveCredential(credential: Credential) { TODO("Not yet implemented") }
     override suspend fun removeCredential(id: String) { TODO("Not yet implemented") }

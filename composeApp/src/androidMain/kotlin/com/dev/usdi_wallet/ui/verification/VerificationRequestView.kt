@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,10 +38,12 @@ import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
+import com.dev.usdi_wallet.domain.credential.VerificationResult
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
     MANUAL("Manual"),
+    SERVER_HTTP("Server HTTP"),
 }
 
 @Composable
@@ -88,36 +91,38 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item {
-                    ContactDropdown(
-                        contacts = contacts,
-                        selectedContact = uiState.selectedContact,
-                        onContactSelected = viewModel::onContactSelected,
-                    )
-                }
-
-                item {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = viewModel::onDomainChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Domain") },
-                    )
-                }
-
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.challenge,
-                            onValueChange = viewModel::onChallengeChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Challenge") },
+                if (selectedTab != VerificationTab.SERVER_HTTP) {
+                    item {
+                        ContactDropdown(
+                            contacts = contacts,
+                            selectedContact = uiState.selectedContact,
+                            onContactSelected = viewModel::onContactSelected,
                         )
-                        Button(onClick = viewModel::regenerateChallenge) {
-                            Text("Regenerate")
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = uiState.domain,
+                            onValueChange = viewModel::onDomainChanged,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Domain") },
+                        )
+                    }
+
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = uiState.challenge,
+                                onValueChange = viewModel::onChallengeChanged,
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Challenge") },
+                            )
+                            Button(onClick = viewModel::regenerateChallenge) {
+                                Text("Regenerate")
+                            }
                         }
                     }
                 }
@@ -131,6 +136,12 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 text = { Text(tab.title) },
                             )
                         }
+                    }
+                }
+
+                verificationResults.firstOrNull()?.let { result ->
+                    item {
+                        VerificationResultCard(result)
                     }
                 }
 
@@ -205,6 +216,61 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                             }
                         }
                     }
+
+                    VerificationTab.SERVER_HTTP -> {
+                        item {
+                            ServerHttpConnectionCard(
+                                uiState = uiState,
+                                onBaseUrlChange = viewModel::onServerBaseUrlChanged,
+                                onApiKeyChange = viewModel::onServerApiKeyChanged,
+                                onConnectionLabelChange = viewModel::onServerConnectionLabelChanged,
+                                onConnectionIdChange = viewModel::onServerConnectionIdChanged,
+                                onCredentialDefinitionIdChange = viewModel::onServerCredentialDefinitionIdChanged,
+                                onProofRequestNameChange = viewModel::onServerProofRequestNameChanged,
+                                onCreateInvitation = viewModel::createServerConnectionInvitation,
+                                onCheckConnection = viewModel::checkServerConnection,
+                                onLoadCredentialDefinitions = viewModel::loadServerCredentialDefinitions,
+                                onCredentialDefinitionSelected = viewModel::onServerCredentialDefinitionSelected,
+                            )
+                        }
+
+                        itemsIndexed(uiState.serverSchemaClaimRows, key = { _, row -> row.id }) { _, row ->
+                            ServerSchemaClaimRowCard(
+                                row = row,
+                                onCheckedChange = {
+                                    viewModel.onServerSchemaRowChecked(row.id, it)
+                                },
+                                onConstraintChange = {
+                                    viewModel.onServerSchemaRowConstraintChanged(row.id, it)
+                                },
+                                onPredicateOperatorChange = {
+                                    viewModel.onServerSchemaRowPredicateOperatorChanged(row.id, it)
+                                },
+                                onPredicateValueChange = {
+                                    viewModel.onServerSchemaRowPredicateValueChanged(row.id, it)
+                                },
+                            )
+                        }
+
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Button(
+                                    onClick = viewModel::sendServerProofRequest,
+                                    enabled = !uiState.isLoading && uiState.selectedServerCredentialDefinition != null,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text("Send via server")
+                                }
+
+                                if (uiState.serverResult.isNotBlank()) {
+                                    Text(uiState.serverResult)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -213,6 +279,166 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
             }
         }
     }
+}
+
+@Composable
+private fun VerificationResultCard(result: VerificationResult) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = if (result.isValid) "Verification successful" else "Verification failed",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            if (result.attributes.isEmpty()) {
+                Text(text = "Message ID: ${result.messageId}")
+            } else {
+                result.attributes.forEach { (name, value) ->
+                    Text(text = "$name: $value")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerHttpConnectionCard(
+    uiState: VerificationRequestUiState,
+    onBaseUrlChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onConnectionLabelChange: (String) -> Unit,
+    onConnectionIdChange: (String) -> Unit,
+    onCredentialDefinitionIdChange: (String) -> Unit,
+    onProofRequestNameChange: (String) -> Unit,
+    onCreateInvitation: () -> Unit,
+    onCheckConnection: () -> Unit,
+    onLoadCredentialDefinitions: () -> Unit,
+    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedTextField(
+                value = uiState.serverBaseUrl,
+                onValueChange = onBaseUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Cloud agent URL") },
+                placeholder = { Text("http://10.0.2.2:8085") },
+            )
+
+            OutlinedTextField(
+                value = uiState.serverApiKey,
+                onValueChange = onApiKeyChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("API key") },
+            )
+
+            OutlinedTextField(
+                value = uiState.serverConnectionLabel,
+                onValueChange = onConnectionLabelChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Connection label") },
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Button(
+                    onClick = onCreateInvitation,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("New holder")
+                }
+                Button(
+                    onClick = onCheckConnection,
+                    enabled = !uiState.isLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Check")
+                }
+            }
+
+            OutlinedTextField(
+                value = uiState.serverConnectionId,
+                onValueChange = onConnectionIdChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Holder connection ID") },
+            )
+
+            if (uiState.serverConnectionState.isNotBlank()) {
+                Text("State: ${uiState.serverConnectionState}")
+            }
+
+            OutlinedTextField(
+                value = uiState.serverInvitationUrl,
+                onValueChange = {},
+                modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
+                label = { Text("Invitation URL for holder device") },
+                minLines = 2,
+            )
+
+            OutlinedTextField(
+                value = uiState.serverCredentialDefinitionId,
+                onValueChange = onCredentialDefinitionIdChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Credential definition ID override") },
+                placeholder = { Text("Auto: {cloud-agent}/credential-definition-registry/definitions/{guid}/definition") },
+            )
+
+            Button(
+                onClick = onLoadCredentialDefinitions,
+                enabled = !uiState.isLoading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Load credential definitions")
+            }
+
+            ServerCredentialDefinitionDropdown(
+                credentialDefinitions = uiState.serverCredentialDefinitions,
+                selectedCredentialDefinition = uiState.selectedServerCredentialDefinition,
+                onCredentialDefinitionSelected = onCredentialDefinitionSelected,
+            )
+
+            OutlinedTextField(
+                value = uiState.serverProofRequestName,
+                onValueChange = onProofRequestNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Proof request name") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ServerCredentialDefinitionDropdown(
+    credentialDefinitions: List<com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition>,
+    selectedCredentialDefinition: com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition?,
+    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
+) {
+    SelectorField(
+        label = "Credential definition",
+        value = selectedCredentialDefinition?.let { credentialDefinition ->
+            listOf(credentialDefinition.name, credentialDefinition.version, credentialDefinition.tag)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { credentialDefinition.guid.ifBlank { credentialDefinition.id } }
+        }.orEmpty(),
+        options = credentialDefinitions,
+        optionLabel = { credentialDefinition ->
+            listOf(credentialDefinition.name, credentialDefinition.version, credentialDefinition.tag)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { credentialDefinition.guid.ifBlank { credentialDefinition.id } }
+        },
+        onOptionSelected = onCredentialDefinitionSelected,
+    )
 }
 
 @Composable
@@ -348,6 +574,84 @@ private fun ManualClaimRowCard(
 }
 
 @Composable
+private fun ServerSchemaClaimRowCard(
+    row: ServerSchemaClaimRow,
+    onCheckedChange: (Boolean) -> Unit,
+    onConstraintChange: (String) -> Unit,
+    onPredicateOperatorChange: (PredicateOperator?) -> Unit,
+    onPredicateValueChange: (String) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = row.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Schema attribute: ${row.attrName}")
+                    Text(text = "Expected type: ${row.valueType.label}")
+                }
+                Checkbox(
+                    checked = row.checked,
+                    onCheckedChange = onCheckedChange,
+                )
+            }
+
+            if (row.checked) {
+                if (row.valueType == ServerSchemaClaimValueType.NUMBER || row.valueType == ServerSchemaClaimValueType.DATE) {
+                    PredicateEditor(
+                        selectedOperator = row.predicateOperator,
+                        predicateValue = row.predicateValue,
+                        valueLabel = if (row.valueType == ServerSchemaClaimValueType.DATE) {
+                            "Predicate value (yyyy-MM-dd)"
+                        } else {
+                            "Predicate value"
+                        },
+                        onOperatorSelected = onPredicateOperatorChange,
+                        onValueChanged = onPredicateValueChange,
+                    )
+                    OutlinedTextField(
+                        value = row.constraint,
+                        onValueChange = onConstraintChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = {
+                            Text(
+                                if (row.valueType == ServerSchemaClaimValueType.DATE) {
+                                    "Reveal constraint (yyyy-MM-dd)"
+                                } else {
+                                    "Reveal constraint (number)"
+                                },
+                            )
+                        },
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = row.constraint,
+                        onValueChange = onConstraintChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = {
+                            Text(
+                                when (row.valueType) {
+                                    ServerSchemaClaimValueType.STRING -> "Constraint"
+                                    ServerSchemaClaimValueType.BOOLEAN -> "Constraint (true/false)"
+                                    ServerSchemaClaimValueType.DATE -> "Constraint (yyyy-MM-dd)"
+                                    ServerSchemaClaimValueType.NUMBER -> "Constraint"
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ClaimTypeDropdown(
     selectedType: ClaimType,
     onTypeSelected: (ClaimType) -> Unit,
@@ -365,6 +669,7 @@ private fun ClaimTypeDropdown(
 private fun PredicateEditor(
     selectedOperator: PredicateOperator?,
     predicateValue: String,
+    valueLabel: String = "Value",
     onOperatorSelected: (PredicateOperator?) -> Unit,
     onValueChanged: (String) -> Unit,
 ) {
@@ -381,7 +686,7 @@ private fun PredicateEditor(
             value = predicateValue,
             onValueChange = onValueChanged,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Value") },
+            label = { Text(valueLabel) },
         )
     }
 }

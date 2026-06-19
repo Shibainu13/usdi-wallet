@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -23,6 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.ui.common.formatClaimName
+import com.dev.usdi_wallet.ui.common.formatClaimValue
+import com.dev.usdi_wallet.ui.theme.WalletColors
 
 
 @Composable
@@ -43,29 +49,50 @@ fun MainScreen(
     isReady: Boolean,
     currentTab: WalletTab,
     onTabSelected: (WalletTab) -> Unit,
-    navHost: @Composable () -> Unit
+    navHost: @Composable () -> Unit,
 ) {
     Scaffold(
+        containerColor = WalletColors.Surface,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = WalletColors.White,
+                tonalElevation = 0.dp,
+            ) {
                 WalletTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = currentTab == tab,
                         onClick = { onTabSelected(tab) },
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
-                        label = { Text(tab.title) }
+                        icon = {
+                            Icon(
+                                tab.icon,
+                                contentDescription = tab.title,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        },
+                        label = {
+                            Text(
+                                tab.title,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = WalletColors.Primary,
+                            selectedTextColor = WalletColors.Primary,
+                            indicatorColor = WalletColors.PrimaryLight,
+                            unselectedIconColor = WalletColors.TextTertiary,
+                            unselectedTextColor = WalletColors.TextTertiary,
+                        ),
                     )
                 }
             }
         }
     ) { padding ->
-
         if (!isReady) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = WalletColors.Primary)
             }
         } else {
             Box(modifier = Modifier.padding(padding)) {
@@ -100,10 +127,12 @@ fun RevokedCredentialDialog(
 fun ProofRequestSheet(
     request: PendingProofRequest,
     onDismiss: () -> Unit,
-    onSelectCredential: (Credential, List<String>) -> Unit
+    onDeny: () -> Unit,
+    onSelectCredential: (Credential, List<String>) -> Unit,
 ) {
     var selectedCredential by remember { mutableStateOf<Credential?>(null) }
     var selectedClaims by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val requiresDisclosedClaims = request.protocolId == "OPENID4VC"
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -114,9 +143,36 @@ fun ProofRequestSheet(
         ) {
             Text("Proof request", style = MaterialTheme.typography.titleMedium)
             Text("Protocol: ${request.protocolId}")
+            request.details.name?.let { name ->
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Text(
+                text = "Verifier: ${request.details.verifier}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            Text("Required fields", style = MaterialTheme.typography.titleSmall)
+            if (request.details.requestedFields.isEmpty()) {
+                Text(
+                    text = "No requested fields found in this request.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    request.details.requestedFields.forEach { field ->
+                        val requirement = field.requirement?.let { " - $it" }.orEmpty()
+                        Text(
+                            text = "${formatClaimName(field.name)}$requirement",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
 
             if (selectedCredential == null) {
-                // Step 1: credential selection
                 if (request.credentials.isEmpty()) {
                     Text(
                         text = "No credentials available for this request.",
@@ -131,22 +187,33 @@ fun ProofRequestSheet(
                         items(request.credentials, key = { it.id }) { credential ->
                             ListItem(
                                 headlineContent = {
-                                    Text(credential.subject ?: credential.id)
+                                    if (requiresDisclosedClaims) {
+                                        Text(credential.subject ?: credential.id)
+                                    } else {
+                                        CredentialSelectHeadline(credential)
+                                    }
                                 },
-                                supportingContent = {
-                                    Text(credential.issuer)
+                                supportingContent = if (requiresDisclosedClaims) {
+                                    { CredentialClaimValues(credential) }
+                                } else {
+                                    null
                                 },
                                 trailingContent = {
                                     AssistChip(
                                         onClick = {
-                                            selectedCredential = credential
-                                            // pre-select all non-binary claims
-                                            selectedClaims = credential.claims
-                                                .filter { it.type != ClaimType.BYTEARRAY }
-                                                .map { it.name }
-                                                .toSet()
+                                            if (requiresDisclosedClaims) {
+                                                selectedCredential = credential
+                                                selectedClaims = credential.claims
+                                                    .filter { it.type != ClaimType.BYTEARRAY }
+                                                    .map { it.name }
+                                                    .toSet()
+                                            } else {
+                                                onSelectCredential(credential, emptyList())
+                                            }
                                         },
-                                        label = { Text("Select") },
+                                        label = {
+                                            Text(if (requiresDisclosedClaims) "Select" else "Accept")
+                                        },
                                     )
                                 },
                             )
@@ -154,8 +221,8 @@ fun ProofRequestSheet(
                     }
                 }
             } else {
-                // Step 2: claim selection
                 val credential = selectedCredential!!
+                val selectableClaims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
                 Text("Select claims to disclose:")
                 Text(
                     text = credential.subject ?: credential.id,
@@ -166,7 +233,7 @@ fun ProofRequestSheet(
                     contentPadding = PaddingValues(bottom = 8.dp),
                     modifier = Modifier.weight(1f, fill = false),
                 ) {
-                    items(credential.claims.filter { it.type != ClaimType.BYTEARRAY }) { claim ->
+                    items(selectableClaims) { claim ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -191,10 +258,10 @@ fun ProofRequestSheet(
                                 }
                             )
                             Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(claim.name)
+                                Text(formatClaimName(claim.name))
                                 claim.value?.let {
                                     Text(
-                                        text = it.toString(),
+                                        text = formatClaimValue(it),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -216,12 +283,59 @@ fun ProofRequestSheet(
                         onClick = {
                             onSelectCredential(credential, selectedClaims.toList())
                         },
-                        enabled = selectedClaims.isNotEmpty()
+                        enabled = !requiresDisclosedClaims || selectedClaims.isNotEmpty()
                     ) {
                         Text("Present")
                     }
                 }
             }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDeny,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Deny")
+                }
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Later")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CredentialSelectHeadline(credential: Credential) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(credential.issuer)
+        CredentialClaimValues(credential)
+    }
+}
+
+@Composable
+private fun CredentialClaimValues(credential: Credential) {
+    val claims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
+
+    if (claims.isEmpty()) {
+        Text(credential.issuer)
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        claims.forEach { claim ->
+            Text(
+                text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

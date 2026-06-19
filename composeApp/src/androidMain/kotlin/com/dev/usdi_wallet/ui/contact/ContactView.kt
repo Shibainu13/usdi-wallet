@@ -1,147 +1,87 @@
 package com.dev.usdi_wallet.ui.contact
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.domain.contact.Contact
+import com.dev.usdi_wallet.ui.common.ProtocolBadge
+import com.dev.usdi_wallet.ui.common.ScreenHeader
+import com.dev.usdi_wallet.ui.common.SectionLabel
+import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.theme.WalletColors
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactScreen(viewModel: ContactViewModel) {
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(uiState.error, uiState.snackbarMessage) {
-        uiState.error?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.onErrorShown()
-        }
+    Box(modifier = Modifier.fillMaxSize().background(WalletColors.Surface)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ScreenHeader(
+                title = "Contacts",
+                subtitle = if (contacts.isEmpty()) "No contacts yet"
+                else "${contacts.size} connection${if (contacts.size == 1) "" else "s"}",
+            )
 
-        uiState.snackbarMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.onSnackbarShown()
-        }
-    }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = viewModel::onAddContactClicked) {
-                Text(text = "+")
-            }
-        },
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
             if (contacts.isEmpty()) {
-                Text(
-                    text = "No contacts available.",
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(24.dp),
-                )
-            } else {
-                LazyColumn(
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    items(items = contacts, key = { contact -> contact.holder }) { contact ->
-                        ContactCard(contact = contact)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "No contacts yet",
+                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                            color = WalletColors.TextSecondary,
+                        )
+                        Text(
+                            text = "Contacts from verification flows will appear here",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
-            }
-
-            if (uiState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    item { SectionLabel(text = "Connections") }
+                    items(contacts, key = { it.holder }) { contact ->
+                        WalletListItem(
+                            icon = Icons.Default.Person,
+                            title = contact.name.ifBlank {
+                                // Truncate DID for display
+                                val did = contact.holder
+                                if (did.length > 32) "${did.take(16)}...${did.takeLast(8)}"
+                                else did
+                            },
+                            subtitle = contact.holder.take(24) + "...",
+                            badge = { ProtocolBadge(protocol = contact.protocol) },
+                            onClick = { /* detail screen — future work */ },
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(20.dp)) }
+                }
             }
         }
     }
-
-    if (uiState.showInvitationDialog) {
-        InvitationDialog(
-            onSubmit = viewModel::submitInvitation,
-            onDismiss = viewModel::onInvitationDialogDismissed,
-        )
-    }
-}
-
-@Composable
-private fun ContactCard(contact: Contact) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { },
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = contact.name)
-            Text(text = contact.holder)
-        }
-    }
-}
-
-@Composable
-private fun InvitationDialog(
-    onSubmit: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var invitation by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = "Add contact") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = "Paste an Out-of-Band invitation.")
-                OutlinedTextField(
-                    value = invitation,
-                    onValueChange = { invitation = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "Paste invitation") },
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSubmit(invitation) }) {
-                Text(text = "Accept")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Cancel")
-            }
-        },
-    )
 }

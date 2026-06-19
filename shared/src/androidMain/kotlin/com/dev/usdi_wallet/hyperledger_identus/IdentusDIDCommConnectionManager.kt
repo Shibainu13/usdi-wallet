@@ -26,7 +26,7 @@ class IdentusDIDCommConnectionManager(
             it.handleReceivedMessagesEvents().collect { list ->
                 list.forEach { msg ->
                     Logger.d(IdentusDIDCommConnectionManager::class.toString()) {
-                        "Received message $msg"
+                        "IdentusDIDCommConnectionManager.kt.receiveMessage: Received message $msg"
                     }
                     msgHandler(msg)
                 }
@@ -49,5 +49,4 @@ class IdentusDIDCommConnectionManager(
             EdgeAgent.State.STOPPING -> ConnectionState.STOPPING
             EdgeAgent.State.STOPPED  -> ConnectionState.STOPPED
         }
-
 }

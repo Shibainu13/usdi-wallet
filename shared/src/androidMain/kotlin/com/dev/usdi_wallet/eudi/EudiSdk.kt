@@ -115,7 +115,7 @@ class EudiSdk private constructor() {
             ktorHttpClientFactory = { buildTrustAllKtorClient() }
         )
 
-        startTransferEventListener()
+        configureTransferEventListener()
     }
 
     fun processInvitation(uri: String) {
@@ -131,36 +131,39 @@ class EudiSdk private constructor() {
         }
     }
 
-    private fun startTransferEventListener() {
+    private fun configureTransferEventListener() {
         wallet.addTransferEventListener { event ->
             when (event) {
                 is TransferEvent.QrEngagementReady -> {
                     val qrCodeBitMap = event.qrCode.asBitmap(size = 800)
+                    Logger.d(EudiSdk::class.toString()) {
+                        "QR code generated: $qrCodeBitMap"
+                    }
                 }
                 TransferEvent.Connecting -> {
-                    Logger.d("EudiSdk") { "Devices are connecting..." }
+                    Logger.d(EudiSdk::class.toString()) { "Devices are connecting" }
                 }
                 TransferEvent.Connected -> {
-                    Logger.d("EudiSdk") { "Devices are connected." }
+                    Logger.d(EudiSdk::class.toString()) { "Devices are connected" }
                 }
                 is TransferEvent.RequestReceived -> try {
                     val processedRequest = event.processedRequest.getOrThrow()
                     val message = EudiMessage.PresentationRequest(processedRequest)
                     _eudiMessageFlow.value = _eudiMessageFlow.value.plus(message)
                 } catch (e: Exception) {
-                    Logger.e("EudiSdk") { "Error receiving request: ${e.message}" }
+                    Logger.e(EudiSdk::class.toString()) { "Error receiving request: ${e.message}" }
                 }
                 TransferEvent.ResponseSent -> {
-                    Logger.d("EudiSdk") { "Response sent" }
+                    Logger.d(EudiSdk::class.toString()) { "Response sent" }
                 }
                 is TransferEvent.Redirect -> {
-                    Logger.d("EudiSdk") { "Redirect URI: ${event.redirectUri}" }
+                    Logger.d(EudiSdk::class.toString()) { "Redirect URI: ${event.redirectUri}" }
                 }
                 TransferEvent.Disconnected -> {
                     wallet.stopProximityPresentation()
                 }
                 is TransferEvent.Error -> {
-                    Logger.e("EudiSdk") { "Transfer error: ${event.error.message}" }
+                    Logger.e(EudiSdk::class.toString()) { "Transfer error: ${event.error.message}" }
                     wallet.stopProximityPresentation()
                 }
                 else -> {}
