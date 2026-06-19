@@ -42,15 +42,28 @@ class IdentusJWTProtocol(
         )
 
     companion object {
-        fun getInstance(application: Application, scope: CoroutineScope): IdentusJWTProtocol =
-            getInstance(IdentusJWTProtocol::class)
-                ?: register(
-                    IdentusJWTProtocol(
-                        DIDCOMM1,
-                        IdentusDIDCommConnectionManager(application),
-                        IdentusDIDCommContactManager(),
-                        IdentusAnonCredentialManager(scope, application),
-                    )
+        fun getInstance(application: Application, scope: CoroutineScope): IdentusJWTProtocol {
+            getInstance(IdentusJWTProtocol::class)?.let { return it }
+
+            val connectionManager = IdentusDIDCommConnectionManager(application)
+            val credentialManager = IdentusAnonCredentialManager(scope, application)
+            val contactManager = IdentusDIDCommContactManager(
+                onCredentialOffer = { message ->
+                    credentialManager.handleInbound(message, connectionManager)
+                },
+                onPresentationRequest = { message ->
+                    credentialManager.enqueuePresentationRequest(message)
+                },
+            )
+
+            return register(
+                IdentusJWTProtocol(
+                    DIDCOMM1,
+                    connectionManager,
+                    contactManager,
+                    credentialManager,
                 )
+            )
+        }
     }
 }

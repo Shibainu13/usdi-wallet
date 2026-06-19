@@ -330,6 +330,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     baseUrl = state.serverBaseUrl,
                     apiKey = state.serverApiKey.ifBlank { null },
                 )
+                Logger.d("credential in verification: $credentialDefinitions")
                 val selectedCredentialDefinition = credentialDefinitions.firstOrNull()
                 val rows = selectedCredentialDefinition
                     ?.schemaClaimRows(state.serverBaseUrl, state.serverApiKey.ifBlank { null })
@@ -486,8 +487,8 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
 
     fun sendServerProofRequest() {
         val state = _uiState.value
-        if (state.serverBaseUrl.isBlank() || state.serverConnectionId.isBlank()) {
-            _uiState.update { it.copy(error = "Enter cloud agent URL and connection ID first") }
+        if (state.serverBaseUrl.isBlank()) {
+            _uiState.update { it.copy(error = "Enter cloud agent URL first") }
             return
         }
 
@@ -509,7 +510,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         }
 
         val request = buildRequestFromServerSchemaRows(
-            contact = Contact(holder = state.serverConnectionId, name = "Cloud agent", protocol = "HTTP"),
+            contact = Contact(holder = "proof-invitation", name = "Cloud agent", protocol = "HTTP"),
             rows = selectedRows,
         )
 
@@ -519,7 +520,6 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 val result = cloudAgentVerifierClient.sendAnonCredProofRequest(
                     baseUrl = state.serverBaseUrl,
                     apiKey = state.serverApiKey.ifBlank { null },
-                    connectionId = state.serverConnectionId,
                     claims = request.claims,
                     predicates = request.predicates,
                     credentialDefinitionId = state.serverCredentialDefinitionId
@@ -531,6 +531,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     it.copy(
                         isLoading = false,
                         success = true,
+                        serverInvitationUrl = result.invitationUrl.orEmpty(),
                         serverResult = formatServerProofRequestResult(result),
                     )
                 }
@@ -570,6 +571,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
 
     private fun formatServerProofRequestResult(result: com.dev.usdi_wallet.hyperledger_identus.CloudAgentProofRequestResult): String {
         return listOfNotNull(
+            result.invitationUrl?.let { url -> "Invitation URL: $url" },
             result.presentationId?.let { id -> "Presentation ID: $id" },
             result.status?.let { status -> "Status: $status" },
             result.revealedAttributes

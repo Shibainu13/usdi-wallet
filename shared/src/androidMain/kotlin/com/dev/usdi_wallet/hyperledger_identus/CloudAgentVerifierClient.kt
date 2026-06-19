@@ -16,7 +16,7 @@ import io.ktor.http.contentType
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Base64
-
+import co.touchlab.kermit.Logger
 data class CloudAgentConnectionInvitation(
     val connectionId: String,
     val invitationUrl: String,
@@ -26,6 +26,7 @@ data class CloudAgentConnectionInvitation(
 data class CloudAgentProofRequestResult(
     val presentationId: String?,
     val status: String?,
+    val invitationUrl: String?,
     val raw: String,
     val revealedAttributes: Map<String, String> = emptyMap(),
 )
@@ -71,7 +72,7 @@ class CloudAgentVerifierClient(
             accept(ContentType.Application.Json)
             apiKey(apiKey)
         }.bodyAsText()
-
+        Logger.d("base URL: $baseUrl")
         return responseItems(responseText)
             .mapNotNull { it.toCredentialDefinition() }
     }
@@ -134,7 +135,6 @@ class CloudAgentVerifierClient(
     suspend fun sendAnonCredProofRequest(
         baseUrl: String,
         apiKey: String?,
-        connectionId: String,
         claims: List<Claim>,
         predicates: List<Predicate>,
         credentialDefinitionId: String?,
@@ -148,12 +148,11 @@ class CloudAgentVerifierClient(
             .put("version", "1.0")
 
         val body = JSONObject()
-            .put("connectionId", connectionId)
             .put("credentialFormat", "AnonCreds")
             .put("proofs", JSONArray())
             .put("anoncredPresentationRequest", proofRequest)
 
-        val responseText = httpClient.post(endpoint(baseUrl, "present-proof/presentations")) {
+        val responseText = httpClient.post(endpoint(baseUrl, "present-proof/presentations/invitation")) {
             contentType(ContentType.Application.Json)
             apiKey(apiKey)
             setBody(body.toString())
@@ -168,6 +167,7 @@ class CloudAgentVerifierClient(
             status = response.optString("status")
                 .ifBlank { response.optString("state") }
                 .ifBlank { null },
+            invitationUrl = invitationUrl(response).ifBlank { null },
             raw = responseText,
             revealedAttributes = extractAnonCredRevealedAttributes(response),
         )
@@ -305,6 +305,10 @@ class CloudAgentVerifierClient(
         response.optString("invitationUrl")
             .ifBlank { response.optString("invitation_url") }
             .ifBlank { response.optString("invitationURL") }
+            .ifBlank { response.optString("url") }
+            .ifBlank { response.optString("oobUrl") }
+            .ifBlank { response.optString("outOfBandInvitationUrl") }
+            .ifBlank { response.optString("presentationInvitationUrl") }
             .ifBlank { nestedInvitationUrl(response) }
             .ifBlank { encodedInvitationUrl(response) }
 

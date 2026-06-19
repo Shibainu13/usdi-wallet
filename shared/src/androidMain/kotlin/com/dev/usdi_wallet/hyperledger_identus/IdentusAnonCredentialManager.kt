@@ -119,6 +119,13 @@ class IdentusAnonCredentialManager(
         }
     }
 
+    suspend fun enqueuePresentationRequest(message: SdkMessage) {
+        initCompleted.await()
+        if (message.id in processedMessageIds) return
+        processedMessageIds.add(message.id)
+        handlePresentationRequest(message)
+    }
+
     override suspend fun findMatchingCredentials(proofRequest: SdkMessage): List<SdkCredential> {
         val criteria = try {
             proofRequestCriteria(proofRequest)

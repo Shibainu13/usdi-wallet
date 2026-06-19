@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.ui.contact
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
@@ -8,6 +9,7 @@ import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.ui.common.QrCodeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,47 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(showInvitationDialog = false) }
     }
 
+    fun onCameraPermissionDenied() {
+        _uiState.update { it.copy(error = "Camera permission denied") }
+    }
+
+    fun onCameraUnavailable() {
+        _uiState.update { it.copy(error = "Unable to open camera") }
+    }
+
+    fun extractInvitationFromQr(uri: Uri?) {
+        if (uri == null) return
+
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val invitation = QrCodeUtils.extractQrText(getApplication(), uri).trim()
+                if (invitation.isBlank()) {
+                    _uiState.update { it.copy(isLoading = false, error = "QR code did not contain an invitation") }
+                    return@launch
+                }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        extractedInvitation = invitation,
+                        snackbarMessage = "QR invitation extracted",
+                    )
+                }
+            } catch (e: Exception) {
+                Logger.e(ContactViewModel::class.toString()) {
+                    "ContactViewModel.kt.extractInvitationFromQr: QR extraction error: ${e.message}"
+                }
+                _uiState.update {
+                    it.copy(isLoading = false, error = "Failed to extract QR invitation: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun onExtractedInvitationConsumed() {
+        _uiState.update { it.copy(extractedInvitation = null) }
+    }
+
     fun submitInvitation(invitation: String) {
         Logger.d(ContactViewModel::class.toString()) {
             "ContactViewModel.kt.submitInvitation: Received invitation: $invitation"
@@ -63,7 +106,8 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             try {
-                val protocol = protocols.first { it.contactManager.canHandle(trimmed) }
+                val protocol = protocols.firstOrNull { it.contactManager.canHandle(trimmed) }
+                    ?: error("Unsupported invitation format")
                 Logger.d(ContactViewModel::class.toString()) {
                     "ContactViewModel.kt.submitInvitation: The invitation will be handled by ${protocol.protocolId}"
                 }
@@ -99,5 +143,6 @@ data class ContactUiState(
     val showInvitationDialog: Boolean = false,
     val showSendMessageDialog: Boolean = false,
     val selectedContact: Contact? = null,
+    val extractedInvitation: String? = null,
     val snackbarMessage: String? = null,
 )
