@@ -32,22 +32,25 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.ktor.client.core)
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.serialization.json)
-            implementation(kotlin("reflect"))
-            implementation(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.room.runtime)
-            implementation(libs.androidx.sqlite.bundled)
-            implementation(libs.kermit)
-            implementation(libs.cryptography.core)
-            implementation(libs.cryptography.provider)
-        }
-        androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
 
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(kotlin("reflect"))
+
+            implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.sqlite.bundled)
+
+            implementation(libs.kermit)
+
+            implementation(libs.cryptography.core)
+            implementation(libs.cryptography.provider)
+        }
+        androidMain.dependencies {
             implementation(libs.androidx.lifecycle.livedata.ktx)
             implementation(libs.androidx.lifecycle.viewmodel.ktx)
             implementation(libs.androidx.lifecycle.runtime.ktx)

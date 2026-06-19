@@ -42,7 +42,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         }
         .catch { e ->
             Logger.e(CredentialViewModel::class.toString()) {
-                "CredentialViewModel.kt.credentials: Failed to get credentials $e"
+                "Failed to get credentials $e"
             }
             _uiState.update { it.copy(error = "Failed to load credentials: $e") }
             emit(emptyList())

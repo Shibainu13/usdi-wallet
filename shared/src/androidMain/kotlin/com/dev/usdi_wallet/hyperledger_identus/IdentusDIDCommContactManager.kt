@@ -58,14 +58,14 @@ class IdentusDIDCommContactManager : ContactManager {
         }
     }
 
-    override fun getContacts(): Flow<List<Contact>> =
-        sdk.pluto.getAllDidPairs().map { pairs ->
+    override fun getContacts(): Flow<List<Contact>> {
+        val contacts = sdk.pluto.getAllDidPairs().map { pairs ->
             pairs.map { toUsdiContact(it) }
         }
         Logger.d(IdentusDIDCommContactManager::class.toString()) {
-            "Getting contacts: $result"
+            "Getting contacts: $contacts"
         }
-        return result
+        return contacts
     }
 
     override fun removeContact(contact: Contact) {

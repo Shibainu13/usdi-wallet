@@ -6,6 +6,7 @@ import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.contact.ContactManager
 import com.dev.usdi_wallet.domain.credential.CredentialManager
 import com.dev.usdi_wallet.domain.message.Message
+import com.dev.usdi_wallet.domain.verification.VerificationManager
 import kotlin.reflect.KClass
 
 abstract class Protocol<CredentialType, MessageType> {
@@ -13,6 +14,7 @@ abstract class Protocol<CredentialType, MessageType> {
     abstract val connectionManager: ConnectionManager<MessageType>
     abstract val contactManager: ContactManager
     abstract val credentialManager: CredentialManager<CredentialType, MessageType>
+    open val verificationManager: VerificationManager? = null
     open val walletAuthManager: WalletAuthManager? = null
     open val walletBackupManager: WalletBackupManager? = null
     abstract suspend fun startConnection()
