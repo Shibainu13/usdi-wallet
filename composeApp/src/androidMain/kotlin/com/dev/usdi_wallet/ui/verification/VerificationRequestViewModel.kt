@@ -514,7 +514,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             rows = selectedRows,
         )
 
-        _uiState.update { it.copy(isLoading = true, error = null, serverResult = "") }
+        _uiState.update { it.copy(isLoading = true, error = null, serverInvitationUrl = "", serverResult = "") }
         viewModelScope.launch {
             try {
                 val result = cloudAgentVerifierClient.sendAnonCredProofRequest(
@@ -527,12 +527,16 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                         .ifBlank { null },
                     requestName = state.serverProofRequestName,
                 )
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        success = true,
                         serverInvitationUrl = result.invitationUrl.orEmpty(),
-                        serverResult = formatServerProofRequestResult(result),
+                        serverResult = if (result.invitationUrl.isNullOrBlank()) {
+                            "Proof invitation created, but the response did not include an invitation URL"
+                        } else {
+                            ""
+                        },
                     )
                 }
             } catch (e: Exception) {
@@ -569,17 +573,6 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         }
     }
 
-    private fun formatServerProofRequestResult(result: com.dev.usdi_wallet.hyperledger_identus.CloudAgentProofRequestResult): String {
-        return listOfNotNull(
-            result.invitationUrl?.let { url -> "Invitation URL: $url" },
-            result.presentationId?.let { id -> "Presentation ID: $id" },
-            result.status?.let { status -> "Status: $status" },
-            result.revealedAttributes
-                .takeIf { it.isNotEmpty() }
-                ?.entries
-                ?.joinToString("\n") { (name, value) -> "$name: $value" },
-        ).joinToString("\n").ifBlank { result.raw }
-    }
 
     private fun buildRequestFromItems(contact: Contact, items: List<ClaimCheckItem>): VerificationRequest {
         val claims = items

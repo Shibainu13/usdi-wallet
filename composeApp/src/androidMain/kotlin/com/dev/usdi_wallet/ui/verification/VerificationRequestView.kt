@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.ui.verification
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
@@ -35,16 +35,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationResult
-import com.dev.usdi_wallet.ui.common.QrCodeUtils
+import com.dev.usdi_wallet.ui.common.QrCodeUtils.createQrBitmap
+import com.dev.usdi_wallet.ui.common.QrCodeUtils.extractQrText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
@@ -267,7 +269,11 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                     Text("Create proof invitation")
                                 }
 
-                                if (uiState.serverResult.isNotBlank()) {
+                                if (uiState.serverInvitationUrl.isNotBlank()) {
+                                    ProofInvitationQrCode(invitationUrl = uiState.serverInvitationUrl)
+                                }
+
+                                if (uiState.serverResult.isNotBlank() && uiState.serverInvitationUrl.isBlank()) {
                                     Text(uiState.serverResult)
                                 }
                             }
@@ -315,8 +321,6 @@ private fun ServerHttpConnectionCard(
     onLoadCredentialDefinitions: () -> Unit,
     onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
 ) {
-    val clipboardManager = LocalClipboardManager.current
-
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -336,39 +340,6 @@ private fun ServerHttpConnectionCard(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API key") },
             )
-
-            OutlinedTextField(
-                value = uiState.serverInvitationUrl,
-                onValueChange = {},
-                modifier = Modifier.fillMaxWidth(),
-                readOnly = true,
-                label = { Text("Proof invitation URL for holder device") },
-                minLines = 3,
-            )
-
-            if (uiState.serverInvitationUrl.isNotBlank()) {
-                val qrCode = remember(uiState.serverInvitationUrl) {
-                    QrCodeUtils.createQrBitmap(uiState.serverInvitationUrl).asImageBitmap()
-                }
-                Image(
-                    bitmap = qrCode,
-                    contentDescription = "Proof invitation QR code",
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .size(240.dp)
-                        .padding(vertical = 8.dp),
-                )
-
-                Button(
-                    onClick = {
-                        clipboardManager.setText(AnnotatedString(uiState.serverInvitationUrl))
-                    },
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Copy invitation URL")
-                }
-            }
 
             OutlinedTextField(
                 value = uiState.serverCredentialDefinitionId,
@@ -400,6 +371,45 @@ private fun ServerHttpConnectionCard(
             )
         }
     }
+}
+
+@Composable
+private fun ProofInvitationQrCode(invitationUrl: String) {
+    val qrBitmap = remember(invitationUrl) {
+        Logger.d("QrCodeCreate") { "QR code created" }
+        createQrBitmap(invitationUrl)
+    }
+
+    LaunchedEffect(qrBitmap, invitationUrl) {
+        runCatching {
+            withContext(Dispatchers.Default) {
+                extractQrText(qrBitmap)
+            }
+        }.onSuccess { extractedText ->
+            val isMatched = extractedText == invitationUrl
+
+            Logger.d("QrCodeCompare") {
+                """
+                Original URL: $invitationUrl
+                Extracted URL: $extractedText
+                Matched: $isMatched
+                """.trimIndent()
+            }
+        }.onFailure { exception ->
+            Logger.e("QrCodeCompare", exception) {
+                "Failed to extract generated QR code"
+            }
+        }
+    }
+
+    Image(
+        bitmap = qrBitmap.asImageBitmap(),
+        contentDescription = "Proof invitation QR code",
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .padding(vertical = 8.dp),
+    )
 }
 
 @Composable

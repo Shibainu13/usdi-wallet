@@ -17,9 +17,25 @@ import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.GlobalHistogramBinarizer
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.multi.GenericMultipleBarcodeReader
+import co.touchlab.kermit.Logger
 
 object QrCodeUtils {
     fun createQrBitmap(content: String, size: Int = 800): Bitmap {
+        val pixels = createQrPixels(content, size)
+        return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+            setPixels(pixels, 0, size, 0, 0, size, size)
+        }
+    }
+
+    fun extractQrText(context: Context, uri: Uri): String {
+        val bitmap = loadBitmap(context, uri) ?: error("Unable to read selected image")
+        return extractQrText(bitmap)
+    }
+
+    fun extractQrText(bitmap: Bitmap): String =
+        extractQrTextFromBitmaps(bitmap.variants())
+
+    internal fun createQrPixels(content: String, size: Int = 800): IntArray {
         val hints = mapOf(
             EncodeHintType.CHARACTER_SET to "UTF-8",
             EncodeHintType.MARGIN to 4,
@@ -42,23 +58,32 @@ object QrCodeUtils {
                 }
             }
         }
-        return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
-            setPixels(pixels, 0, size, 0, 0, size, size)
-        }
+        return pixels
     }
 
-    fun extractQrText(context: Context, uri: Uri): String {
-        val bitmap = loadBitmap(context, uri) ?: error("Unable to read selected image")
+    internal fun extractQrText(width: Int, height: Int, pixels: IntArray): String =
+        extractQrTextFromSources(listOf(RGBLuminanceSource(width, height, pixels)))
+
+    private fun extractQrTextFromBitmaps(bitmaps: List<Bitmap>): String =
+        extractQrTextFromSources(bitmaps.map { it.toLuminanceSource() })
+
+    private fun extractQrTextFromSources(sources: List<RGBLuminanceSource>): String {
         val hints = mapOf<DecodeHintType, Any>(
             DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
             DecodeHintType.CHARACTER_SET to "UTF-8",
             DecodeHintType.TRY_HARDER to true,
         )
 
-        bitmap.variants().forEach { variant ->
-            variant.binaryVariants().forEach { binaryBitmap ->
-                decodeSingle(binaryBitmap, hints)?.let { return it }
-                decodeMultiple(binaryBitmap, hints)?.let { return it }
+        sources.forEach { source ->
+            source.binaryVariants().forEach { binaryBitmap ->
+                decodeSingle(binaryBitmap, hints)?.let {
+                    Logger.d("QrCodeUtils") { "QR code found in single image variant" }
+                    return it
+                }
+                decodeMultiple(binaryBitmap, hints)?.let {
+                    Logger.d("QrCodeUtils") { "QR code found in multiple image variant" }
+                    return it
+                }
             }
         }
 
@@ -87,15 +112,13 @@ object QrCodeUtils {
         )
     }
 
-    private fun Bitmap.binaryVariants(): List<BinaryBitmap> {
-        val source = toLuminanceSource()
-        return listOf(
-            BinaryBitmap(HybridBinarizer(source)),
-            BinaryBitmap(GlobalHistogramBinarizer(source)),
-            BinaryBitmap(HybridBinarizer(source.invert())),
-            BinaryBitmap(GlobalHistogramBinarizer(source.invert())),
+    private fun RGBLuminanceSource.binaryVariants(): List<BinaryBitmap> =
+        listOf(
+            BinaryBitmap(HybridBinarizer(this)),
+            BinaryBitmap(GlobalHistogramBinarizer(this)),
+            BinaryBitmap(HybridBinarizer(invert())),
+            BinaryBitmap(GlobalHistogramBinarizer(invert())),
         )
-    }
 
     private fun Bitmap.toLuminanceSource(): RGBLuminanceSource {
         val pixels = IntArray(width * height)
