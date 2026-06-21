@@ -380,27 +380,6 @@ private fun ProofInvitationQrCode(invitationUrl: String) {
         createQrBitmap(invitationUrl)
     }
 
-    LaunchedEffect(qrBitmap, invitationUrl) {
-        runCatching {
-            withContext(Dispatchers.Default) {
-                extractQrText(qrBitmap)
-            }
-        }.onSuccess { extractedText ->
-            val isMatched = extractedText == invitationUrl
-
-            Logger.d("QrCodeCompare") {
-                """
-                Original URL: $invitationUrl
-                Extracted URL: $extractedText
-                Matched: $isMatched
-                """.trimIndent()
-            }
-        }.onFailure { exception ->
-            Logger.e("QrCodeCompare", exception) {
-                "Failed to extract generated QR code"
-            }
-        }
-    }
 
     Image(
         bitmap = qrBitmap.asImageBitmap(),

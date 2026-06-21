@@ -109,11 +109,9 @@ fun ContactScreen(viewModel: ContactViewModel) {
 
     if (uiState.showInvitationDialog) {
         InvitationDialog(
-            extractedInvitation = uiState.extractedInvitation,
             onExtractQr = viewModel::extractInvitationFromQr,
             onCameraPermissionDenied = viewModel::onCameraPermissionDenied,
             onCameraUnavailable = viewModel::onCameraUnavailable,
-            onExtractedInvitationConsumed = viewModel::onExtractedInvitationConsumed,
             onSubmit = viewModel::submitInvitation,
             onDismiss = viewModel::onInvitationDialogDismissed,
         )
@@ -136,11 +134,9 @@ private fun ContactCard(contact: Contact) {
 
 @Composable
 private fun InvitationDialog(
-    extractedInvitation: String?,
     onExtractQr: (Uri?) -> Unit,
     onCameraPermissionDenied: () -> Unit,
     onCameraUnavailable: () -> Unit,
-    onExtractedInvitationConsumed: () -> Unit,
     onSubmit: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -178,13 +174,6 @@ private fun InvitationDialog(
             }.onFailure { onCameraUnavailable() }
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    LaunchedEffect(extractedInvitation) {
-        extractedInvitation?.let {
-            invitation = it
-            onExtractedInvitationConsumed()
         }
     }
 

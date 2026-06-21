@@ -70,13 +70,7 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update { it.copy(isLoading = false, error = "QR code did not contain an invitation") }
                     return@launch
                 }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        extractedInvitation = invitation,
-                        snackbarMessage = "QR invitation extracted",
-                    )
-                }
+                acceptInvitation(invitation)
             } catch (e: Exception) {
                 Logger.e(ContactViewModel::class.toString()) {
                     "ContactViewModel.kt.extractInvitationFromQr: QR extraction error: ${e.message}"
@@ -86,10 +80,6 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
-    }
-
-    fun onExtractedInvitationConsumed() {
-        _uiState.update { it.copy(extractedInvitation = null) }
     }
 
     fun submitInvitation(invitation: String) {
@@ -105,21 +95,26 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(isLoading = true, showInvitationDialog = false, error = null) }
 
         viewModelScope.launch {
-            try {
-                val protocol = protocols.firstOrNull { it.contactManager.canHandle(trimmed) }
-                    ?: error("Unsupported invitation format")
-                Logger.d(ContactViewModel::class.toString()) {
-                    "ContactViewModel.kt.submitInvitation: The invitation will be handled by ${protocol.protocolId}"
-                }
-                protocol.contactManager.parseInvitation(trimmed)
-                _uiState.update { it.copy(isLoading = false, snackbarMessage = "Invitation accepted") }
-            } catch (e: Exception) {
-                Logger.e(ContactViewModel::class.toString()) {
-                    "ContactViewModel.kt.submitInvitation: Invitation error: ${e.message}"
-                }
-                _uiState.update {
-                    it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
-                }
+            acceptInvitation(trimmed)
+        }
+    }
+
+    private suspend fun acceptInvitation(invitation: String) {
+        try {
+            _uiState.update { it.copy(isLoading = true, showInvitationDialog = false, error = null) }
+            val protocol = protocols.firstOrNull { it.contactManager.canHandle(invitation) }
+                ?: error("Unsupported invitation format")
+            Logger.d(ContactViewModel::class.toString()) {
+                "ContactViewModel.kt.submitInvitation: The invitation will be handled by ${protocol.protocolId}"
+            }
+            protocol.contactManager.parseInvitation(invitation)
+            _uiState.update { it.copy(isLoading = false, snackbarMessage = "Invitation accepted") }
+        } catch (e: Exception) {
+            Logger.e(ContactViewModel::class.toString()) {
+                "ContactViewModel.kt.submitInvitation: Invitation error: ${e.message}"
+            }
+            _uiState.update {
+                it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
             }
         }
     }
@@ -143,6 +138,5 @@ data class ContactUiState(
     val showInvitationDialog: Boolean = false,
     val showSendMessageDialog: Boolean = false,
     val selectedContact: Contact? = null,
-    val extractedInvitation: String? = null,
     val snackbarMessage: String? = null,
 )
