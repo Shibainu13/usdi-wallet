@@ -24,6 +24,7 @@ materialIconsExtended = "1.7.5"
 material = "1.13.0"
 coordinatorlayout = "1.3.0"
 recyclerview = "1.4.0"
+zxing = "3.5.3"
 
 # Kotlin / KMP
 kotlin = "2.3.10"
@@ -84,6 +85,7 @@ jetbrains-compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", 
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-coordinatorlayout = { group = "androidx.coordinatorlayout", name = "coordinatorlayout", version.ref = "coordinatorlayout" }
 androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # DB & Network (Ktor)
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }

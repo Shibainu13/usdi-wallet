@@ -10,15 +10,15 @@ import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialScreen
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.settings.SettingsScreen
-import com.dev.usdi_wallet.ui.verification.VerificationRequestScreen
-import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
+import com.dev.usdi_wallet.ui.verification.VerificationScreen
+import com.dev.usdi_wallet.ui.verification.VerificationViewModel
 
 @Composable
 fun MainNavHost(
     navController: NavHostController,
     contactViewModel: ContactViewModel,
     credentialViewModel: CredentialViewModel,
-    verificationRequestViewModel: VerificationRequestViewModel,
+    verificationViewModel: VerificationViewModel,
 ) {
     NavHost(
         navController = navController,
@@ -47,7 +47,7 @@ fun MainNavHost(
             route = WalletTab.VERIFY.rootRoute,
         ) {
             composable("verify/list") {
-                VerificationRequestScreen(verificationRequestViewModel)
+                VerificationScreen(verificationViewModel)
             }
         }
 

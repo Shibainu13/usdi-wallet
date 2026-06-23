@@ -32,6 +32,8 @@ kotlin {
 
             // Use the explicit version if the BOM is failing to resolve it
             implementation(libs.androidx.compose.material.icons.extended)
+
+            implementation(libs.zxing.core)
         }
         commonMain.dependencies {
             implementation(libs.jetbrains.compose.runtime)
