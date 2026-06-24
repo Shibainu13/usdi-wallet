@@ -1,5 +1,7 @@
 package com.dev.usdi_wallet.ui.verification
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,13 +34,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.ui.common.QrCodeUtils.createQrBitmap
+import com.dev.usdi_wallet.ui.common.QrCodeUtils.extractQrText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
@@ -223,12 +231,8 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                 uiState = uiState,
                                 onBaseUrlChange = viewModel::onServerBaseUrlChanged,
                                 onApiKeyChange = viewModel::onServerApiKeyChanged,
-                                onConnectionLabelChange = viewModel::onServerConnectionLabelChanged,
-                                onConnectionIdChange = viewModel::onServerConnectionIdChanged,
                                 onCredentialDefinitionIdChange = viewModel::onServerCredentialDefinitionIdChanged,
                                 onProofRequestNameChange = viewModel::onServerProofRequestNameChanged,
-                                onCreateInvitation = viewModel::createServerConnectionInvitation,
-                                onCheckConnection = viewModel::checkServerConnection,
                                 onLoadCredentialDefinitions = viewModel::loadServerCredentialDefinitions,
                                 onCredentialDefinitionSelected = viewModel::onServerCredentialDefinitionSelected,
                             )
@@ -262,10 +266,14 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                                     enabled = !uiState.isLoading && uiState.selectedServerCredentialDefinition != null,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    Text("Send via server")
+                                    Text("Create proof invitation")
                                 }
 
-                                if (uiState.serverResult.isNotBlank()) {
+                                if (uiState.serverInvitationUrl.isNotBlank()) {
+                                    ProofInvitationQrCode(invitationUrl = uiState.serverInvitationUrl)
+                                }
+
+                                if (uiState.serverResult.isNotBlank() && uiState.serverInvitationUrl.isBlank()) {
                                     Text(uiState.serverResult)
                                 }
                             }
@@ -308,12 +316,8 @@ private fun ServerHttpConnectionCard(
     uiState: VerificationRequestUiState,
     onBaseUrlChange: (String) -> Unit,
     onApiKeyChange: (String) -> Unit,
-    onConnectionLabelChange: (String) -> Unit,
-    onConnectionIdChange: (String) -> Unit,
     onCredentialDefinitionIdChange: (String) -> Unit,
     onProofRequestNameChange: (String) -> Unit,
-    onCreateInvitation: () -> Unit,
-    onCheckConnection: () -> Unit,
     onLoadCredentialDefinitions: () -> Unit,
     onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
 ) {
@@ -335,53 +339,6 @@ private fun ServerHttpConnectionCard(
                 onValueChange = onApiKeyChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API key") },
-            )
-
-            OutlinedTextField(
-                value = uiState.serverConnectionLabel,
-                onValueChange = onConnectionLabelChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Connection label") },
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Button(
-                    onClick = onCreateInvitation,
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("New holder")
-                }
-                Button(
-                    onClick = onCheckConnection,
-                    enabled = !uiState.isLoading,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Check")
-                }
-            }
-
-            OutlinedTextField(
-                value = uiState.serverConnectionId,
-                onValueChange = onConnectionIdChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Holder connection ID") },
-            )
-
-            if (uiState.serverConnectionState.isNotBlank()) {
-                Text("State: ${uiState.serverConnectionState}")
-            }
-
-            OutlinedTextField(
-                value = uiState.serverInvitationUrl,
-                onValueChange = {},
-                modifier = Modifier.fillMaxWidth(),
-                readOnly = true,
-                label = { Text("Invitation URL for holder device") },
-                minLines = 2,
             )
 
             OutlinedTextField(
@@ -414,6 +371,24 @@ private fun ServerHttpConnectionCard(
             )
         }
     }
+}
+
+@Composable
+private fun ProofInvitationQrCode(invitationUrl: String) {
+    val qrBitmap = remember(invitationUrl) {
+        Logger.d("QrCodeCreate") { "QR code created" }
+        createQrBitmap(invitationUrl)
+    }
+
+
+    Image(
+        bitmap = qrBitmap.asImageBitmap(),
+        contentDescription = "Proof invitation QR code",
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .padding(vertical = 8.dp),
+    )
 }
 
 @Composable
