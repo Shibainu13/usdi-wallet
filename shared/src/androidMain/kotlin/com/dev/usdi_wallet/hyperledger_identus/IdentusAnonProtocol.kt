@@ -13,7 +13,7 @@ import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredenti
 import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
 
-class IdentusJWTProtocol(
+class IdentusAnonProtocol(
     override val protocolId: String,
     override val connectionManager: ConnectionManager<SdkMessage>,
     override val contactManager: ContactManager,
@@ -44,10 +44,10 @@ class IdentusJWTProtocol(
         )
 
     companion object {
-        fun getInstance(application: Application, scope: CoroutineScope): IdentusJWTProtocol =
-            getInstance(IdentusJWTProtocol::class)
+        fun getInstance(application: Application, scope: CoroutineScope): IdentusAnonProtocol =
+            getInstance(IdentusAnonProtocol::class)
                 ?: register(
-                    IdentusJWTProtocol(
+                    IdentusAnonProtocol(
                         DIDCOMM1,
                         IdentusDIDCommConnectionManager(application),
                         IdentusDIDCommContactManager(),

@@ -11,6 +11,7 @@ import com.dev.usdi_wallet.domain.verification.VerificationProtocol
 import com.dev.usdi_wallet.domain.verification.VerificationSession
 import com.dev.usdi_wallet.network.WalletHttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -108,19 +109,32 @@ class EudiVerificationManager(
         emit(VerificationPollResult.Pending)
         while (true) {
             delay(2000.milliseconds)
-            val result = runCatching {
-                httpClient.post("$verifierBaseUrl/ui/presentations/$transactionId") {
+            val response = runCatching {
+                httpClient.get("$verifierBaseUrl/ui/presentations/$transactionId") {
                     headers { append("Accept", "application/json") }
-                }.body<GetWalletResponseResult>()
+                }
             }.getOrNull()
-            if (result == null) continue
-            if (result.error != null) {
-                emit(VerificationPollResult.Failed(result.error))
-                return@flow
-            }
-            if (result.claims != null) {
-                emit(VerificationPollResult.Success(result.claims))
-                return@flow
+
+            if (response == null) continue
+
+            when (response.status.value) {
+                404 -> continue
+                in 200..299 -> {
+                    val result = runCatching { response.body<GetWalletResponseResult>() }.getOrNull()
+                    if (result == null) continue
+                    when {
+                        result.error != null -> {
+                            emit(VerificationPollResult.Failed(result.error))
+                            return@flow
+                        }
+                        result.claims != null -> {
+                            emit(VerificationPollResult.Success(result.claims))
+                            return@flow
+                        }
+                        else -> continue
+                    }
+                }
+                else -> continue
             }
         }
     }

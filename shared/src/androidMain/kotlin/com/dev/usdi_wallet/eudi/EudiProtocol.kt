@@ -38,7 +38,7 @@ class EudiProtocol(
                 val contactManager = EudiContactManager()
                 val credentialManager = EudiSdJwtCredentialManager(scope, walletAuthManager)
                 val verificationManager = EudiVerificationManager(
-                    "https://usdi-wallet.duckdns.org/"
+                    "https://usdi-wallet.duckdns.org"
                 )
 
                 register(

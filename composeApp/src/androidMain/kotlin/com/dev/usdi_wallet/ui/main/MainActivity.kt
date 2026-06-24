@@ -12,7 +12,8 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
+import com.dev.usdi_wallet.preferences.WalletPreferences
 import com.dev.usdi_wallet.ui.theme.WalletColors
 import com.dev.usdi_wallet.ui.theme.WalletTheme
 import kotlinx.coroutines.launch
@@ -29,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
         deepLinkRouter = DeepLinkRouter(
             protocols = listOf(
-                IdentusJWTProtocol.getInstance(application, lifecycleScope),
+                IdentusAnonProtocol.getInstance(application, lifecycleScope),
                 EudiProtocol.getInstance(application, lifecycleScope),
             ),
             scope = lifecycleScope,

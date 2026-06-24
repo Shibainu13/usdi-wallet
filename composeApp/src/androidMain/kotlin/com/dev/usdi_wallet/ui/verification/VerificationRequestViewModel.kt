@@ -14,7 +14,7 @@ import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import kotlinx.coroutines.flow.Flow
@@ -98,7 +98,7 @@ data class VerificationRequestUiState(
 
 class VerificationRequestViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
     private val cloudAgentVerifierClient = CloudAgentVerifierClient()
