@@ -14,7 +14,7 @@ import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition
 import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import kotlinx.coroutines.flow.Flow
@@ -98,7 +98,7 @@ data class VerificationRequestUiState(
 
 class VerificationRequestViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
     private val cloudAgentVerifierClient = CloudAgentVerifierClient()
@@ -116,7 +116,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         }
         .catch { e ->
             Logger.e(VerificationRequestUiState::class.toString()) {
-                "VerificationRequestViewModel.kt.credentials: Failed to get credentials $e"
+                "Failed to get credentials $e"
             }
             _uiState.update { it.copy(error = "Failed to load credentials: $e") }
             emit(emptyList())
@@ -226,7 +226,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
     fun removeManualRow(id: String) {
         _uiState.update { state ->
             val updatedRows = state.manualClaimRows.filterNot { row -> row.id == id }
-            state.copy(manualClaimRows = if (updatedRows.isEmpty()) listOf(ManualClaimRow()) else updatedRows)
+            state.copy(manualClaimRows = updatedRows.ifEmpty { listOf(ManualClaimRow()) })
         }
     }
 
@@ -346,7 +346,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.loadServerCredentialDefinitions: Failed to load server credential definitions: ${e.message}"
+                    "Failed to load server credential definitions: ${e.message}"
                 }
                 _uiState.update { it.copy(isLoading = false, error = "Failed to load credential definitions: ${e.message}") }
             }
@@ -372,7 +372,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.loadCredentialDefinitionSchemaRows: Failed to load schema for credential definition: ${e.message}"
+                    "Failed to load schema for credential definition: ${e.message}"
                 }
                 _uiState.update {
                     it.copy(
@@ -446,7 +446,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.createServerConnectionInvitation: Failed to create server connection invitation: ${e.message}"
+                    "Failed to create server connection invitation: ${e.message}"
                 }
                 _uiState.update { it.copy(isLoading = false, error = "Failed to create invitation: ${e.message}") }
             }
@@ -478,7 +478,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.checkServerConnection: Failed to check server connection: ${e.message}"
+                    "Failed to check server connection: ${e.message}"
                 }
                 _uiState.update { it.copy(isLoading = false, error = "Failed to check connection: ${e.message}") }
             }
@@ -541,7 +541,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.sendServerProofRequest: Failed to send server proof request: ${e.message}"
+                    "Failed to send server proof request: ${e.message}"
                 }
                 _uiState.update { it.copy(isLoading = false, error = "Failed to send proof request: ${e.message}") }
             }
@@ -553,20 +553,20 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         domain: String,
         challenge: String
     ) {
-        Logger.d("VerificationRequestViewModel.kt.send: Request: $request");
-        Logger.d("VerificationRequestViewModel.kt.send: Domain: $domain");
-        Logger.d("VerificationRequestViewModel.kt.send: Challenge: $challenge");
+        Logger.d("Request: $request");
+        Logger.d("Domain: $domain");
+        Logger.d("Challenge: $challenge");
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             try {
                 val request= protocols.forEach { protocol ->
                     protocol.credentialManager.sendVerificationRequest(request, domain, challenge)
                 }
-                Logger.d("VerificationRequestViewModel.kt.send: Request result: $request");
+                Logger.d("Request result: $request");
                 _uiState.update { it.copy(isLoading = false, success = true) }
             } catch (e: Exception) {
                 Logger.e(VerificationRequestViewModel::class.toString()) {
-                    "VerificationRequestViewModel.kt.send: Failed to send verification request: ${e.message}"
+                    "Failed to send verification request: ${e.message}"
                 }
                 _uiState.update { it.copy(isLoading = false, error = "Failed to send: ${e.message}") }
             }

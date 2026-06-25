@@ -18,11 +18,12 @@ import com.google.zxing.common.GlobalHistogramBinarizer
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.multi.GenericMultipleBarcodeReader
 import co.touchlab.kermit.Logger
+import androidx.core.graphics.createBitmap
 
 object QrCodeUtils {
     fun createQrBitmap(content: String, size: Int = 800): Bitmap {
         val pixels = createQrPixels(content, size)
-        return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+        return createBitmap(size, size).apply {
             setPixels(pixels, 0, size, 0, 0, size, size)
         }
     }

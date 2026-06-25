@@ -39,45 +39,45 @@ class IdentusDIDCommContactManager(
 
     override suspend fun parseInvitation(invitation: String) {
         try {
-            Logger.d(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: Parsing invitation"
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "Parsing invitation"
             }
 
             handleParsedInvitation(sdk.agent.parseInvitation(invitation))
 
-            Logger.d(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: Invitation accepted"
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "Invitation accepted"
             }
         } catch (e: Exception) {
-            Logger.w(this::class.toString()) {
-                "IdentusDIDCommContactManager.kt.parseInvitation: SDK parser failed (${e::class.simpleName}: ${e.message}), trying normalized OOB parser"
+            Logger.w(IdentusDIDCommContactManager::class.toString()) {
+                "SDK parser failed (${e.message}), trying normalized OOB parser"
             }
 
             parseConnectionlessPresentationInvitation(invitation)?.let { message ->
                 sdk.agent.pluto.storeMessage(message)
                 onPresentationRequest(message)
-                Logger.d(this::class.toString()) {
-                    "IdentusDIDCommContactManager.kt.parseInvitation: Connectionless presentation invitation accepted"
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Connectionless presentation invitation accepted"
                 }
                 return
             }
 
             val normalizedInvitation = normalizedOobInvitation(invitation)
             if (normalizedInvitation == null) {
-                Logger.e(this::class.toString()) {
-                    "IdentusDIDCommContactManager.kt.parseInvitation: Error while parsing invitation $invitation: ${e::class.simpleName}: ${e.message}"
+                Logger.e(IdentusDIDCommContactManager::class.toString()) {
+                    "Error while parsing invitation $invitation: ${e.message}"
                 }
                 throw e
             }
 
             try {
                 handleParsedInvitation(sdk.agent.parseInvitation(normalizedInvitation))
-                Logger.d(this::class.toString()) {
-                    "IdentusDIDCommContactManager.kt.parseInvitation: Normalized invitation accepted"
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Normalized invitation accepted"
                 }
             } catch (fallbackError: Exception) {
-                Logger.e(this::class.toString()) {
-                    "IdentusDIDCommContactManager.kt.parseInvitation: Error while parsing normalized invitation: ${fallbackError::class.simpleName}: ${fallbackError.message}"
+                Logger.e(IdentusDIDCommContactManager::class.toString()) {
+                    "Error while parsing normalized invitation: ${fallbackError.message}"
                 }
                 throw fallbackError
             }
@@ -266,8 +266,8 @@ class IdentusDIDCommContactManager(
         val result = sdk.pluto.getAllDidPairs().map { pairs ->
             pairs.map { toUsdiContact(it) }
         }
-        Logger.d(this::class.toString()) {
-            "IdentusDIDCommContactManager.kt.getContacts: Getting contacts: $result"
+        Logger.d(IdentusDIDCommContactManager::class.toString()) {
+            "Getting contacts: $result"
         }
         return result
     }
@@ -283,8 +283,8 @@ class IdentusDIDCommContactManager(
             name = didPair.name ?: "Unknown",
             protocol = DIDCOMM1,
         )
-        Logger.d(this::class.toString()) {
-            "IdentusDIDCommContactManager.kt.toUsdiContact: Converting to contact: $result"
+        Logger.d(IdentusDIDCommContactManager::class.toString()) {
+            "Converting to contact: $result"
         }
         return result
     }

@@ -14,7 +14,7 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
 
         deepLinkRouter = DeepLinkRouter(
             protocols = listOf(
-                IdentusJWTProtocol.getInstance(application, lifecycleScope),
+                IdentusAnonProtocol.getInstance(application, lifecycleScope),
                 EudiProtocol.getInstance(application, lifecycleScope),
             ),
             scope = lifecycleScope,
@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Logger.d(MainActivity::class.toString()) { "MainActivity.kt.onNewIntent: Received new intent: $intent" }
+        Logger.d(MainActivity::class.toString()) { "Received new intent: $intent" }
         setIntent(intent)
         deepLinkRouter.handle(intent)
     }

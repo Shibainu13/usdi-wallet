@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.credential.Credential
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import kotlinx.coroutines.flow.Flow
@@ -26,7 +26,7 @@ data class CredentialUiState(
 
 class CredentialViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
     private val _uiState = MutableStateFlow(CredentialUiState())
@@ -42,7 +42,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         }
         .catch { e ->
             Logger.e(CredentialViewModel::class.toString()) {
-                "CredentialViewModel.kt.credentials: Failed to get credentials $e"
+                "Failed to get credentials $e"
             }
             _uiState.update { it.copy(error = "Failed to load credentials: $e") }
             emit(emptyList())

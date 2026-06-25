@@ -12,7 +12,7 @@ import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +55,7 @@ data class MainUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val protocols = listOf<Protocol<*, *>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
 
@@ -79,7 +79,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             areAgentsRunning.collect { running ->
                 if (!running) {
                     Logger.w(MainViewModel::class.toString()) {
-                        "MainViewModel.kt.init: At least one of the protocols is not running"
+                        "At least one of the protocols is not running"
                     }
                 }
                 _uiState.update { it.copy(isReady = running) }
@@ -123,18 +123,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         protocol.credentialManager.getProofRequestDetails(request)
                     }.getOrElse { error ->
                         Logger.e(MainViewModel::class.toString()) {
-                            "MainViewModel.kt.observeProtocolProofRequests: Failed to read proof request details: ${error.message}"
+                            "Failed to read proof request details: ${error.message}"
                         }
                         ProofRequestDetails(verifier = "Unknown verifier")
                     }
-                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Found ${credentials.size} matching credentials for request $request")
-                    Logger.d("MainViewModel.kt.observeProtocolProofRequests: Credentials: $credentials")
+                    Logger.d("Found ${credentials.size} matching credentials for request $request")
+                    Logger.d("Credentials: $credentials")
                     _uiState.update { state ->
                         if (state.pendingProofRequests.isNotEmpty()) {
                             state
                         } else {
 
-                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State before copy: $state")
+                            Logger.d("State before copy: $state")
                             val newState = state.copy(
                                 pendingProofRequests = listOf(
                                     PendingProofRequest(
@@ -157,7 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     ),
                                 ),
                             )
-                            Logger.d("MainViewModel.kt.observeProtocolProofRequests: State after copy: $newState")
+                            Logger.d("State after copy: $newState")
                             newState
 
                         }

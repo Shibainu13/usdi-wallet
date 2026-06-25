@@ -43,10 +43,8 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition
 import com.dev.usdi_wallet.ui.common.QrCodeUtils.createQrBitmap
-import com.dev.usdi_wallet.ui.common.QrCodeUtils.extractQrText
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
@@ -319,7 +317,7 @@ private fun ServerHttpConnectionCard(
     onCredentialDefinitionIdChange: (String) -> Unit,
     onProofRequestNameChange: (String) -> Unit,
     onLoadCredentialDefinitions: () -> Unit,
-    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
+    onCredentialDefinitionSelected: (CloudAgentCredentialDefinition) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -393,9 +391,9 @@ private fun ProofInvitationQrCode(invitationUrl: String) {
 
 @Composable
 private fun ServerCredentialDefinitionDropdown(
-    credentialDefinitions: List<com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition>,
-    selectedCredentialDefinition: com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition?,
-    onCredentialDefinitionSelected: (com.dev.usdi_wallet.hyperledger_identus.CloudAgentCredentialDefinition) -> Unit,
+    credentialDefinitions: List<CloudAgentCredentialDefinition>,
+    selectedCredentialDefinition: CloudAgentCredentialDefinition?,
+    onCredentialDefinitionSelected: (CloudAgentCredentialDefinition) -> Unit,
 ) {
     SelectorField(
         label = "Credential definition",
