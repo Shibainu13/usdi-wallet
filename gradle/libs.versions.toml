@@ -44,6 +44,7 @@ ktor-override = "3.0.1"
 kermit = "2.0.8"
 identus = "4.0.0-mod4"
 eudi = "0.28.1"
+zxing = "3.5.3"
 junit = "4.13.2"
 benchmarkTraceprocessor = "1.4.1"
 
@@ -101,6 +102,7 @@ ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "k
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 identus-sdk = { module = "org.hyperledger.identus:sdk", version.ref = "identus" }
 eudi-wallet-core = { module = "eu.europa.ec.eudi:eudi-lib-android-wallet-core", version.ref = "eudi" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 androidx-benchmark-traceprocessor = { group = "androidx.benchmark", name = "benchmark-traceprocessor", version.ref = "benchmarkTraceprocessor" }
 cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography-kotlin" }
 cryptography-provider = { module = "dev.whyoleg.cryptography:cryptography-provider-optimal", version.ref = "cryptography-kotlin" }

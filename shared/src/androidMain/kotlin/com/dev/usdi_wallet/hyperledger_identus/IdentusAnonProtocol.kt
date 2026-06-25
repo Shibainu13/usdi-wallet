@@ -13,7 +13,7 @@ import org.hyperledger.identus.walletsdk.domain.models.Credential as SdkCredenti
 import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
 
-class IdentusJWTProtocol(
+class IdentusAnonProtocol(
     override val protocolId: String,
     override val connectionManager: ConnectionManager<SdkMessage>,
     override val contactManager: ContactManager,
@@ -44,16 +44,30 @@ class IdentusJWTProtocol(
         )
 
     companion object {
-        fun getInstance(application: Application, scope: CoroutineScope): IdentusJWTProtocol =
-            getInstance(IdentusJWTProtocol::class)
-                ?: register(
-                    IdentusJWTProtocol(
-                        DIDCOMM1,
-                        IdentusDIDCommConnectionManager(application),
-                        IdentusDIDCommContactManager(),
-                        IdentusJWTCredentialManager(scope, application),
-                        IdentusBackupManager()
-                    )
+        fun getInstance(application: Application, scope: CoroutineScope): IdentusAnonProtocol {
+            getInstance(IdentusAnonProtocol::class)?.let { return it }
+
+            val connectionManager = IdentusDIDCommConnectionManager(application)
+            val credentialManager = IdentusAnonCredentialManager(scope, application)
+            val contactManager = IdentusDIDCommContactManager(
+                onCredentialOffer = { message ->
+                    credentialManager.handleInbound(message, connectionManager)
+                },
+                onPresentationRequest = { message ->
+                    credentialManager.enqueuePresentationRequest(message)
+                },
+            )
+            val backupManager = IdentusBackupManager()
+
+            return register(
+                IdentusAnonProtocol(
+                    DIDCOMM1,
+                    connectionManager,
+                    contactManager,
+                    credentialManager,
+                    backupManager
                 )
+            )
+        }
     }
 }

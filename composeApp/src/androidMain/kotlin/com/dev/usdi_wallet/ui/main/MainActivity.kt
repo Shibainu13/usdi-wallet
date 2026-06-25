@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -13,7 +14,7 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.preferences.WalletPreferences
 import kotlinx.coroutines.launch
 
@@ -29,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
         deepLinkRouter = DeepLinkRouter(
             protocols = listOf(
-                IdentusJWTProtocol.getInstance(application, lifecycleScope),
+                IdentusAnonProtocol.getInstance(application, lifecycleScope),
                 EudiProtocol.getInstance(application, lifecycleScope),
             ),
             scope = lifecycleScope,
@@ -40,7 +41,9 @@ class MainActivity : AppCompatActivity() {
         setContent {
             MaterialTheme {
                 Surface {
-                    MainRoute(viewModel = viewModel)
+                    SelectionContainer {
+                        MainRoute(viewModel = viewModel)
+                    }
                 }
             }
         }

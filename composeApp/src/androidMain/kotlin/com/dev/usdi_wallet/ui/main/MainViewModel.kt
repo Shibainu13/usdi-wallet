@@ -10,15 +10,15 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.domain.connection.ConnectionState
 import com.dev.usdi_wallet.domain.credential.Credential
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.preferences.WalletPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -36,8 +36,10 @@ enum class WalletTab(
 data class PendingProofRequest(
     val id: String,
     val protocolId: String,
+    val details: ProofRequestDetails,
     val credentials: List<Credential>,
     val onCredentialSelected: suspend (Credential, List<String>) -> Unit,
+    val onDenied: suspend () -> Unit,
 )
 
 data class RevokedCredentialAlert(
@@ -54,7 +56,7 @@ data class MainUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val protocols = listOf<Protocol<*, *>>(
-        IdentusJWTProtocol.getInstance(application,viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
 
@@ -119,19 +121,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             protocol.credentialManager.getProofRequestsToProcess().collect { requests ->
                 requests.forEachIndexed { index, request ->
-                    val credentials = protocol.credentialManager.getCredentials().first().map {
+                    val credentials = protocol.credentialManager.findMatchingCredentials(request).map {
                         protocol.credentialManager.toUiCredential(it)
                     }
-
+                    val details = runCatching {
+                        protocol.credentialManager.getProofRequestDetails(request)
+                    }.getOrElse { error ->
+                        Logger.e(MainViewModel::class.toString()) {
+                            "Failed to read proof request details: ${error.message}"
+                        }
+                        ProofRequestDetails(verifier = "Unknown verifier")
+                    }
+                    Logger.d("Found ${credentials.size} matching credentials for request $request")
+                    Logger.d("Credentials: $credentials")
                     _uiState.update { state ->
                         if (state.pendingProofRequests.isNotEmpty()) {
                             state
                         } else {
-                            state.copy(
+
+                            Logger.d("State before copy: $state")
+                            val newState = state.copy(
                                 pendingProofRequests = listOf(
                                     PendingProofRequest(
                                         id = "${protocol.protocolId}-$index",
                                         protocolId = protocol.protocolId,
+                                        details = details,
                                         credentials = credentials,
                                         onCredentialSelected = { credential, disclosedClaimLabels ->
                                             protocol.credentialManager.preparePresentationProof(
@@ -141,9 +155,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                             )
                                             dismissProofRequest()
                                         },
+                                        onDenied = {
+                                            protocol.credentialManager.denyProofRequest(request)
+                                            dismissProofRequest()
+                                        },
                                     ),
                                 ),
                             )
+                            Logger.d("State after copy: $newState")
+                            newState
+
                         }
                     }
                 }

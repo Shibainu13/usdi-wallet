@@ -1,13 +1,15 @@
 package com.dev.usdi_wallet.ui.contact
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.contact.Contact
-import com.dev.usdi_wallet.hyperledger_identus.IdentusJWTProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.ui.common.QrCodeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +23,7 @@ import kotlin.collections.emptyList
 
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf<Protocol<*,*>>(
-        IdentusJWTProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(application, viewModelScope),
         EudiProtocol.getInstance(application, viewModelScope),
     )
     val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
@@ -49,8 +51,41 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(showInvitationDialog = false) }
     }
 
+    fun onCameraPermissionDenied() {
+        _uiState.update { it.copy(error = "Camera permission denied") }
+    }
+
+    fun onCameraUnavailable() {
+        _uiState.update { it.copy(error = "Unable to open camera") }
+    }
+
+    fun extractInvitationFromQr(uri: Uri?) {
+        if (uri == null) return
+
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val invitation = QrCodeUtils.extractQrText(getApplication(), uri).trim()
+                if (invitation.isBlank()) {
+                    _uiState.update { it.copy(isLoading = false, error = "QR code did not contain an invitation") }
+                    return@launch
+                }
+                acceptInvitation(invitation)
+            } catch (e: Exception) {
+                Logger.e(ContactViewModel::class.toString()) {
+                    "QR extraction error: ${e.message}"
+                }
+                _uiState.update {
+                    it.copy(isLoading = false, error = "Failed to extract QR invitation: ${e.message}")
+                }
+            }
+        }
+    }
+
     fun submitInvitation(invitation: String) {
-        Logger.d(ContactViewModel::class.toString()) {"Received invitation: $invitation"}
+        Logger.d(ContactViewModel::class.toString()) {
+            "Received invitation: $invitation"
+        }
         val trimmed = invitation.trim()
         if (trimmed.isBlank()) {
             _uiState.update { it.copy(error = "Empty invitation") }
@@ -60,18 +95,26 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(isLoading = true, showInvitationDialog = false, error = null) }
 
         viewModelScope.launch {
-            try {
-                val protocol = protocols.first { it.contactManager.canHandle(trimmed) }
-                Logger.d(ContactViewModel::class.toString()) {
-                    "The invitation will be handled by ${protocol.protocolId}"
-                }
-                protocol.contactManager.parseInvitation(trimmed)
-                _uiState.update { it.copy(isLoading = false, snackbarMessage = "Invitation accepted") }
-            } catch (e: Exception) {
-                Logger.e(ContactViewModel::class.toString()) { "Invitation error: ${e.message}" }
-                _uiState.update {
-                    it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
-                }
+            acceptInvitation(trimmed)
+        }
+    }
+
+    private suspend fun acceptInvitation(invitation: String) {
+        try {
+            _uiState.update { it.copy(isLoading = true, showInvitationDialog = false, error = null) }
+            val protocol = protocols.firstOrNull { it.contactManager.canHandle(invitation) }
+                ?: error("Unsupported invitation format")
+            Logger.d(ContactViewModel::class.toString()) {
+                "The invitation will be handled by ${protocol.protocolId}"
+            }
+            protocol.contactManager.parseInvitation(invitation)
+            _uiState.update { it.copy(isLoading = false, snackbarMessage = "Invitation accepted") }
+        } catch (e: Exception) {
+            Logger.e(ContactViewModel::class.toString()) {
+                "Invitation error: ${e.message}"
+            }
+            _uiState.update {
+                it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
             }
         }
     }

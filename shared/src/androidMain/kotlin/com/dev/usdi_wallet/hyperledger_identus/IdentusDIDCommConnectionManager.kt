@@ -49,5 +49,4 @@ class IdentusDIDCommConnectionManager(
             EdgeAgent.State.STOPPING -> ConnectionState.STOPPING
             EdgeAgent.State.STOPPED  -> ConnectionState.STOPPED
         }
-
 }

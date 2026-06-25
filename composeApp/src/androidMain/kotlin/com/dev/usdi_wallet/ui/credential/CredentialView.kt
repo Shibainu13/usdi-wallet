@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.ui.common.formatClaimName
+import com.dev.usdi_wallet.ui.common.formatClaimValue
 
 @Composable
 fun CredentialScreen(viewModel: CredentialViewModel) {
@@ -80,7 +82,7 @@ fun CredentialScreen(viewModel: CredentialViewModel) {
                     Text(text = "Issuer: ${credential.issuer}")
                     Text(text = "Protocol: ${credential.protocol}")
                     credential.claims.forEach { claim ->
-                        Text(text = "${claim.name}: ${claim.value ?: "N/A"}")
+                        Text(text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}")
                     }
                 }
             },
@@ -110,7 +112,7 @@ private fun CredentialCard(
 
             credential.claims.forEach { claim ->
                 Text(
-                    text = "${claim.name}: ${claim.value ?: "N/A"}",
+                    text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

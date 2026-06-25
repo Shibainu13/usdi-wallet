@@ -138,29 +138,29 @@ class EudiSdk private constructor() {
                     val qrCodeBitMap = event.qrCode.asBitmap(size = 800)
                 }
                 TransferEvent.Connecting -> {
-                    Logger.d("EudiSdk") { "Devices are connecting..." }
+                    Logger.d("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Devices are connecting" }
                 }
                 TransferEvent.Connected -> {
-                    Logger.d("EudiSdk") { "Devices are connected." }
+                    Logger.d("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Devices are connected" }
                 }
                 is TransferEvent.RequestReceived -> try {
                     val processedRequest = event.processedRequest.getOrThrow()
                     val message = EudiMessage.PresentationRequest(processedRequest)
                     _eudiMessageFlow.value = _eudiMessageFlow.value.plus(message)
                 } catch (e: Exception) {
-                    Logger.e("EudiSdk") { "Error receiving request: ${e.message}" }
+                    Logger.e("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Error receiving request: ${e.message}" }
                 }
                 TransferEvent.ResponseSent -> {
-                    Logger.d("EudiSdk") { "Response sent" }
+                    Logger.d("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Response sent" }
                 }
                 is TransferEvent.Redirect -> {
-                    Logger.d("EudiSdk") { "Redirect URI: ${event.redirectUri}" }
+                    Logger.d("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Redirect URI: ${event.redirectUri}" }
                 }
                 TransferEvent.Disconnected -> {
                     wallet.stopProximityPresentation()
                 }
                 is TransferEvent.Error -> {
-                    Logger.e("EudiSdk") { "Transfer error: ${event.error.message}" }
+                    Logger.e("EudiSdk") { "EudiSdk.kt.startTransferEventListener: Transfer error: ${event.error.message}" }
                     wallet.stopProximityPresentation()
                 }
                 else -> {}
