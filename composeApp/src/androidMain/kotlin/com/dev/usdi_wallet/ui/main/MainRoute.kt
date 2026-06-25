@@ -12,6 +12,8 @@ import com.dev.usdi_wallet.ui.auth.LockState
 import com.dev.usdi_wallet.ui.auth.LockViewModel
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
+import com.dev.usdi_wallet.ui.onboarding.OnboardingScreen
+import com.dev.usdi_wallet.ui.onboarding.OnboardingViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationRequestViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
@@ -22,13 +24,24 @@ fun MainRoute(
     contactViewModel: ContactViewModel = composeViewModel(),
     credentialViewModel: CredentialViewModel = composeViewModel(),
     verificationRequestViewModel: VerificationRequestViewModel = composeViewModel(),
+    lockViewModel: LockViewModel = composeViewModel(),
+    onboardingViewModel: OnboardingViewModel = composeViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lockState by lockViewModel.state.collectAsStateWithLifecycle()
+    val isOnboardingComplete by viewModel.isOnboardingComplete.collectAsStateWithLifecycle()
+
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
-    val lockViewModel: LockViewModel = composeViewModel()
-    val lockState by lockViewModel.state.collectAsStateWithLifecycle()
 
+    if (isOnboardingComplete == null) return
+    else if (isOnboardingComplete == false) {
+        OnboardingScreen(
+            viewModel = onboardingViewModel,
+            onCompleted = {  }
+        )
+        return
+    }
     if (lockState !is LockState.Authenticated) {
         LockScreen(viewModel = lockViewModel)
         return
