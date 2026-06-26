@@ -44,16 +44,30 @@ class IdentusAnonProtocol(
         )
 
     companion object {
-        fun getInstance(application: Application, scope: CoroutineScope): IdentusAnonProtocol =
-            getInstance(IdentusAnonProtocol::class)
-                ?: register(
-                    IdentusAnonProtocol(
-                        DIDCOMM1,
-                        IdentusDIDCommConnectionManager(application),
-                        IdentusDIDCommContactManager(),
-                        IdentusAnonCredentialManager(scope, application),
-                        IdentusBackupManager(),
-                    )
+        fun getInstance(application: Application, scope: CoroutineScope): IdentusAnonProtocol {
+            getInstance(IdentusAnonProtocol::class)?.let { return it }
+
+            val connectionManager = IdentusDIDCommConnectionManager(application)
+            val credentialManager = IdentusAnonCredentialManager(scope, application)
+            val contactManager = IdentusDIDCommContactManager(
+                onCredentialOffer = { message ->
+                    credentialManager.handleInbound(message, connectionManager)
+                },
+                onPresentationRequest = { message ->
+                    credentialManager.enqueuePresentationRequest(message)
+                },
+            )
+            val backupManager = IdentusBackupManager()
+
+            return register(
+                IdentusAnonProtocol(
+                    DIDCOMM1,
+                    connectionManager,
+                    contactManager,
+                    credentialManager,
+                    backupManager
                 )
+            )
+        }
     }
 }

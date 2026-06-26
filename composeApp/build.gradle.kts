@@ -18,6 +18,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.fragment.ktx)
             implementation(libs.androidx.recyclerview)
             implementation(libs.material)
@@ -25,6 +26,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.ktx)
             implementation(libs.androidx.constraintlayout)
             implementation(libs.androidx.navigation.compose)
+            implementation(libs.zxing.core)
 
             // Compose BOM
             implementation(project.dependencies.platform(libs.compose.bom))
