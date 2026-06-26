@@ -14,9 +14,11 @@ import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.onboarding.OnboardingScreen
 import com.dev.usdi_wallet.ui.onboarding.OnboardingViewModel
+import com.dev.usdi_wallet.ui.settings.SettingsViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainRoute(
@@ -24,8 +26,9 @@ fun MainRoute(
     contactViewModel: ContactViewModel = composeViewModel(),
     credentialViewModel: CredentialViewModel = composeViewModel(),
     verificationViewModel: VerificationViewModel = composeViewModel(),
+    settingsViewModel: SettingsViewModel = composeViewModel(),
     lockViewModel: LockViewModel = composeViewModel(),
-    onboardingViewModel: OnboardingViewModel = composeViewModel()
+    onboardingViewModel: OnboardingViewModel = composeViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lockState by lockViewModel.state.collectAsStateWithLifecycle()
@@ -67,7 +70,8 @@ fun MainRoute(
                 navController = navController,
                 contactViewModel = contactViewModel,
                 credentialViewModel = credentialViewModel,
-                verificationViewModel = verificationViewModel
+                verificationViewModel = verificationViewModel,
+                settingsViewModel = settingsViewModel,
             )
         }
     )

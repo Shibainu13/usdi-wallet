@@ -10,6 +10,7 @@ import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialScreen
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.settings.SettingsScreen
+import com.dev.usdi_wallet.ui.settings.SettingsViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationScreen
 import com.dev.usdi_wallet.ui.verification.VerificationViewModel
 
@@ -19,6 +20,7 @@ fun MainNavHost(
     contactViewModel: ContactViewModel,
     credentialViewModel: CredentialViewModel,
     verificationViewModel: VerificationViewModel,
+    settingsViewModel: SettingsViewModel,
 ) {
     NavHost(
         navController = navController,
@@ -56,11 +58,7 @@ fun MainNavHost(
             route = WalletTab.SETTINGS.rootRoute,
         ) {
             composable("settings/main") {
-                SettingsScreen(
-                    onBackupClick = { /* TODO */ },
-                    onRestoreClick = { /* TODO */ },
-                    onAboutClick = { /* TODO */ },
-                )
+                SettingsScreen(settingsViewModel)
             }
         }
     }

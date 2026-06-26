@@ -63,6 +63,8 @@ class EudiSdk private constructor() {
     fun start(context: Application) {
         if (this::wallet.isInitialized) return
 
+        Logger.d(EudiSdk::class.toString()) { "Initializing EudiWallet..." }
+
         val storageFile = File(context.noBackupFilesDir.path, "eudi.db")
         val config = EudiWalletConfig()
             .configureDocumentManager(storageFile.absolutePath)
@@ -116,6 +118,8 @@ class EudiSdk private constructor() {
         )
 
         configureTransferEventListener()
+
+        Logger.d(EudiSdk::class.toString()) { "EUDI Wallet initialized successfully" }
     }
 
     fun processInvitation(uri: String) {

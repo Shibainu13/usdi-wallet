@@ -48,16 +48,22 @@ class UnifiedBackupService private constructor(
                 succeeded = emptyList(),
                 failed = emptyList(),
                 skipped = emptyList(),
-                error = "Invalid recovery phase or corrupted backup"
+                error = "Invalid passphrase or corrupted backup",
             )
-        val backup = Json.decodeFromString<UnifiedBackup>(json)
+        val backup = runCatching { Json.decodeFromString<UnifiedBackup>(json) }.getOrNull()
+            ?: return RestoreResult(
+                succeeded = emptyList(),
+                failed = emptyList(),
+                skipped = emptyList(),
+                error = "Backup file is corrupted",
+            )
         return restoreAll(backup)
     }
 
     private suspend fun restoreAll(backup: UnifiedBackup): RestoreResult {
         val succeeded = mutableListOf<String>()
         val failed = mutableListOf<String>()
-        val skipped = mutableListOf<String>()
+        val skipped = backup.nonRecoverable.toMutableList()
 
         protocols.forEach { protocol ->
             val manager = protocol.walletBackupManager
@@ -68,28 +74,23 @@ class UnifiedBackupService private constructor(
                 payload == null -> skipped.add(protocol.protocolId)
                 else -> {
                     val success = manager.restore(payload)
-                    if (success) succeeded.add(payload)
-                    else failed.add(payload)
+                    if (success) succeeded.add(protocol.protocolId)
+                    else failed.add(protocol.protocolId)
                 }
             }
         }
 
-        return RestoreResult(
-            succeeded = succeeded,
-            failed = failed,
-            skipped = skipped,
-        )
+        return RestoreResult(succeeded = succeeded, failed = failed, skipped = skipped)
     }
 
     companion object {
         private var _instance: UnifiedBackupService? = null
 
-        fun getInstance(protocols: List<Protocol<*, *>>): UnifiedBackupService {
-//            if (_instance == null) {
-//                dev.whyoleg.cryptography.providers.
-//            }
-            return _instance ?: UnifiedBackupService(protocols).also { _instance = it }
-        }
+        fun getInstance(protocols: List<Protocol<*, *>>): UnifiedBackupService =
+            _instance ?: UnifiedBackupService(protocols).also { _instance = it }
+
+        fun getInstance(): UnifiedBackupService =
+            _instance ?: error("UnifiedBackupService not initialized — call getInstance(protocols) first")
     }
 }
 

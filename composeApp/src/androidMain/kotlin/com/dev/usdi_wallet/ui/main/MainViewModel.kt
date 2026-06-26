@@ -13,7 +13,7 @@ import com.dev.usdi_wallet.domain.credential.ProofRequestDetails
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
-import com.dev.usdi_wallet.preferences.WalletPreferences
+import com.dev.usdi_wallet.preferences.AndroidWalletPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -64,8 +64,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
-    private val preferences = WalletPreferences.getInstance(application)
-    val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnBoardingComplete
+    private val preferences = AndroidWalletPreferences.getInstance(application)
+    val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnboardingComplete
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val areAgentsRunning: StateFlow<Boolean> =

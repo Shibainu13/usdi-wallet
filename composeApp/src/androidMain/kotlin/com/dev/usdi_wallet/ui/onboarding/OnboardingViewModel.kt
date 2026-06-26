@@ -9,7 +9,7 @@ import com.dev.usdi_wallet.domain.backup.UnifiedBackupService
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
-import com.dev.usdi_wallet.preferences.WalletPreferences
+import com.dev.usdi_wallet.preferences.AndroidWalletPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 
 sealed class OnboardingStep {
     object Welcome : OnboardingStep()
-    object CreatePassphrase : OnboardingStep()
     object RestoreWallet : OnboardingStep()
     object BiometricSetup : OnboardingStep()
     object Complete : OnboardingStep()
@@ -26,15 +25,14 @@ sealed class OnboardingStep {
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.Welcome,
     val passphrase: String = "",
-    val passphraseConfirm: String = "",
-    val passphraseError: String? = null,
     val restoreError: String? = null,
     val biometricSuccess: Boolean = false,
+    val restoreSkippedProtocols: List<String> = emptyList(),
     val isLoading: Boolean = false
 )
 
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
-    private val preferences = WalletPreferences.getInstance(application)
+    private val preferences = AndroidWalletPreferences.getInstance(application)
     private val authManager = AndroidWalletAuthManager.getInstance()
     private val protocols = listOf<Protocol<*,*>>(
         IdentusAnonProtocol.getInstance(application, viewModelScope),
@@ -45,29 +43,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
 
     fun onCreateNewWallet() {
-        _uiState.value = _uiState.value.copy(step = OnboardingStep.CreatePassphrase)
+        _uiState.value = _uiState.value.copy(step = OnboardingStep.BiometricSetup)
     }
 
     fun onRestoreWallet() {
         _uiState.value = _uiState.value.copy(step = OnboardingStep.RestoreWallet)
-    }
-
-    fun onPassphraseConfirmed() {
-        val state = _uiState.value
-        when {
-            state.passphrase.length < 8 -> _uiState.value = state.copy(
-                passphraseError = "Passphrase must be at least 8 characters"
-            )
-            state.passphrase != state.passphraseConfirm -> _uiState.value = state.copy(
-                passphraseError = "Passphrases do not match"
-            )
-            else -> {
-                _uiState.value = state.copy(
-                    passphraseError = null,
-                    step = OnboardingStep.BiometricSetup,
-                )
-            }
-        }
     }
 
     fun onRestoreConfirmed(fileUri: Uri?, passphrase: String) {
@@ -106,6 +86,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     passphrase = passphrase,
+                    restoreSkippedProtocols = result.skipped,
                     step = OnboardingStep.BiometricSetup,
                 )
             }
@@ -122,20 +103,6 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
-    }
-
-    fun onPassPhraseChanged(value: String) {
-        _uiState.value = _uiState.value.copy(
-            passphrase = value,
-            passphraseError = null,
-        )
-    }
-
-    fun onPassphraseConfirmChanged(value: String) {
-        _uiState.value = _uiState.value.copy(
-            passphraseConfirm = value,
-            passphraseError = null,
-        )
     }
 
     private suspend fun completeOnboarding() {
