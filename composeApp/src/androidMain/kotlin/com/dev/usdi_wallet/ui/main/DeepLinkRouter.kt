@@ -7,23 +7,25 @@ import com.dev.usdi_wallet.domain.protocol.Protocol
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-class DeepLinkRouter(
+class DeepLinkRouter private constructor(
     private val protocols: List<Protocol<*, *>>,
     private val scope: CoroutineScope,
 ) {
     fun handle(intent: Intent) {
         if (Intent.ACTION_VIEW != intent.action) return
-
         val uri = intent.data ?: return
+        routeToContactManager(uri.toString())
+    }
 
+    fun handle(link: String) {
+        routeToContactManager(link)
+    }
+
+    private fun routeToContactManager(uri: String) {
         Logger.d(DeepLinkRouter::class.toString()) {
             "Handling deep link: $uri"
         }
 
-        routeToContactManager(uri.toString())
-    }
-
-    private fun routeToContactManager(uri: String) {
         val protocol = protocols.firstOrNull { protocol ->
             protocol.contactManager.canHandle(uri)
         }
@@ -42,5 +44,14 @@ class DeepLinkRouter(
         scope.launch {
             protocol.contactManager.parseInvitation(uri)
         }
+    }
+
+    companion object {
+        private var _instance: DeepLinkRouter? = null
+
+        fun getInstance(protocols: List<Protocol<*, *>>, scope: CoroutineScope): DeepLinkRouter =
+            _instance ?: DeepLinkRouter(protocols, scope).also { _instance = it }
+
+        fun getInstance(): DeepLinkRouter = _instance!!
     }
 }

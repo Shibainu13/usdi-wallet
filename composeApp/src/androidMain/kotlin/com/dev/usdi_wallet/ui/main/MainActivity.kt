@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
 
         AndroidWalletPreferences.getInstance(application)
 
-        deepLinkRouter = DeepLinkRouter(
+        deepLinkRouter = DeepLinkRouter.getInstance(
             protocols = listOf(
                 IdentusAnonProtocol.getInstance(application, lifecycleScope),
                 EudiProtocol.getInstance(application, lifecycleScope),

@@ -1,4 +1,4 @@
-package com.dev.usdi_wallet.common
+package com.dev.usdi_wallet.ui.common
 
 import android.graphics.Bitmap
 import android.graphics.Color

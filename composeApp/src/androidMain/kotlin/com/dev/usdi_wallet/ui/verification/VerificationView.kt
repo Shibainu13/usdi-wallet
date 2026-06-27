@@ -29,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.common.QrCodeView
+import com.dev.usdi_wallet.ui.common.QrCodeView
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.verification.VerifiableCredentialType
 import com.dev.usdi_wallet.domain.verification.VerificationPollResult

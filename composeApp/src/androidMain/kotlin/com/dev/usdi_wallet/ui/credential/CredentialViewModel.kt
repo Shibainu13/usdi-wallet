@@ -8,6 +8,7 @@ import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class CredentialUiState(
     val error: String? = null,
@@ -62,6 +64,9 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         return sdkFlow;
     }
 
+    fun onQrScanned(content: String) {
+        DeepLinkRouter.getInstance().handle(content)
+    }
 
     fun onCredentialClicked(credential: Credential) {
         _uiState.update { it.copy(selectedCredential = credential) }

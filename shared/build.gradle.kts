@@ -32,7 +32,6 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.okhttp)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
@@ -51,6 +50,7 @@ kotlin {
             implementation(libs.cryptography.provider)
         }
         androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.lifecycle.livedata.ktx)
             implementation(libs.androidx.lifecycle.viewmodel.ktx)
             implementation(libs.androidx.lifecycle.runtime.ktx)
