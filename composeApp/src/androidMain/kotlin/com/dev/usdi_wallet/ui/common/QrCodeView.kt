@@ -15,22 +15,13 @@ import androidx.core.graphics.set
 import androidx.core.graphics.createBitmap
 
 @Composable
-fun QrCodeView(content: String, size: Int = 240) {
-    val bitmap = remember(content) { generateQrBitmap(content, size) }
+fun QrCodeView(content: String, size: Int = 240, renderResolution: Int = 800) {
+    val bitmap = remember(content, renderResolution) {
+        QrCodeUtils.createQrBitmap(content, renderResolution)
+    }
     Image(
         bitmap = bitmap.asImageBitmap(),
         contentDescription = "QR Code",
         modifier = Modifier.size(size.dp)
     )
-}
-
-private fun generateQrBitmap(content: String, size: Int): Bitmap {
-    val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
-    val bitmap = createBitmap(size, size, Bitmap.Config.RGB_565)
-    for (x in 0 until size) {
-        for (y in 0 until size) {
-            bitmap[x, y] = if (matrix.get(x, y)) Color.BLACK else Color.WHITE
-        }
-    }
-    return bitmap
 }

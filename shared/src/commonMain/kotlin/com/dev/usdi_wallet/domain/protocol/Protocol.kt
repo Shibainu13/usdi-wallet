@@ -19,6 +19,8 @@ abstract class Protocol<CredentialType, MessageType> {
     open val walletBackupManager: WalletBackupManager? = null
     abstract suspend fun startConnection()
     abstract fun toUiMessage(message: MessageType): Message
+    open fun onActivityStart() = Unit
+    open fun onActivityStop() = Unit
     companion object {
         private val instances = mutableMapOf<KClass<out Protocol<*,*>>, Protocol<*,*>>()
 

@@ -10,29 +10,31 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
+import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
-import com.dev.usdi_wallet.hyperledger_identus.HyperledgerIdentusSdk
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.preferences.AndroidWalletPreferences
 import com.dev.usdi_wallet.ui.theme.WalletColors
 import com.dev.usdi_wallet.ui.theme.WalletTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private val viewModel: MainViewModel by viewModels()
     private lateinit var deepLinkRouter: DeepLinkRouter
+    private lateinit var protocols: List<Protocol<*,*>>
     val walletAuthManager = AndroidWalletAuthManager.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        protocols = listOf(
+            IdentusAnonProtocol.getInstance(application, lifecycleScope),
+            EudiProtocol.getInstance(application, lifecycleScope),
+        )
+
         AndroidWalletPreferences.getInstance(application)
 
         deepLinkRouter = DeepLinkRouter.getInstance(
-            protocols = listOf(
-                IdentusAnonProtocol.getInstance(application, lifecycleScope),
-                EudiProtocol.getInstance(application, lifecycleScope),
-            ),
+            protocols = protocols,
             scope = lifecycleScope,
         )
 
@@ -56,15 +58,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        HyperledgerIdentusSdk.getInstance().resumeAgent()
+        protocols.forEach { protocol -> protocol.onActivityStart() }
         walletAuthManager.bind(this as FragmentActivity)
     }
 
     override fun onStop() {
         super.onStop()
         walletAuthManager.unbind()
-        lifecycleScope.launch {
-            HyperledgerIdentusSdk.getInstance().pauseAgent()
-        }
+        protocols.forEach { protocol -> protocol.onActivityStop() }
     }
 }

@@ -34,9 +34,9 @@ data class OnboardingUiState(
 class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = AndroidWalletPreferences.getInstance(application)
     private val authManager = AndroidWalletAuthManager.getInstance()
-    private val protocols = listOf<Protocol<*,*>>(
-        IdentusAnonProtocol.getInstance(application, viewModelScope),
-        EudiProtocol.getInstance(application, viewModelScope),
+    private val protocols = listOf(
+        IdentusAnonProtocol.getInstance(),
+        EudiProtocol.getInstance(),
     )
     private val backupService = UnifiedBackupService.getInstance(protocols)
     private val _uiState = MutableStateFlow(OnboardingUiState())

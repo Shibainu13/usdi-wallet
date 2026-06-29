@@ -44,8 +44,8 @@ data class SettingsUiState(
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val protocols = listOf(
-        IdentusAnonProtocol.getInstance(application, viewModelScope),
-        EudiProtocol.getInstance(application, viewModelScope),
+        IdentusAnonProtocol.getInstance(),
+        EudiProtocol.getInstance(),
     )
     private val backupService = UnifiedBackupService.getInstance(protocols)
 

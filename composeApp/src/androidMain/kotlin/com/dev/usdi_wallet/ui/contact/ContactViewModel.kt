@@ -22,9 +22,9 @@ import kotlinx.coroutines.launch
 import kotlin.collections.emptyList
 
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
-    private val protocols = listOf<Protocol<*,*>>(
-        IdentusAnonProtocol.getInstance(application, viewModelScope),
-        EudiProtocol.getInstance(application, viewModelScope),
+    private val protocols = listOf(
+        IdentusAnonProtocol.getInstance(),
+        EudiProtocol.getInstance(),
     )
     val contacts: StateFlow<List<Contact>> = if (protocols.isEmpty()) {
         MutableStateFlow(emptyList())

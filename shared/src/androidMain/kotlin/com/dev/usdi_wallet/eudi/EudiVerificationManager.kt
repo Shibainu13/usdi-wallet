@@ -30,42 +30,45 @@ class EudiVerificationManager(
     private val verifierBaseUrl: String
 ) : VerificationManager {
     private val httpClient = WalletHttpClient.instance
-    override val supportedCredentialTypes: List<VerifiableCredentialType> = listOf(
-        VerifiableCredentialType(
-            id = "eudi_pid",
-            label = "EU Digital Identity (PID)",
-            protocol = VerificationProtocol.EUDI,
-            fields = listOf(
-                VerifiableFieldSchema("family_name", "Family name", ClaimType.STRING),
-                VerifiableFieldSchema("given_name", "Given name", ClaimType.STRING),
-                VerifiableFieldSchema("birthdate", "Birthdate", ClaimType.STRING),
-                VerifiableFieldSchema("family_name_birth", "Family name birth", ClaimType.STRING),
-                VerifiableFieldSchema("given_name_birth", "Given name birth", ClaimType.STRING),
-                VerifiableFieldSchema("birth_place", "Birth place", ClaimType.STRING),
-                VerifiableFieldSchema("resident_address", "Resident address", ClaimType.STRING),
-                VerifiableFieldSchema("resident_country", "Resident country", ClaimType.STRING),
-                VerifiableFieldSchema("resident_state", "Resident state", ClaimType.STRING),
-                VerifiableFieldSchema("resident_city", "Resident city", ClaimType.STRING),
-                VerifiableFieldSchema("resident_postal_code", "Resident postal code", ClaimType.STRING),
-                VerifiableFieldSchema("resident_street", "Resident street", ClaimType.STRING),
-                VerifiableFieldSchema("resident_house_number", "Resident house number", ClaimType.STRING),
-                VerifiableFieldSchema("sex", "Sex", ClaimType.STRING),
-                VerifiableFieldSchema("nationality", "Nationality", ClaimType.STRING),
-                VerifiableFieldSchema("issuance_date", "Issuance date", ClaimType.STRING),
-                VerifiableFieldSchema("expiry_date", "Expiry date", ClaimType.STRING),
-                VerifiableFieldSchema("issuing_authority", "Issuing authority", ClaimType.STRING),
-                VerifiableFieldSchema("document_number", "Document number", ClaimType.STRING),
-                VerifiableFieldSchema("personal_administrative_number", "Personal administrative number", ClaimType.STRING),
-                VerifiableFieldSchema("issuing_country", "Issuing country", ClaimType.STRING),
-                VerifiableFieldSchema("issuing_jurisdiction", "Issuing jurisdiction", ClaimType.STRING),
-                VerifiableFieldSchema("portrait", "Portrait", ClaimType.STRING),
-                VerifiableFieldSchema("email_address", "Email address", ClaimType.STRING),
-                VerifiableFieldSchema("mobile_phone_number", "Mobile phone number", ClaimType.STRING),
-                VerifiableFieldSchema("trust_anchor", "Trust anchor", ClaimType.STRING)
-            ),
-            metadata = mapOf("docType" to "urn:eudi:pid:1")
+    override suspend fun getSupportedCredentialTypes(): List<VerifiableCredentialType> {
+        val supportedCredentialTypes: List<VerifiableCredentialType> = listOf(
+            VerifiableCredentialType(
+                id = "eudi_pid",
+                label = "EU Digital Identity (PID)",
+                protocol = VerificationProtocol.EUDI,
+                fields = listOf(
+                    VerifiableFieldSchema("family_name", "Family name", ClaimType.STRING),
+                    VerifiableFieldSchema("given_name", "Given name", ClaimType.STRING),
+                    VerifiableFieldSchema("birthdate", "Birthdate", ClaimType.STRING),
+                    VerifiableFieldSchema("family_name_birth", "Family name birth", ClaimType.STRING),
+                    VerifiableFieldSchema("given_name_birth", "Given name birth", ClaimType.STRING),
+                    VerifiableFieldSchema("birth_place", "Birth place", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_address", "Resident address", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_country", "Resident country", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_state", "Resident state", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_city", "Resident city", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_postal_code", "Resident postal code", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_street", "Resident street", ClaimType.STRING),
+                    VerifiableFieldSchema("resident_house_number", "Resident house number", ClaimType.STRING),
+                    VerifiableFieldSchema("sex", "Sex", ClaimType.STRING),
+                    VerifiableFieldSchema("nationality", "Nationality", ClaimType.STRING),
+                    VerifiableFieldSchema("issuance_date", "Issuance date", ClaimType.STRING),
+                    VerifiableFieldSchema("expiry_date", "Expiry date", ClaimType.STRING),
+                    VerifiableFieldSchema("issuing_authority", "Issuing authority", ClaimType.STRING),
+                    VerifiableFieldSchema("document_number", "Document number", ClaimType.STRING),
+                    VerifiableFieldSchema("personal_administrative_number", "Personal administrative number", ClaimType.STRING),
+                    VerifiableFieldSchema("issuing_country", "Issuing country", ClaimType.STRING),
+                    VerifiableFieldSchema("issuing_jurisdiction", "Issuing jurisdiction", ClaimType.STRING),
+                    VerifiableFieldSchema("portrait", "Portrait", ClaimType.STRING),
+                    VerifiableFieldSchema("email_address", "Email address", ClaimType.STRING),
+                    VerifiableFieldSchema("mobile_phone_number", "Mobile phone number", ClaimType.STRING),
+                    VerifiableFieldSchema("trust_anchor", "Trust anchor", ClaimType.STRING)
+                ),
+                metadata = mapOf("docType" to "urn:eudi:pid:1")
+            )
         )
-    )
+        return supportedCredentialTypes
+    }
 
     override suspend fun startVerification(
         credentialType: VerifiableCredentialType,

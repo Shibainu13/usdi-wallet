@@ -46,6 +46,7 @@ import com.dev.usdi_wallet.ui.common.WalletDivider
 import com.dev.usdi_wallet.ui.common.WalletListItem
 import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.formatClaimValue
+import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,7 +69,7 @@ fun CredentialScreen(viewModel: CredentialViewModel) {
         QrScannerScreen(
             onResult = { content ->
                 showScanner = false
-                viewModel.onQrScanned(content)
+                DeepLinkRouter.getInstance().handle(content)
             },
             onClose = { showScanner = false },
         )

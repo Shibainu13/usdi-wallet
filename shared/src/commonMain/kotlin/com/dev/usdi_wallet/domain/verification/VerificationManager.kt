@@ -1,10 +1,11 @@
 package com.dev.usdi_wallet.domain.verification
 
+import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import kotlinx.coroutines.flow.Flow
 
 interface VerificationManager {
-    val supportedCredentialTypes: List<VerifiableCredentialType>
+    suspend fun getSupportedCredentialTypes(): List<VerifiableCredentialType>
     suspend fun startVerification(credentialType: VerifiableCredentialType, requestedFields: List<RequestedField>): VerificationSession
     suspend fun cancelVerification(session: VerificationSession)
 }

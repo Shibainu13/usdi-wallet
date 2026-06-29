@@ -9,14 +9,17 @@ import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.domain.verification.RequestedField
 import com.dev.usdi_wallet.domain.verification.VerifiableCredentialType
 import com.dev.usdi_wallet.domain.verification.VerifiableFieldSchema
+import com.dev.usdi_wallet.domain.verification.VerificationManager
 import com.dev.usdi_wallet.domain.verification.VerificationPollResult
 import com.dev.usdi_wallet.domain.verification.VerificationSession
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.collections.emptyList
 
 sealed class VerificationStep {
     data object SelectCredentialType : VerificationStep()
@@ -44,17 +47,32 @@ data class VerificationUiState(
 )
 
 class VerificationViewModel(application: Application) : AndroidViewModel(application) {
-    private val protocols: List<Protocol<*, *>> = listOf(
-        EudiProtocol.getInstance(application, viewModelScope),
+    private val protocols = listOf(
+        IdentusAnonProtocol.getInstance(),
+        EudiProtocol.getInstance(),
     )
-    private val _uiState = MutableStateFlow(
-        VerificationUiState(
-            availableCredentialTypes = protocols.flatMap { it.verificationManager?.supportedCredentialTypes ?: emptyList() }
-        )
-    )
+    private val _uiState = MutableStateFlow(VerificationUiState())
     val uiState = _uiState.asStateFlow()
     private var activeSession: VerificationSession? = null
     private var pollJob: Job? = null
+    private var credentialTypeToManager: Map<VerifiableCredentialType, VerificationManager?> = emptyMap()
+
+    init {
+        loadCredentialTypes()
+    }
+
+    private fun loadCredentialTypes() {
+        _uiState.update { it.copy(isLoading = true) }
+        viewModelScope.launch {
+            val pairs = protocols.flatMap { protocol ->
+                protocol.verificationManager?.getSupportedCredentialTypes().orEmpty().map { credentialType ->
+                    credentialType to protocol.verificationManager
+                }
+            }
+            credentialTypeToManager = pairs.toMap()
+            _uiState.update { it.copy(isLoading = false, availableCredentialTypes = pairs.map { pair -> pair.first }) }
+        }
+    }
 
     fun onCredentialTypeSelected(credentialType: VerifiableCredentialType) {
         _uiState.value = _uiState.value.copy(
@@ -109,13 +127,10 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             )
             return
         }
-        val protocol = protocols.firstOrNull { it.verificationManager?.supportedCredentialTypes?.contains(credentialType) ?: false }
-            ?: run {
-                _uiState.value = _uiState.value.copy(
-                    error = "No verifier available for this credential type"
-                )
-                return
-            }
+        val verificationManager = credentialTypeToManager[credentialType] ?: run {
+            _uiState.value = _uiState.value.copy(error = "No verifier available for this credential type")
+            return
+        }
         val requestedFields = selectedFields.map {
             RequestedField(
                 field = it.schema,
@@ -126,16 +141,16 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
         viewModelScope.launch {
             try {
-                val session = protocol.verificationManager?.startVerification(credentialType, requestedFields)
+                val session = verificationManager.startVerification(credentialType, requestedFields)
                 activeSession = session
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    qrContent = session?.qrContent,
+                    qrContent = session.qrContent,
                     step = VerificationStep.ShowQrWaiting,
                     pollResult = VerificationPollResult.Pending,
                 )
                 pollJob = launch {
-                    session?.results?.collect { result ->
+                    session.results.collect { result ->
                         _uiState.value = _uiState.value.copy(pollResult = result)
                         if (result !is VerificationPollResult.Pending) {
                             _uiState.value = _uiState.value.copy(step = VerificationStep.Result)
@@ -158,10 +173,11 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         pollJob?.cancel()
         viewModelScope.launch {
             activeSession?.let { session ->
-                val protocol = protocols.firstOrNull {
-                    it.verificationManager?.supportedCredentialTypes?.contains(_uiState.value.selectedCredentialType) ?: false
+                val verificationManager = credentialTypeToManager[_uiState.value.selectedCredentialType] ?: run {
+                    _uiState.value = _uiState.value.copy(error = "No verifier available for this credential type")
+                    return@launch
                 }
-                protocol?.verificationManager?.cancelVerification(session)
+                verificationManager.cancelVerification(session)
             }
         }
         resetToStart()

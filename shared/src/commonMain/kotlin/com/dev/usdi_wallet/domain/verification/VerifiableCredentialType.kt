@@ -14,5 +14,6 @@ data class VerifiableCredentialType(
 data class VerifiableFieldSchema(
     val name: String,
     val label: String,
-    val type: ClaimType
+    val type: ClaimType,
+    val supportsPredicate: Boolean = false,
 )

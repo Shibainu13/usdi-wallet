@@ -16,15 +16,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -36,22 +44,36 @@ import com.dev.usdi_wallet.domain.verification.VerificationPollResult
 import com.dev.usdi_wallet.domain.verification.VerificationProtocol
 import com.dev.usdi_wallet.ui.common.PrimaryButton
 import com.dev.usdi_wallet.ui.common.ProtocolBadge
+import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SecondaryButton
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
 fun VerificationScreen(viewModel: VerificationViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.onErrorShown()
         }
+    }
+
+    if (showScanner) {
+        QrScannerScreen(
+            onResult = { content ->
+                showScanner = false
+                DeepLinkRouter.getInstance().handle(content)
+            },
+            onClose = { showScanner = false },
+        )
+        return
     }
 
     Box(modifier = Modifier.fillMaxSize().background(WalletColors.Surface)) {
@@ -64,6 +86,15 @@ fun VerificationScreen(viewModel: VerificationViewModel) {
                     is VerificationStep.ShowQrWaiting -> "Waiting for response"
                     is VerificationStep.Result -> "Verification result"
                 },
+                trailingAction = {
+                    IconButton(onClick = { showScanner = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.QrCodeScanner,
+                            contentDescription = "QR Scanner Icon",
+                            tint = WalletColors.Primary,
+                        )
+                    }
+                }
             )
 
             when (uiState.step) {
@@ -182,7 +213,7 @@ private fun FieldSelectionRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(WalletColors.White, androidx.compose.material3.MaterialTheme.shapes.large)
+            .background(WalletColors.White, MaterialTheme.shapes.large)
             .padding(16.dp),
     ) {
         Row(
@@ -190,8 +221,48 @@ private fun FieldSelectionRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = selection.schema.label, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+            Text(text = selection.schema.label, style = MaterialTheme.typography.titleMedium)
             Checkbox(checked = selection.checked, onCheckedChange = onChecked)
+        }
+
+        if (selection.checked && selection.schema.supportsPredicate) {
+            Spacer(modifier = Modifier.height(8.dp))
+            PredicateEditor(
+                selectedOperator = selection.predicateOperator,
+                predicateValue = selection.predicateValue,
+                onOperatorSelected = onPredicateOperatorChanged,
+                onValueChanged = onPredicateValueChanged,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PredicateEditor(
+    selectedOperator: PredicateOperator?,
+    predicateValue: String,
+    onOperatorSelected: (PredicateOperator?) -> Unit,
+    onValueChanged: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PredicateOperator.entries.forEach { operator ->
+                val selected = selectedOperator == operator
+                FilterChip(
+                    selected = selected,
+                    onClick = { onOperatorSelected(if (selected) null else operator) },
+                    label = { Text(operator.symbol) },
+                )
+            }
+        }
+        if (selectedOperator != null) {
+            OutlinedTextField(
+                value = predicateValue,
+                onValueChange = onValueChanged,
+                label = { Text("Value") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -209,7 +280,7 @@ private fun ShowQrWaitingStep(
         if (qrContent != null) {
             Box(
                 modifier = Modifier
-                    .background(WalletColors.White, androidx.compose.material3.MaterialTheme.shapes.large)
+                    .background(WalletColors.White, MaterialTheme.shapes.large)
                     .padding(20.dp),
             ) {
                 QrCodeView(content = qrContent, size = 220)
@@ -220,7 +291,7 @@ private fun ShowQrWaitingStep(
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Waiting for the holder to scan and respond",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(modifier = Modifier.height(24.dp))
         SecondaryButton(text = "Cancel", onClick = onCancel)
@@ -239,19 +310,19 @@ private fun ResultStep(
     ) {
         when (result) {
             is VerificationPollResult.Success -> {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = null,
                     tint = WalletColors.Success,
                     modifier = Modifier.height(64.dp),
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Verification successful", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                Text(text = "Verification successful", style = MaterialTheme.typography.headlineSmall)
                 Spacer(modifier = Modifier.height(16.dp))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(WalletColors.White, androidx.compose.material3.MaterialTheme.shapes.large)
+                        .background(WalletColors.White, MaterialTheme.shapes.large)
                         .padding(16.dp),
                 ) {
                     result.claims.forEach { (key, value) ->
@@ -259,25 +330,25 @@ private fun ResultStep(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text(text = key, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                            Text(text = value.toString(), style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+                            Text(text = key, style = MaterialTheme.typography.bodyMedium)
+                            Text(text = value.toString(), style = MaterialTheme.typography.titleSmall)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
             is VerificationPollResult.Failed -> {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = Icons.Default.Error,
                     contentDescription = null,
                     tint = WalletColors.Danger,
                     modifier = Modifier.height(64.dp),
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Verification failed", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                Text(text = "Verification failed", style = MaterialTheme.typography.headlineSmall)
                 result.reason?.let {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = it, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    Text(text = it, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             is VerificationPollResult.Pending -> {
