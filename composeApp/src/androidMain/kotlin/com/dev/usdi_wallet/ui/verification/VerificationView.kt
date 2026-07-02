@@ -49,11 +49,15 @@ import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SecondaryButton
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.main.DeepLinkContentType
 import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
-fun VerificationScreen(viewModel: VerificationViewModel) {
+fun VerificationScreen(
+    viewModel: VerificationViewModel,
+    onCredentialAccepted: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showScanner by remember { mutableStateOf(false) }
@@ -69,7 +73,15 @@ fun VerificationScreen(viewModel: VerificationViewModel) {
         QrScannerScreen(
             onResult = { content ->
                 showScanner = false
-                DeepLinkRouter.getInstance().handle(content)
+                DeepLinkRouter.getInstance().handle(
+                    link = content,
+                    onSuccess = { result ->
+                        if (result.contentType == DeepLinkContentType.Credential) {
+                            onCredentialAccepted()
+                        }
+                    },
+                    onError = viewModel::onScanError,
+                )
             },
             onClose = { showScanner = false },
         )

@@ -8,6 +8,7 @@ import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.ui.main.DeepLinkContentType
 import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,8 +65,18 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         return sdkFlow;
     }
 
-    fun onQrScanned(content: String) {
-        DeepLinkRouter.getInstance().handle(content)
+    fun onQrScanned(content: String, onCredentialAccepted: () -> Unit = {}) {
+        DeepLinkRouter.getInstance().handle(
+            link = content,
+            onSuccess = { result ->
+                if (result.contentType == DeepLinkContentType.Credential) {
+                    onCredentialAccepted()
+                }
+            },
+            onError = { message ->
+                _uiState.update { it.copy(error = message) }
+            },
+        )
     }
 
     fun onCredentialClicked(credential: Credential) {

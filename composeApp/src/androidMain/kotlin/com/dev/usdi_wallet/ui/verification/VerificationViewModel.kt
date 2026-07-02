@@ -197,6 +197,10 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
 
     fun onErrorShown() = _uiState.update { it.copy(error = null) }
 
+    fun onScanError(message: String) {
+        _uiState.update { it.copy(error = message) }
+    }
+
     override fun onCleared() {
         super.onCleared()
         pollJob?.cancel()

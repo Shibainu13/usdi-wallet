@@ -130,6 +130,10 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
     fun onErrorShown() {
         _uiState.update { it.copy(error = null)}
     }
+
+    fun onScanError(message: String) {
+        _uiState.update { it.copy(error = message) }
+    }
 }
 
 data class ContactUiState(

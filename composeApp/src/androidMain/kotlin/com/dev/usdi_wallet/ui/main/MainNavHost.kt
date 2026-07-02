@@ -21,6 +21,7 @@ fun MainNavHost(
     credentialViewModel: CredentialViewModel,
     verificationViewModel: VerificationViewModel,
     settingsViewModel: SettingsViewModel,
+    onCredentialAccepted: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -31,7 +32,10 @@ fun MainNavHost(
             route = WalletTab.CREDENTIALS.rootRoute,
         ) {
             composable("credentials/list") {
-                CredentialScreen(credentialViewModel)
+                CredentialScreen(
+                    viewModel = credentialViewModel,
+                    onCredentialAccepted = onCredentialAccepted,
+                )
             }
         }
 
@@ -40,7 +44,10 @@ fun MainNavHost(
             route = WalletTab.CONTACTS.rootRoute,
         ) {
             composable("contacts/list") {
-                ContactScreen(contactViewModel)
+                ContactScreen(
+                    viewModel = contactViewModel,
+                    onCredentialAccepted = onCredentialAccepted,
+                )
             }
         }
 
@@ -49,7 +56,10 @@ fun MainNavHost(
             route = WalletTab.VERIFY.rootRoute,
         ) {
             composable("verify/list") {
-                VerificationScreen(verificationViewModel)
+                VerificationScreen(
+                    viewModel = verificationViewModel,
+                    onCredentialAccepted = onCredentialAccepted,
+                )
             }
         }
 

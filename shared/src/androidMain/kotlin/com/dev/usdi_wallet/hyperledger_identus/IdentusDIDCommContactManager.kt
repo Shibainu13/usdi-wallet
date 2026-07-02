@@ -32,6 +32,8 @@ class IdentusDIDCommContactManager(
     override fun canHandle(invitation: String): Boolean {
         return when {
             invitation.contains(ProtocolType.Didcomminvitation.value) ||
+                invitation.contains(ProtocolType.DidcommOfferCredential.value) ||
+                invitation.contains(ProtocolType.DidcommRequestPresentation.value) ||
                  invitation.contains("_oob") -> true
             else -> false
         }
@@ -51,6 +53,15 @@ class IdentusDIDCommContactManager(
         } catch (e: Exception) {
             Logger.w(IdentusDIDCommContactManager::class.toString()) {
                 "SDK parser failed (${e.message}), trying normalized OOB parser"
+            }
+
+            parseConnectionlessCredentialOfferInvitation(invitation)?.let { message ->
+                sdk.agent.pluto.storeMessage(message)
+                onCredentialOffer(message)
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Connectionless credential offer invitation accepted"
+                }
+                return
             }
 
             parseConnectionlessPresentationInvitation(invitation)?.let { message ->
@@ -84,15 +95,32 @@ class IdentusDIDCommContactManager(
         }
     }
 
+    private suspend fun parseConnectionlessCredentialOfferInvitation(invitation: String): SdkMessage? =
+        parseConnectionlessMessageInvitation(
+            invitation = invitation,
+            piuri = ProtocolType.DidcommOfferCredential.value,
+        )
+
     private suspend fun parseConnectionlessPresentationInvitation(invitation: String): SdkMessage? {
+        return parseConnectionlessMessageInvitation(
+            invitation = invitation,
+            piuri = ProtocolType.DidcommRequestPresentation.value,
+        )
+    }
+
+    private suspend fun parseConnectionlessMessageInvitation(
+        invitation: String,
+        piuri: String,
+    ): SdkMessage? {
         val decoded = decodeOobInvitation(invitation) ?: return null
         val root = runCatching { JSONObject(decoded) }.getOrNull() ?: return null
-        val request = presentationRequestJson(root) ?: return null
-        val type = request.optString("type")
-        if (type != ProtocolType.DidcommRequestPresentation.value) return null
+        val request = embeddedDidCommMessageJson(root, piuri) ?: return null
 
         val from = didString(request.opt("from")).ifBlank { didString(root.opt("from")) }
         if (from.isBlank()) return null
+
+        val toDid = didString(request.opt("to"))
+            .ifBlank { sdk.agent.createNewPeerDID(updateMediator = true).toString() }
 
         val body = when (val bodyValue = request.opt("body")) {
             is JSONObject -> bodyValue.toString()
@@ -108,14 +136,15 @@ class IdentusDIDCommContactManager(
             }
             .orEmpty()
 
-        if (attachments.isEmpty()) return null
+        if (attachments.isEmpty() && piuri == ProtocolType.DidcommRequestPresentation.value) {
+            return null
+        }
 
-        val to = sdk.agent.createNewPeerDID(updateMediator = true)
         return SdkMessage(
             id = request.optString("id").ifBlank { UUID.randomUUID().toString() },
-            piuri = type,
+            piuri = piuri,
             from = DID(from),
-            to = to,
+            to = DID(toDid),
             body = body,
             attachments = attachments.toTypedArray(),
             thid = request.optString("thid")
@@ -125,8 +154,8 @@ class IdentusDIDCommContactManager(
         )
     }
 
-    private fun presentationRequestJson(root: JSONObject): JSONObject? {
-        if (root.optString("type") == ProtocolType.DidcommRequestPresentation.value) {
+    private fun embeddedDidCommMessageJson(root: JSONObject, piuri: String): JSONObject? {
+        if (root.optString("type") == piuri) {
             return root
         }
 
@@ -134,16 +163,23 @@ class IdentusDIDCommContactManager(
             root.optJSONArray(key)?.let { attachments ->
                 (0 until attachments.length()).forEach { index ->
                     val request = attachments.optJSONObject(index)?.attachmentJson()
-                    if (request?.optString("type") == ProtocolType.DidcommRequestPresentation.value) {
+                    if (request?.optString("type") == piuri) {
                         return request
                     }
                 }
             }
         }
 
-        listOf("invitation", "oobInvitation", "outOfBandInvitation", "requestPresentation").forEach { key ->
+        listOf(
+            "invitation",
+            "oobInvitation",
+            "outOfBandInvitation",
+            "requestPresentation",
+            "offerCredential",
+            "credentialOffer",
+        ).forEach { key ->
             root.optJSONObject(key)?.let { nested ->
-                presentationRequestJson(nested)?.let { return it }
+                embeddedDidCommMessageJson(nested, piuri)?.let { return it }
             }
         }
 
@@ -180,9 +216,8 @@ class IdentusDIDCommContactManager(
             return runCatching { JSONObject(value) }.getOrNull()
         }
         data.optString("base64").ifBlank { null }?.let { encoded ->
-            val padded = encoded.padEnd(encoded.length + ((4 - encoded.length % 4) % 4), '=')
             return runCatching {
-                JSONObject(String(Base64.getUrlDecoder().decode(padded), StandardCharsets.UTF_8))
+                JSONObject(String(decodeBase64(encoded), StandardCharsets.UTF_8))
             }.getOrNull()
         }
         return null
@@ -256,10 +291,15 @@ class IdentusDIDCommContactManager(
             .substringBefore("&")
             .ifBlank { return null }
         val oob = URLDecoder.decode(rawOob, StandardCharsets.UTF_8.name())
-        val padded = oob.padEnd(oob.length + ((4 - oob.length % 4) % 4), '=')
         return runCatching {
-            String(Base64.getUrlDecoder().decode(padded), StandardCharsets.UTF_8)
+            String(decodeBase64(oob), StandardCharsets.UTF_8)
         }.getOrNull()
+    }
+
+    private fun decodeBase64(value: String): ByteArray {
+        val padded = value.padEnd(value.length + ((4 - value.length % 4) % 4), '=')
+        return runCatching { Base64.getUrlDecoder().decode(padded) }
+            .getOrElse { Base64.getDecoder().decode(padded) }
     }
 
     override fun getContacts(): Flow<List<Contact>> {

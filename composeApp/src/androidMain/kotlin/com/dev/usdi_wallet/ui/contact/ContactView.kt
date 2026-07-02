@@ -15,7 +15,10 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,19 +33,40 @@ import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.main.DeepLinkContentType
 import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
-fun ContactScreen(viewModel: ContactViewModel) {
+fun ContactScreen(
+    viewModel: ContactViewModel,
+    onCredentialAccepted: () -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     var showScanner by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.onErrorShown()
+        }
+    }
 
     if (showScanner) {
         QrScannerScreen(
             onResult = { content ->
                 showScanner = false
-                DeepLinkRouter.getInstance().handle(content)
+                DeepLinkRouter.getInstance().handle(
+                    link = content,
+                    onSuccess = { result ->
+                        if (result.contentType == DeepLinkContentType.Credential) {
+                            onCredentialAccepted()
+                        }
+                    },
+                    onError = viewModel::onScanError,
+                )
             },
             onClose = { showScanner = false },
         )
@@ -112,5 +136,9 @@ fun ContactScreen(viewModel: ContactViewModel) {
                 }
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }

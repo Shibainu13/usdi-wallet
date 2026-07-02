@@ -55,6 +55,15 @@ fun MainRoute(
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
     } ?: WalletTab.CONTACTS
+    val navigateToCredentials = {
+        navController.navigate(WalletTab.CREDENTIALS.rootRoute) {
+            popUpTo(navController.graph.startDestinationId) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     MainScreen(
         isReady = uiState.isReady,
@@ -72,6 +81,7 @@ fun MainRoute(
                 credentialViewModel = credentialViewModel,
                 verificationViewModel = verificationViewModel,
                 settingsViewModel = settingsViewModel,
+                onCredentialAccepted = navigateToCredentials,
             )
         }
     )

@@ -15,8 +15,10 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,12 +26,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +55,9 @@ import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun QrScannerScreen(
@@ -62,10 +74,38 @@ fun QrScannerScreen(
         )
     }
     var hasScanned by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var urlText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted -> hasCameraPermission = granted }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        scope.launch {
+            errorMessage = null
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    QrCodeUtils.extractQrText(context, uri).trim()
+                }
+            }.onSuccess { content ->
+                if (content.isBlank()) {
+                    errorMessage = "Selected image did not contain a QR code"
+                } else {
+                    hasScanned = true
+                    onResult(content)
+                }
+            }.onFailure { error ->
+                errorMessage = "Unable to read QR from image: ${error.message}"
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
@@ -148,6 +188,47 @@ fun QrScannerScreen(
             }
         }
 
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.62f))
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        ) {
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+            ) {
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Image")
+                }
+                Button(
+                    onClick = { showUrlDialog = true },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("URL")
+                }
+            }
+        }
+
         IconButton(
             onClick = onClose,
             modifier = Modifier
@@ -157,6 +238,44 @@ fun QrScannerScreen(
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close", tint = Color.White)
         }
+    }
+
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("Extract from URL") },
+            text = {
+                OutlinedTextField(
+                    value = urlText,
+                    onValueChange = { urlText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Credential or invitation URL") },
+                    singleLine = false,
+                    minLines = 2,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val content = urlText.trim()
+                        if (content.isBlank()) {
+                            errorMessage = "Enter a URL first"
+                            return@TextButton
+                        }
+                        showUrlDialog = false
+                        hasScanned = true
+                        onResult(content)
+                    },
+                ) {
+                    Text("Extract")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 

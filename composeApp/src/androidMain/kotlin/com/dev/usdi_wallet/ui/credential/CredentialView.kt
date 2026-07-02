@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Scanner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,12 +45,14 @@ import com.dev.usdi_wallet.ui.common.WalletDivider
 import com.dev.usdi_wallet.ui.common.WalletListItem
 import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.formatClaimValue
-import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CredentialScreen(viewModel: CredentialViewModel) {
+fun CredentialScreen(
+    viewModel: CredentialViewModel,
+    onCredentialAccepted: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -69,7 +70,10 @@ fun CredentialScreen(viewModel: CredentialViewModel) {
         QrScannerScreen(
             onResult = { content ->
                 showScanner = false
-                DeepLinkRouter.getInstance().handle(content)
+                viewModel.onQrScanned(
+                    content = content,
+                    onCredentialAccepted = onCredentialAccepted,
+                )
             },
             onClose = { showScanner = false },
         )
