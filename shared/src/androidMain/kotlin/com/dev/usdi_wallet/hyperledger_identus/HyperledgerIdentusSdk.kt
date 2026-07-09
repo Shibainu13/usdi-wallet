@@ -29,7 +29,6 @@ import org.hyperledger.identus.walletsdk.edgeagent.mediation.MediationHandler
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.mediation.MediationGrant
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.mediation.MediationRequest
 import org.hyperledger.identus.walletsdk.mercury.MercuryImpl
-import org.hyperledger.identus.walletsdk.mercury.resolvers.DIDCommWrapper
 import org.hyperledger.identus.walletsdk.pluto.PlutoImpl
 import org.hyperledger.identus.walletsdk.pluto.data.DbConnection
 import org.hyperledger.identus.walletsdk.pollux.PolluxImpl
@@ -49,6 +48,7 @@ class HyperledgerIdentusSdk private constructor() {
 
     lateinit var handler: MediationHandler
     lateinit var agent: EdgeAgent
+    private var plutoDriver: SqlDriver? = null
 
     @Throws(EdgeAgentError.MediationRequestFailedError::class, UnknownHostException::class)
     suspend fun startAgent(mediatorDID: String, context: Context) {
@@ -124,10 +124,37 @@ class HyperledgerIdentusSdk private constructor() {
                     name = "hyperledger_identus.db"
                 )
                 this.driver = driver
+                plutoDriver = driver
                 return driver
             }
         }
         return PlutoImpl(customDbConnection)
+    }
+
+    fun upsertCredentialMetadata(id: String, linkSecretName: String, json: String) {
+        val driver = plutoDriver ?: throw IllegalStateException("Pluto database is not started")
+        driver.execute(
+            identifier = null,
+            sql = """
+                INSERT OR REPLACE INTO CredentialMetadata(id, linkSecretName, json)
+                VALUES (?, ?, ?)
+            """.trimIndent(),
+            parameters = 3,
+        ) {
+            bindString(0, id)
+            bindString(1, linkSecretName)
+            bindString(2, json)
+        }
+    }
+
+    fun deleteCredentialMetadata(id: String) {
+        plutoDriver?.execute(
+            identifier = null,
+            sql = "DELETE FROM CredentialMetadata WHERE id = ?",
+            parameters = 1,
+        ) {
+            bindString(0, id)
+        }
     }
 
     private fun createApollo(): Apollo {
@@ -149,7 +176,7 @@ class HyperledgerIdentusSdk private constructor() {
             }
         }
 
-        return MercuryImpl(castor, DIDCommWrapper(castor, pluto, apollo), ApiImpl(customHttpClient))
+        return MercuryImpl(castor, IdentusDIDCommWrapper(castor, pluto, apollo), ApiImpl(customHttpClient))
     }
 
     private fun createPollux(): Pollux {

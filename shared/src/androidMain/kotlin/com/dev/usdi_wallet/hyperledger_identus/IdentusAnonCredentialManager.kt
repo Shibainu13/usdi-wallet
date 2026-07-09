@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.hyperledger.identus.walletsdk.apollo.utils.Secp256k1KeyPair
+import org.hyperledger.identus.walletsdk.domain.models.AttachmentDescriptor
 import org.hyperledger.identus.walletsdk.domain.models.ClaimType as SdkClaimType
 import org.hyperledger.identus.walletsdk.domain.models.CredentialType
 import org.hyperledger.identus.walletsdk.domain.models.Curve
@@ -67,6 +68,11 @@ class IdentusAnonCredentialManager(
     private val _verificationResults = MutableStateFlow<List<VerificationResult>>(emptyList())
     private val db: AppDatabase = AppDatabase.getInstance(context)
     private val initCompleted = CompletableDeferred<Unit>()
+
+    private data class AnonCredRevocationMetadata(
+        val revocationRegistryId: String,
+        val revocationRegistryIndex: Int,
+    )
 
     init {
         scope.launch {
@@ -269,6 +275,7 @@ class IdentusAnonCredentialManager(
         val jsonArray = JSONArray()
         updated.forEach { jsonArray.put(toJson(it)) }
         file.writeText(jsonArray.toString())
+        removeCredentialRevocationMetadata(id)
     }
 
     override suspend fun handleInbound(
@@ -342,7 +349,24 @@ class IdentusAnonCredentialManager(
                 "Received issue offer: $message"
             }
             val issueCredential = IssueCredential.fromMessage(message)
-            val credential = sdk.agent.processIssuedCredentialMessage(issueCredential)
+            Logger.i(IdentusAnonCredentialManager::class.toString()) {
+                "issue-credential/3.0 attachment formats: " +
+                    issueCredential.attachments.mapIndexed { index, attachment ->
+                        "#$index id=${attachment.id}, format=${attachment.format}, media_type=${attachment.mediaType}"
+                    }
+            }
+            val revocationMetadata = extractCredentialRevocationMetadata(issueCredential)
+            val credential = sdk.agent.processIssuedCredentialMessage(
+                issueCredential.withCredentialAttachmentFirst()
+            )
+            revocationMetadata?.let { metadata ->
+                saveCredentialRevocationMetadata(credential.id, metadata)
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Stored anoncred revocation metadata with credential ${credential.id}: " +
+                        "rev_reg_id=${metadata.revocationRegistryId}, " +
+                        "rev_reg_index=${metadata.revocationRegistryIndex}"
+                }
+            }
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
                 "Credential received: $credential"
             }
@@ -543,13 +567,7 @@ class IdentusAnonCredentialManager(
 
     override fun toUiCredential(sdkCredential: SdkCredential): Credential {
         val claims = extractClaimsFromAnonCredential(sdkCredential)
-
-        claims.forEach { claim ->
-            Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "Mapped claim [${claim.name}] with value: ${claim.value}"
-            }
-        }
-
+        
         return Credential(
             id = sdkCredential.id,
             issuer = sdkCredential.issuer,
@@ -706,6 +724,107 @@ class IdentusAnonCredentialManager(
             is SdkClaimType.DataValue -> value.value // maybe ByteArray
             else -> null
         }
+    }
+
+    private fun IssueCredential.withCredentialAttachmentFirst(): IssueCredential {
+        val credentialAttachment = attachments.firstOrNull { it.format in ISSUED_CREDENTIAL_FORMATS }
+            ?: attachments.firstOrNull { it.format != ANONCREDS_REVOCATION_FORMAT }
+            ?: attachments.firstOrNull()
+            ?: return this
+
+        return copy(attachments = arrayOf(credentialAttachment))
+    }
+
+    private fun extractCredentialRevocationMetadata(
+        issueCredential: IssueCredential,
+    ): AnonCredRevocationMetadata? {
+        val attachment = issueCredential.attachments
+            .firstOrNull { it.format == ANONCREDS_REVOCATION_FORMAT }
+        if (attachment == null) {
+            Logger.i(IdentusAnonCredentialManager::class.toString()) {
+                "No $ANONCREDS_REVOCATION_FORMAT attachment found in issue-credential/3.0 message ${issueCredential.id}"
+            }
+            return null
+        }
+
+        Logger.i(IdentusAnonCredentialManager::class.toString()) {
+            "Found $ANONCREDS_REVOCATION_FORMAT attachment in issue-credential/3.0 message ${issueCredential.id}: " +
+                "id=${attachment.id}, media_type=${attachment.mediaType}"
+        }
+
+        val json = attachment.jsonObjectOrNull()
+        if (json == null) {
+            Logger.w(IdentusAnonCredentialManager::class.toString()) {
+                "Could not parse $ANONCREDS_REVOCATION_FORMAT attachment JSON in issue-credential/3.0 message ${issueCredential.id}"
+            }
+            return null
+        }
+        val revocationRegistryId = json.optString("rev_reg_id")
+            .takeIf { it.isNotBlank() }
+        if (revocationRegistryId == null) {
+            Logger.w(IdentusAnonCredentialManager::class.toString()) {
+                "$ANONCREDS_REVOCATION_FORMAT attachment missing rev_reg_id in issue-credential/3.0 message ${issueCredential.id}: $json"
+            }
+            return null
+        }
+        val revocationRegistryIndex = json.optNullableInt("rev_reg_index")
+        if (revocationRegistryIndex == null) {
+            Logger.w(IdentusAnonCredentialManager::class.toString()) {
+                "$ANONCREDS_REVOCATION_FORMAT attachment missing rev_reg_index in issue-credential/3.0 message ${issueCredential.id}: $json"
+            }
+            return null
+        }
+
+        Logger.i(IdentusAnonCredentialManager::class.toString()) {
+            "Extracted anoncred revocation metadata from issue-credential/3.0 message ${issueCredential.id}: " +
+                "rev_reg_id=$revocationRegistryId, rev_reg_index=$revocationRegistryIndex"
+        }
+
+        return AnonCredRevocationMetadata(
+            revocationRegistryId = revocationRegistryId,
+            revocationRegistryIndex = revocationRegistryIndex,
+        )
+    }
+
+    private fun AttachmentDescriptor.jsonObjectOrNull(): JSONObject? {
+        return runCatching { JSONObject(data.getDataAsJsonString()) }.getOrNull()
+    }
+
+    private fun JSONObject.optNullableInt(key: String): Int? {
+        if (!has(key) || isNull(key)) return null
+        return when (val value = opt(key)) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull()
+            else -> null
+        }
+    }
+
+    private fun saveCredentialRevocationMetadata(
+        credentialId: String,
+        metadata: AnonCredRevocationMetadata,
+    ) {
+        val metadataJson = JSONObject().apply {
+            put("credential_id", credentialId)
+            put("rev_reg_id", metadata.revocationRegistryId)
+            put("rev_reg_index", metadata.revocationRegistryIndex)
+        }.toString()
+
+        sdk.upsertCredentialMetadata(
+            id = credentialRevocationMetadataId(credentialId),
+            linkSecretName = REVOCATION_METADATA_LINK_SECRET_NAME,
+            json = metadataJson,
+        )
+        Logger.i(IdentusAnonCredentialManager::class.toString()) {
+            "Saved anoncred revocation metadata in hyperledger_identus.db CredentialMetadata: $metadataJson"
+        }
+    }
+
+    private fun removeCredentialRevocationMetadata(credentialId: String) {
+        sdk.deleteCredentialMetadata(credentialRevocationMetadataId(credentialId))
+    }
+
+    private fun credentialRevocationMetadataId(credentialId: String): String {
+        return "anoncred-revocation:${UUID.nameUUIDFromBytes(credentialId.toByteArray())}"
     }
 
     override suspend fun toSdkCredential(credential: Credential): SdkCredential =
@@ -1026,5 +1145,17 @@ class IdentusAnonCredentialManager(
             filter.optString("pattern").takeIf { it.isNotBlank() }?.let { "pattern: $it" },
             filter.optString("const").takeIf { it.isNotBlank() }?.let { "const: $it" },
         ).joinToString(", ").takeIf { it.isNotBlank() }
+    }
+
+    private companion object {
+        const val ANONCREDS_CREDENTIAL_FORMAT = "anoncreds/credential@v1.0"
+        const val ANONCREDS_REVOCATION_FORMAT = "anoncreds/credential-revocation@v1.0"
+        const val REVOCATION_METADATA_LINK_SECRET_NAME = "anoncred-revocation-metadata"
+        val ISSUED_CREDENTIAL_FORMATS = setOf(
+            CredentialType.JWT.type,
+            CredentialType.ANONCREDS_ISSUE.type,
+            CredentialType.SDJWT.type,
+            ANONCREDS_CREDENTIAL_FORMAT,
+        )
     }
 }
