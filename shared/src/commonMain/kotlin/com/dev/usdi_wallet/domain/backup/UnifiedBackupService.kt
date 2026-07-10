@@ -1,6 +1,8 @@
 package com.dev.usdi_wallet.domain.backup
 
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 
@@ -11,8 +13,20 @@ class UnifiedBackupService private constructor(
 
     suspend fun exportEncrypted(passphrase: String): String {
         val backup = exportAll()
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Backing up wallet: $backup"
+        }
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "encoding backup object to json..."
+        }
         val json = Json.encodeToString(backup)
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "backup json: $json"
+        }
         val key = backupCrypto.deriveKey(passphrase)
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Backup key: ${key.contentToString()}"
+        }
         return backupCrypto.encrypt(json, key)
     }
 
@@ -94,6 +108,7 @@ class UnifiedBackupService private constructor(
     }
 }
 
+@Serializable
 data class UnifiedBackup(
     val createdAt: Long,
     val recoverable: Map<String, String>,

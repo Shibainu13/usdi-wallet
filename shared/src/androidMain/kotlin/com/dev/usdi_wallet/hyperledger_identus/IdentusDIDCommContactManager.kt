@@ -14,6 +14,7 @@ import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.ProtocolType
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.ConnectionlessCredentialOffer
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.ConnectionlessRequestPresentation
+import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.InvitationType
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.OutOfBandInvitation
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.PrismOnboardingInvitation
 import org.json.JSONArray
@@ -42,7 +43,6 @@ class IdentusDIDCommContactManager(
             Logger.d(IdentusDIDCommContactManager::class.toString()) {
                 "Parsing invitation"
             }
-
             handleParsedInvitation(sdk.agent.parseInvitation(invitation))
 
             Logger.d(IdentusDIDCommContactManager::class.toString()) {
@@ -50,7 +50,7 @@ class IdentusDIDCommContactManager(
             }
         } catch (e: Exception) {
             Logger.w(IdentusDIDCommContactManager::class.toString()) {
-                "SDK parser failed (${e.message}), trying normalized OOB parser"
+                "SDK parser failed ($e), trying normalized OOB parser"
             }
 
             parseConnectionlessPresentationInvitation(invitation)?.let { message ->
@@ -65,7 +65,7 @@ class IdentusDIDCommContactManager(
             val normalizedInvitation = normalizedOobInvitation(invitation)
             if (normalizedInvitation == null) {
                 Logger.e(IdentusDIDCommContactManager::class.toString()) {
-                    "Error while parsing invitation $invitation: ${e.message}"
+                    "Error while parsing normalized invitation $invitation: $e"
                 }
                 throw e
             }
@@ -195,27 +195,43 @@ class IdentusDIDCommContactManager(
             else -> ""
         }
 
-    private suspend fun handleParsedInvitation(invitation: org.hyperledger.identus.walletsdk.edgeagent.protocols.outOfBand.InvitationType) {
+    private suspend fun handleParsedInvitation(invitation: InvitationType) {
+        Logger.d(IdentusDIDCommContactManager::class.toString()) {
+            "handleParsedInvitation: $invitation"
+        }
+
         when (invitation) {
-                is OutOfBandInvitation -> {
-                    sdk.agent.acceptOutOfBandInvitation(invitation)
+            is OutOfBandInvitation -> {
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Received out of band invitation: $invitation"
                 }
+                sdk.agent.acceptOutOfBandInvitation(invitation)
+            }
 
-                is PrismOnboardingInvitation -> {
-                    sdk.agent.acceptInvitation(invitation)
+            is PrismOnboardingInvitation -> {
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Received prism onboarding invitation: $invitation"
                 }
+                sdk.agent.acceptInvitation(invitation)
+            }
 
-                is ConnectionlessCredentialOffer -> {
-                    val message = invitation.offerCredential.makeMessage()
-                    sdk.agent.pluto.storeMessage(message)
-                    onCredentialOffer(message)
+            is ConnectionlessCredentialOffer -> {
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Received connectionless credential offer: $invitation"
                 }
+                val message = invitation.offerCredential.makeMessage()
+                sdk.agent.pluto.storeMessage(message)
+                onCredentialOffer(message)
+            }
 
-                is ConnectionlessRequestPresentation -> {
-                    val message = invitation.requestPresentation.makeMessage()
-                    sdk.agent.pluto.storeMessage(message)
-                    onPresentationRequest(message)
+            is ConnectionlessRequestPresentation -> {
+                Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                    "Received connectionless presentation request invitation: $invitation"
                 }
+                val message = invitation.requestPresentation.makeMessage()
+                sdk.agent.pluto.storeMessage(message)
+                onPresentationRequest(message)
+            }
         }
     }
 

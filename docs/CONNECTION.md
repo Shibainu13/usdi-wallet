@@ -72,12 +72,10 @@ This demo focuses on setting up DIDComm v2 using the SDKs provided by Hyperledge
     
       identus-mediator:
         environment:
-          ...
           # Original
           # - SERVICE_ENDPOINTS=${SERVICE_ENDPOINTS:-http://localhost:8080;ws://localhost:8080/ws}
           # This demo uses an Pixel 8 Emulator, thus in order for it to "see" the mediator endpoints hosted on the same machine, we replace `localhost` with `10.0.2.2`
           - SERVICE_ENDPOINTS=${SERVICE_ENDPOINTS:-http://<your-host-ip>:8080;ws://<your-host-ip>:8080/ws}
-          ...
     ```
 
     then run docker compose:
@@ -255,25 +253,22 @@ Then use that guid here(in 4 for Anon):
 7. Now everything is set! We can issue a simple certificate:
 Replace `guid` in schemaId in step 3 and `credentialDefinitionId` in step 4with the guids we got in the previous steps.
     ```shell
-    $ curl --location 'http://192.168.1.9:8085/issue-credentials/credential-offers' \
-   --header 'Content-Type: application/json' \
-   --data '{
+   $ curl --location 'http://13.90.44.25:8085/issue-credentials/credential-offers/' --header 'Content-Type: application/json' --data '{
    "validityPeriod": 3600,
    "credentialFormat": "AnonCreds",
    "claims": {
    "location":"Gia Rai thi duoc",
    "birthday":"10-02-2014"
-   
    },
-   "schemaId": "http://<your_ip>:8085/schema-registry/schemas/{guid}/schema",
-   "credentialDefinitionId": "fd451564-b504-32bd-b1ee-4c1b768c0578",
+   "schemaId": "http://13.90.44.25:8085/schema-registry/schemas/f863340a-856f-3aba-9fcf-ec2ae0b4cb91/schema",
+   "credentialDefinitionId": "28293e97-502c-382e-a645-ce12a716f24a",
    "automaticIssuance": true,
-   "connectionId": "006eee64-3e1b-4f1a-a278-3cbb2c49e339",
-   "issuingDID": "did:prism:74a7f86be72e499e97c4e12bde6adaf636188a81ba9f3d6c365a652a372380b6",
+   "issuingDID": "did:prism:7cf2ad2e295b6fe500e68ccdc2714db4cf49729c093a8ef73ab942e8946b1a8d",
    "goalCode": "issue-vc",
    "goal": "test-wallet",
-   "domain": "birthday"
-   }'
+   "domain": "birthday",
+   ##"connectionId":"83e26fda-8a8a-42d4-8066-d3361f540a1e"
+   }
     ```
     ```shell
    $ curl --location 'http://13.90.44.25:8085/present-proof/presentations' \

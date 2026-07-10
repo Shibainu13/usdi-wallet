@@ -95,7 +95,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            backupError = "Failed to create backup: ${it.backupError}"
+                            backupError = "Failed to create backup: $it"
                         )
                     }
                     return@launch

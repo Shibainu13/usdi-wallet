@@ -30,11 +30,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -81,6 +85,8 @@ fun QrScannerScreen(
     var hasScanned by remember { mutableStateOf(false) }
     var isProcessingGallery by remember { mutableStateOf(false) }
     var galleryError by remember { mutableStateOf<String?>(null) }
+    var showManualInput by remember { mutableStateOf(false) }
+    var manualInput by remember { mutableStateOf("") }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -253,20 +259,65 @@ fun QrScannerScreen(
                 }
             }
 
-            // Upload from gallery button
-            TextButton(
-                onClick = { galleryLauncher.launch("image/*") },
-                enabled = !isProcessingGallery,
-            ) {
-                Icon(
-                    Icons.Default.Photo,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
+            if (showManualInput) {
+                OutlinedTextField(
+                    value = manualInput,
+                    onValueChange = { manualInput = it },
+                    label = { Text("Paste invitation URL", color = Color.White) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = WalletColors.Primary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                    ),
+                    singleLine = false,
+                    maxLines = 4,
+                    trailingIcon = {
+                        if (manualInput.isNotBlank()) {
+                            IconButton(onClick = {
+                                hasScanned = true
+                                onResult(manualInput.trim())
+                            }) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Submit",
+                                    tint = WalletColors.Primary,
+                                )
+                            }
+                        }
+                    }
                 )
-                Spacer(modifier = Modifier.size(6.dp))
-                Text("Upload from gallery", color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                TextButton(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    enabled = !isProcessingGallery,
+                ) {
+                    Icon(Icons.Default.Photo, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text("Gallery", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                }
+
+                // Temporary testing button
+                TextButton(onClick = { showManualInput = !showManualInput }) {
+                    Icon(
+                        if (showManualInput) Icons.Default.QrCode else Icons.Default.Edit,
+                        null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        if (showManualInput) "Scan instead" else "Paste URL",
+                        color = Color.White.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
         }
     }
