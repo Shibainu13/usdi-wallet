@@ -8,6 +8,8 @@ import kotlin.time.Clock
 
 class UnifiedBackupService private constructor(
     private val protocols: List<Protocol<*, *>>,
+    private val onPreRestored: suspend () -> Unit = {},
+    private val onRestoreCompleted: suspend () -> Unit = {},
 ) {
     private val backupCrypto = BackupCrypto()
 
@@ -27,7 +29,11 @@ class UnifiedBackupService private constructor(
         Logger.d(UnifiedBackupService::class.toString()) {
             "Backup key: ${key.contentToString()}"
         }
-        return backupCrypto.encrypt(json, key)
+        val encrypted = backupCrypto.encrypt(json, key)
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Encrypted: $encrypted"
+        }
+        return encrypted
     }
 
     private suspend fun exportAll(): UnifiedBackup {
@@ -56,7 +62,13 @@ class UnifiedBackupService private constructor(
     }
 
     suspend fun restoreEncrypted(encrypted: String, passphrase: String): RestoreResult {
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Restoring backup file"
+        }
         val key = backupCrypto.deriveKey(passphrase)
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Key: ${key.contentToString()}"
+        }
         val json = backupCrypto.decrypt(encrypted, key)
             ?: return RestoreResult(
                 succeeded = emptyList(),
@@ -64,6 +76,9 @@ class UnifiedBackupService private constructor(
                 skipped = emptyList(),
                 error = "Invalid passphrase or corrupted backup",
             )
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Back up json: $json"
+        }
         val backup = runCatching { Json.decodeFromString<UnifiedBackup>(json) }.getOrNull()
             ?: return RestoreResult(
                 succeeded = emptyList(),
@@ -71,10 +86,28 @@ class UnifiedBackupService private constructor(
                 skipped = emptyList(),
                 error = "Backup file is corrupted",
             )
-        return restoreAll(backup)
+        Logger.d(UnifiedBackupService::class.toString()) {
+            "Back up: $backup"
+        }
+        val result = restoreAll(backup)
+
+        if (result.error == null && result.failed.isEmpty()) {
+            runCatching { onRestoreCompleted() }.onFailure { e ->
+                Logger.w(UnifiedBackupService::class.toString()) {
+                    "onRestoreCompleted hook failed: $e"
+                }
+            }
+        }
+
+        return result
     }
 
     private suspend fun restoreAll(backup: UnifiedBackup): RestoreResult {
+        runCatching { onPreRestored() }.onFailure { e ->
+            Logger.w(UnifiedBackupService::class.toString()) {
+                "Pre-restore hook failed: $e"
+            }
+        }
         val succeeded = mutableListOf<String>()
         val failed = mutableListOf<String>()
         val skipped = backup.nonRecoverable.toMutableList()
@@ -100,8 +133,12 @@ class UnifiedBackupService private constructor(
     companion object {
         private var _instance: UnifiedBackupService? = null
 
-        fun getInstance(protocols: List<Protocol<*, *>>): UnifiedBackupService =
-            _instance ?: UnifiedBackupService(protocols).also { _instance = it }
+        fun getInstance(
+            protocols: List<Protocol<*, *>>,
+            onPreRestored: suspend () -> Unit = {},
+            onRestoreCompleted: suspend () -> Unit = {},
+        ): UnifiedBackupService =
+            _instance ?: UnifiedBackupService(protocols, onPreRestored, onRestoreCompleted).also { _instance = it }
 
         fun getInstance(): UnifiedBackupService =
             _instance ?: error("UnifiedBackupService not initialized — call getInstance(protocols) first")

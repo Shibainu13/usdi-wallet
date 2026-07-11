@@ -14,14 +14,17 @@ import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.preferences.AndroidWalletPreferences
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class WalletTab(
     val title: String,
@@ -68,21 +71,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnboardingComplete
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val areAgentsRunning: StateFlow<Boolean> =
-        combine(protocols.map { it.connectionManager.state }) { states ->
-            states.all { it == ConnectionState.RUNNING }
-        }.stateIn(
+    val areAgentsRunning: StateFlow<Boolean> = combine(
+        protocols.map { it.connectionManager.state }
+    ) { states ->
+        states.all { it == ConnectionState.RUNNING }
+    }
+        .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = false,
         )
+
+    // Separate timeout flow that forces isReady after 5 seconds regardless
+    val isReady: StateFlow<Boolean> = combine(
+        areAgentsRunning,
+        flow {
+            emit(false)
+            delay(5_000.milliseconds)
+            emit(true) // force ready after timeout
+        }
+    ) { agentsRunning, timedOut ->
+        agentsRunning || timedOut
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
+    )
 
     init {
         startAgents()
         observeProofRequests()
         observeRevokedCredentials()
         viewModelScope.launch {
-            areAgentsRunning.collect { running ->
+            isReady.collect { running ->
                 if (!running) {
                     Logger.w(MainViewModel::class.toString()) {
                         "At least one of the protocols is not running"

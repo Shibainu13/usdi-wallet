@@ -119,7 +119,7 @@ class HyperledgerIdentusSdk private constructor() {
                     ?: throw IllegalStateException("Context required")
 
                 val driver = AndroidSqliteDriver(
-                    schema = SdkPlutoDb.Companion.Schema,
+                    schema = SdkPlutoDb.Schema,
                     context = androidContext,
                     name = "hyperledger_identus.db"
                 )

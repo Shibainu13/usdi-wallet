@@ -78,7 +78,7 @@ class IdentusAnonProtocol(
                     credentialManager.enqueuePresentationRequest(message)
                 },
             )
-            val walletBackupManager = IdentusBackupManager()
+            val walletBackupManager = IdentusBackupManager(application)
 
             return register(
                 IdentusAnonProtocol(

@@ -85,21 +85,27 @@ private fun SettingsMainScreen(
     ) {
         ScreenHeader(title = "Settings")
 
-        SectionLabel(text = "Backup & Restore", modifier = Modifier.padding(horizontal = 20.dp))
+//        SectionLabel(text = "Backup & Restore", modifier = Modifier.padding(horizontal = 20.dp))
+        SectionLabel(text = "Backup", modifier = Modifier.padding(horizontal = 20.dp))
         WalletCard(modifier = Modifier.padding(horizontal = 20.dp)) {
-            Column {
-                SettingsRow(
-                    title = "Back up wallet",
-                    subtitle = "Export encrypted backup file",
-                    onClick = onBackupClick,
-                )
-                WalletDivider()
-                SettingsRow(
-                    title = "Restore wallet",
-                    subtitle = "Import from backup file",
-                    onClick = onRestoreClick,
-                )
-            }
+//            Column {
+//                SettingsRow(
+//                    title = "Back up wallet",
+//                    subtitle = "Export encrypted backup file",
+//                    onClick = onBackupClick,
+//                )
+//                WalletDivider()
+//                SettingsRow(
+//                    title = "Restore wallet",
+//                    subtitle = "Import from backup file",
+//                    onClick = onRestoreClick,
+//                )
+//            }
+            SettingsRow(
+                title = "Back up wallet",
+                subtitle = "Export encrypted backup file",
+                onClick = onBackupClick,
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

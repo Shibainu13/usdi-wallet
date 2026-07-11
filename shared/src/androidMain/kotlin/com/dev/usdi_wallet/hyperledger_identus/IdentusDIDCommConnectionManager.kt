@@ -35,7 +35,13 @@ class IdentusDIDCommConnectionManager(
     }
 
     override suspend fun start() {
-        sdk.startAgent(IdentusDIDCommConfig.MEDIATOR_DID, context)
+        try {
+            sdk.startAgent(IdentusDIDCommConfig.MEDIATOR_DID, context)
+        } catch (e: Exception) {
+            Logger.e(IdentusDIDCommConnectionManager::class.toString()) {
+                "Message handling error: $e"
+            }
+        }
     }
 
     override suspend fun stop() {

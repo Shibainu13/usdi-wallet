@@ -42,6 +42,9 @@ kotlin {
             implementation(libs.androidx.compose.material.icons.extended)
 
             implementation(libs.zxing.core)
+
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.identus.sdk)
         }
         commonMain.dependencies {
             implementation(libs.jetbrains.compose.runtime)

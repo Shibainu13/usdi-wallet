@@ -24,6 +24,7 @@ class LockViewModel(
     val state = _state.asStateFlow()
 
     fun authenticate() {
+        if (_state.value == LockState.Authenticating || _state.value == LockState.Authenticated) return
         viewModelScope.launch {
             _state.value = LockState.Authenticating
             val success = walletAuthManager.requestAuth()
