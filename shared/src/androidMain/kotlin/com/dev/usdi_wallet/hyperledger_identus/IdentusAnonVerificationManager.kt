@@ -68,8 +68,9 @@ class IdentusAnonVerificationManager(
         val predicates = requestedFields
             .filter { it.predicateOperator != null }
             .mapNotNull { field ->
-                val value = field.predicateOperator?.toString()?.toIntOrNull() ?: return@mapNotNull null
-                Predicate(name = field.field.name, operator = field.predicateOperator, value = value)
+                val operator = field.predicateOperator ?: return@mapNotNull null
+                val value = field.predicateValue?.trim()?.toIntOrNull() ?: return@mapNotNull null
+                Predicate(name = field.field.name, operator = operator, value = value)
             }
 
         val response = client.sendAnonCredProofRequest(

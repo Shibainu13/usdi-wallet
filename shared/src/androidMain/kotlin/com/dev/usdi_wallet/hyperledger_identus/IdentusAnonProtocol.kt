@@ -67,7 +67,7 @@ class IdentusAnonProtocol(
             val connectionManager = IdentusDIDCommConnectionManager(application)
             val credentialManager = IdentusAnonCredentialManager(scope, application)
             val verificationManager = IdentusAnonVerificationManager(
-                baseUrl = "http://13.90.44.25:8085",
+                baseUrl = "http://192.168.1.6:8085",
                 apiKey = null,
             )
             val contactManager = IdentusDIDCommContactManager(

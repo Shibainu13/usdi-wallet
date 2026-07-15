@@ -479,7 +479,23 @@ class IdentusAnonCredentialManager(
             ),
         )
     }
+    private fun logLongDebug(message: String) {
+        val tag = IdentusAnonCredentialManager::class.toString()
+        if (message.isEmpty()) {
+            Logger.d(tag) { message }
+            return
+        }
 
+        message.lineSequence().forEach { line ->
+            if (line.isEmpty()) {
+                Logger.d(tag) { line }
+            } else {
+                line.chunked(LOG_CHUNK_SIZE).forEach { chunk ->
+                    Logger.d(tag) { chunk }
+                }
+            }
+        }
+    }
     override suspend fun preparePresentationProof(
         credential: SdkCredential,
         message: SdkMessage,
@@ -490,9 +506,7 @@ class IdentusAnonCredentialManager(
         }
         if (credential is ProvableCredential) {
             try {
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Creating proof presentation for request ${message.id} with credential ${credential.id}"
-                }
+                logLongDebug("Creating proof presentation for request ${message.id} with credential ${credential.id}")
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "Preparing presentation for proof request"
                 }
@@ -903,16 +917,17 @@ class IdentusAnonCredentialManager(
         credential: SdkCredential,
         criteria: ProofRequestCriteria,
     ): Boolean {
-        val claims = toUiCredential(credential).claims
-        val claimNames = claims.mapTo(mutableSetOf()) { it.name }
-        val predicateNames = criteria.predicates.mapTo(mutableSetOf()) { it.name }
+        val claims = extractClaimsFromAnonCredential(credential)
+        val claimNames = claims.mapTo(mutableSetOf()) { normalizeClaimName(it.name) }
+        val predicateNames = criteria.predicates.mapTo(mutableSetOf()) { normalizeClaimName(it.name) }
+        val attributeNames = criteria.attributes.mapTo(mutableSetOf()) { normalizeClaimName(it) }
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Mapping requested claims"
         }
 
-        val claimNamesHasAllPredicates=claimNames.containsAll(predicateNames);
-        val claimNamesHasAllAttributes=claimNames.containsAll(criteria.attributes);
-        val credentialSatifiesRequestedFromPredicate = credentialSatisfiesRequestedPredicates(claims, criteria.predicates);
+        val claimNamesHasAllPredicates = claimNames.containsAll(predicateNames)
+        val claimNamesHasAllAttributes = claimNames.containsAll(attributeNames)
+        val credentialSatisfiesRequestedFromPredicate = credentialSatisfiesRequestedPredicates(claims, criteria.predicates)
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "claimNamesHasAllPredicates=$claimNamesHasAllPredicates"
         }
@@ -920,12 +935,12 @@ class IdentusAnonCredentialManager(
             "claimNamesHasAllAttributes=$claimNamesHasAllAttributes"
         }
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "credentialSatisfiesRequestedPredicates=$credentialSatifiesRequestedFromPredicate"
+            "credentialSatisfiesRequestedPredicates=$credentialSatisfiesRequestedFromPredicate"
         }
 
-        return  claimNamesHasAllPredicates &&
-                claimNamesHasAllAttributes &&
-                credentialSatifiesRequestedFromPredicate
+        return claimNamesHasAllPredicates &&
+            claimNamesHasAllAttributes &&
+            credentialSatisfiesRequestedFromPredicate
     }
 
     private fun anoncredRequestedAttributes(requestedAttributes: JSONObject?): Set<String> {
@@ -953,9 +968,10 @@ class IdentusAnonCredentialManager(
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Predicate list: $predicates"
         }
-        val claimsByName = claims.associateBy { it.name }
+        val claimsByName = claims.associateBy { normalizeClaimName(it.name) }
         return predicates.all { predicate ->
-            val claimValue = claimsByName[predicate.name]?.value?.toPredicateLong() ?: return@all false
+            val claimValue = claimsByName[normalizeClaimName(predicate.name)]?.value?.toPredicateLong()
+                ?: return@all false
             when (predicate.operator) {
                 ">" -> claimValue > predicate.value
                 ">=" -> claimValue >= predicate.value
@@ -965,6 +981,8 @@ class IdentusAnonCredentialManager(
             }
         }
     }
+
+    private fun normalizeClaimName(name: String): String = name.trim()
 
     private fun Any.toPredicateLong(): Long? {
         return when (this) {
@@ -1151,6 +1169,7 @@ class IdentusAnonCredentialManager(
         const val ANONCREDS_CREDENTIAL_FORMAT = "anoncreds/credential@v1.0"
         const val ANONCREDS_REVOCATION_FORMAT = "anoncreds/credential-revocation@v1.0"
         const val REVOCATION_METADATA_LINK_SECRET_NAME = "anoncred-revocation-metadata"
+        const val LOG_CHUNK_SIZE = 3_500
         val ISSUED_CREDENTIAL_FORMATS = setOf(
             CredentialType.JWT.type,
             CredentialType.ANONCREDS_ISSUE.type,
