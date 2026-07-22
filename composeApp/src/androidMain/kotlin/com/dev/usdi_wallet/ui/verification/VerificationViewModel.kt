@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.domain.verification.RequestedField
@@ -163,7 +164,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                 }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = "Failed to start verification: ${e.message}"
+                    error = ErrorHandler.handleError("Failed to start verification", e)
                 )
             }
         }

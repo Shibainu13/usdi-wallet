@@ -17,11 +17,14 @@ import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -94,7 +97,11 @@ class IdentusAnonCredentialManager(
         }
     }
 
-    override fun getCredentials(): Flow<List<SdkCredential>> = sdk.agent.getAllCredentials()
+    override fun getCredentials(): Flow<List<SdkCredential>> = flow {
+        emit(emptyList())
+        awaitAgent()
+        emitAll(sdk.agent.getAllCredentials())
+    }
 
     override fun getProofRequestsToProcess(): Flow<List<SdkMessage>> = _proofRequestToProcess.asStateFlow()
 
@@ -280,7 +287,7 @@ class IdentusAnonCredentialManager(
 
     override suspend fun handleInbound(
         message: SdkMessage,
-        connectionManager: ConnectionManager<SdkMessage>?,
+        _connectionManager: ConnectionManager<SdkMessage>?,
     ) {
         initCompleted.await()
 
@@ -290,13 +297,7 @@ class IdentusAnonCredentialManager(
 
         when (message.piuri) {
             ProtocolType.DidcommOfferCredential.value -> {
-                if (connectionManager == null) {
-                    Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                        "Cannot process credential offer ${message.id}: missing connection manager"
-                    }
-                    return
-                }
-                handleOfferCredential(message, connectionManager)
+                handleOfferCredential(message)
             }
             ProtocolType.DidcommIssueCredential.value
                 -> handleIssueCredential(message)
@@ -307,14 +308,11 @@ class IdentusAnonCredentialManager(
         }
     }
 
-    private suspend fun handleOfferCredential(
-        message: SdkMessage,
-        connectionManager: ConnectionManager<SdkMessage>,
-    ) {
+    private suspend fun handleOfferCredential(message: SdkMessage) {
         try {
-            Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "Received credential offer: $message"
-            }
+            logLongDebug("Received credential offer: $message")
+
+
             val offer = OfferCredential.fromMessage(message)
             val index = sdk.agent.pluto.getPrismLastKeyPathIndex().first() + 1
             val authenticationKey = Secp256k1KeyPair.generateKeyPair(
@@ -325,9 +323,15 @@ class IdentusAnonCredentialManager(
                 keys = listOf(Pair(KeyPurpose.AUTHENTICATION, authenticationKey.privateKey))
             )
             val request = sdk.agent.prepareRequestCredentialWithIssuer(subjectDID, offer)
-            connectionManager.sendMessage(request.makeMessage())
+            if (!sdk.canUseMediator()) {
+                Logger.w(IdentusAnonCredentialManager::class.toString()) {
+                    "Credential request for offer ${message.id} was not sent because the DIDComm mediator is unavailable"
+                }
+                return
+            }
+            val response = sdk.sendMessage(request.makeMessage()) ?: return
             Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "Credential request sent: $request"
+                "Credential request sent: $request response=$response"
             }
 
             db.messageReadStatusDao().insertMessage(
@@ -345,9 +349,7 @@ class IdentusAnonCredentialManager(
 
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
-            Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "Received issue offer: $message"
-            }
+            logLongDebug(    "Received issue offer: $message")
             val issueCredential = IssueCredential.fromMessage(message)
             Logger.i(IdentusAnonCredentialManager::class.toString()) {
                 "issue-credential/3.0 attachment formats: " +
@@ -367,9 +369,7 @@ class IdentusAnonCredentialManager(
                         "rev_reg_index=${metadata.revocationRegistryIndex}"
                 }
             }
-            Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                "Credential received: $credential"
-            }
+            logLongDebug("Credential received $credential")
 
             db.messageReadStatusDao().insertMessage(
                 MessageReadStatus(
@@ -388,9 +388,7 @@ class IdentusAnonCredentialManager(
         if (_proofRequestToProcess.value.none { it.id == message.id }) {
             _proofRequestToProcess.value = _proofRequestToProcess.value.plus(message)
         }
-        Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "Presentation request received: $message"
-        }
+        logLongDebug("Presentation request received: $message")
 
         db.pendingProofRequestDao().insertPending(
             PendingProofRequest(
@@ -534,9 +532,9 @@ class IdentusAnonCredentialManager(
                      """.trimIndent()
                 }
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Message sent to server: $outMessage"
+                    "Sending proof presentation: $outMessage"
                 }
-                val response = sdk.agent.sendMessage(outMessage)
+                val response = sdk.sendMessage(outMessage) ?: return
 
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "sendMessage response=$response"
@@ -563,6 +561,7 @@ class IdentusAnonCredentialManager(
     }
 
     override suspend fun getRevokedCredential(): StateFlow<List<SdkCredential>> {
+        awaitAgent()
         sdk.agent.observeRevokedCredentials().collect { list ->
             val newRevokedCredentials = list.filter { newCredential ->
                 revokedCredentials.value.none { notifiedCredentials ->
@@ -577,6 +576,12 @@ class IdentusAnonCredentialManager(
             }
         }
         return revokedCredentials.asStateFlow()
+    }
+
+    private suspend fun awaitAgent() {
+        while (!sdk.isAgentInitialized()) {
+            delay(100)
+        }
     }
 
     override fun toUiCredential(sdkCredential: SdkCredential): Credential {
@@ -1177,4 +1182,6 @@ class IdentusAnonCredentialManager(
             ANONCREDS_CREDENTIAL_FORMAT,
         )
     }
+
+
 }

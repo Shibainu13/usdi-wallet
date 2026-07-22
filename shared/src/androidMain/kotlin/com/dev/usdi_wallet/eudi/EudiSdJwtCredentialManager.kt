@@ -25,9 +25,11 @@ import eu.europa.ec.eudi.wallet.issue.openid4vci.Offer
 import eu.europa.ec.eudi.wallet.issue.openid4vci.OfferResult
 import eu.europa.ec.eudi.wallet.transfer.openId4vp.SdJwtVcItem
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.multipaz.crypto.Algorithm
@@ -39,7 +41,7 @@ class EudiSdJwtCredentialManager(
 
     private val sdk = EudiSdk.getInstance()
     private val _proofRequestToProcess = MutableStateFlow<List<EudiMessage>>(emptyList())
-    private val _documents by lazy { MutableStateFlow(sdk.wallet.getDocuments { it is IssuedDocument }) }
+    private val _documents = MutableStateFlow<List<Document>>(emptyList())
 
     override suspend fun handleInbound(message: EudiMessage, connectionManager: ConnectionManager<EudiMessage>?) {
         when(message) {
@@ -204,7 +206,12 @@ class EudiSdJwtCredentialManager(
         }
     }
 
-    override fun getCredentials(): Flow<List<Document>> = _documents.asStateFlow()
+    override fun getCredentials(): Flow<List<Document>> = flow {
+        emit(emptyList())
+        awaitWallet()
+        _documents.value = sdk.wallet.getDocuments { it is IssuedDocument }
+        emitAll(_documents.asStateFlow())
+    }
 
     override fun getProofRequestsToProcess(): Flow<List<EudiMessage>> = _proofRequestToProcess.asStateFlow()
     override fun getVerificationResults(): Flow<List<VerificationResult>> = flow { emit(emptyList()) }
@@ -281,4 +288,10 @@ class EudiSdJwtCredentialManager(
 
     override suspend fun toSdkCredential(credential: Credential): Document =
         sdk.wallet.getDocumentById(credential.id)!!
+
+    private suspend fun awaitWallet() {
+        while (!sdk.isStarted()) {
+            delay(100)
+        }
+    }
 }

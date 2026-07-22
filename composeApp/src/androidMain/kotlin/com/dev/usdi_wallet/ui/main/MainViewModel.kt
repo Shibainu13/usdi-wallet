@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -50,6 +51,7 @@ data class RevokedCredentialAlert(
 
 data class MainUiState(
     val isReady: Boolean = false,
+    val serviceNotice: String? = null,
     val pendingProofRequests: List<PendingProofRequest> = emptyList(),
     val revokedCredentialAlerts: List<RevokedCredentialAlert> = emptyList(),
 )
@@ -63,14 +65,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+    private val startupTimedOut = MutableStateFlow(false)
 
     private val preferences = AndroidWalletPreferences.getInstance(application)
     val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnboardingComplete
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val areAgentsRunning: StateFlow<Boolean> =
+    private val protocolConnectionStates: StateFlow<List<ConnectionState>> =
         combine(protocols.map { it.connectionManager.state }) { states ->
-            states.all { it == ConnectionState.RUNNING }
+            states.toList()
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = List(protocols.size) { ConnectionState.IDLE },
+        )
+
+    val areAgentsRunning: StateFlow<Boolean> =
+        combine(protocolConnectionStates, startupTimedOut) { states, timedOut ->
+            states.isStartupSettled() || timedOut
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -82,13 +94,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         observeProofRequests()
         observeRevokedCredentials()
         viewModelScope.launch {
-            areAgentsRunning.collect { running ->
-                if (!running) {
+            kotlinx.coroutines.delay(STARTUP_NOTICE_TIMEOUT_MS)
+            startupTimedOut.value = true
+        }
+        viewModelScope.launch {
+            combine(protocolConnectionStates, startupTimedOut) { states, timedOut ->
+                val isReady = states.isStartupSettled() || timedOut
+                val notice = when {
+                    states.any { it == ConnectionState.ERROR } ->
+                        "Some wallet services are offline. Local data is still available."
+                    timedOut && !states.isStartupSettled() ->
+                        "Server is not responding. You can keep using the wallet."
+                    !isReady ->
+                        "Connecting to wallet services..."
+                    else -> null
+                }
+                isReady to notice
+            }.collect { (isReady, notice) ->
+                if (!isReady) {
                     Logger.w(MainViewModel::class.toString()) {
-                        "At least one of the protocols is not running"
+                        "Wallet protocols are still starting"
                     }
                 }
-                _uiState.update { it.copy(isReady = running) }
+                _uiState.update { it.copy(isReady = isReady, serviceNotice = notice) }
             }
         }
     }
@@ -109,7 +137,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startAgents() {
         viewModelScope.launch {
             protocols.forEach { protocol ->
-                launch { protocol.startConnection() }
+                launch {
+                    runCatching { protocol.startConnection() }
+                        .onFailure { error ->
+                            Logger.w(MainViewModel::class.toString()) {
+                                "${protocol.protocolId} startup failed: ${error.message}"
+                            }
+                        }
+                }
             }
         }
     }
@@ -120,10 +155,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun <C, M> observeProtocolProofRequests(protocol: Protocol<C, M>) {
         viewModelScope.launch {
-            protocol.credentialManager.getProofRequestsToProcess().collect { requests ->
+            protocol.credentialManager.getProofRequestsToProcess()
+                .catch { error ->
+                    Logger.w(MainViewModel::class.toString()) {
+                        "${protocol.protocolId} proof request stream failed: ${error.message}"
+                    }
+                    emit(emptyList())
+                }
+                .collect { requests ->
                 requests.forEachIndexed { index, request ->
-                    val credentials = protocol.credentialManager.findMatchingCredentials(request).map {
-                        protocol.credentialManager.toUiCredential(it)
+                    val credentials = runCatching {
+                        protocol.credentialManager.findMatchingCredentials(request).map {
+                            protocol.credentialManager.toUiCredential(it)
+                        }
+                    }.getOrElse { error ->
+                        Logger.w(MainViewModel::class.toString()) {
+                            "Failed to find matching credentials for ${protocol.protocolId}: ${error.message}"
+                        }
+                        emptyList()
                     }
                     val details = runCatching {
                         protocol.credentialManager.getProofRequestDetails(request)
@@ -183,7 +232,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun <C, M> observeProtocolRevokedCredentials(protocol: Protocol<C, M>) {
         viewModelScope.launch {
-            protocol.credentialManager.getRevokedCredential().collect { credentials ->
+            val revokedCredentials = runCatching {
+                protocol.credentialManager.getRevokedCredential()
+            }.getOrElse { error ->
+                Logger.w(MainViewModel::class.toString()) {
+                    "${protocol.protocolId} revoked credential stream unavailable: ${error.message}"
+                }
+                return@launch
+            }
+
+            revokedCredentials.catch { error ->
+                Logger.w(MainViewModel::class.toString()) {
+                    "${protocol.protocolId} revoked credential stream failed: ${error.message}"
+                }
+                emit(emptyList())
+            }.collect { credentials ->
                 val revokedCredentialAlerts = credentials.map { credential ->
                     val uiCredential = protocol.credentialManager.toUiCredential(credential)
 
@@ -218,5 +281,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeRevokedCredentials() {
         protocols.forEach { protocol -> observeProtocolRevokedCredentials(protocol) }
+    }
+
+    private fun List<ConnectionState>.isStartupSettled(): Boolean =
+        isNotEmpty() && all { state ->
+            state == ConnectionState.RUNNING ||
+                state == ConnectionState.ERROR ||
+                state == ConnectionState.STOPPED
+        }
+
+    private companion object {
+        const val STARTUP_NOTICE_TIMEOUT_MS = 5_000L
     }
 }

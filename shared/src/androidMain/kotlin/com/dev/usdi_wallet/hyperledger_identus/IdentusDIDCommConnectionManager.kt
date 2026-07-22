@@ -5,6 +5,7 @@ import androidx.lifecycle.asFlow
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.connection.ConnectionState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.hyperledger.identus.walletsdk.edgeagent.EdgeAgent
@@ -18,18 +19,34 @@ class IdentusDIDCommConnectionManager(
         sdk.agentStatusStream().asFlow().map { it.toConnectionState() }
 
     override suspend fun sendMessage(message: SdkMessage) {
-        sdk.agent.sendMessage(message)
+        sdk.sendMessage(message)
     }
 
     override suspend fun receiveMessage(msgHandler: suspend (message: SdkMessage) -> Unit) {
-        sdk.agent.let {
-            it.handleReceivedMessagesEvents().collect { list ->
-                list.forEach { msg ->
-                    Logger.d(IdentusDIDCommConnectionManager::class.toString()) {
-                        "Received message $msg"
+        if (!sdk.canReceiveMessages()) {
+            Logger.w(IdentusDIDCommConnectionManager::class.toString()) {
+                "DIDComm message receiving skipped because mediator is unavailable"
+            }
+            return
+        }
+
+        try {
+            sdk.agent.let {
+                it.handleReceivedMessagesEvents().collect { list ->
+                    list.forEach { msg ->
+                        Logger.d(IdentusDIDCommConnectionManager::class.toString()) {
+                            "Received message $msg"
+                        }
+                        msgHandler(msg)
                     }
-                    msgHandler(msg)
                 }
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            sdk.disableMediatorForSession()
+            Logger.w(IdentusDIDCommConnectionManager::class.toString()) {
+                "DIDComm message receiving failed: ${error.message}. Mediator calls are disabled for this session."
             }
         }
     }

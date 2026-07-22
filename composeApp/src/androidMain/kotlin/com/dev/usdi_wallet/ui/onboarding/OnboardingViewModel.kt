@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.domain.backup.UnifiedBackupService
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -68,7 +69,13 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                     .openInputStream(fileUri)
                     ?.bufferedReader()
                     ?.readText()
-            }.getOrNull()
+            }.getOrElse { error ->
+                _uiState.value = uiState.value.copy(
+                    isLoading = false,
+                    restoreError = ErrorHandler.handleError("Could not read backup file", error)
+                )
+                return@launch
+            }
 
             if (encrypted == null) {
                 _uiState.value = uiState.value.copy(

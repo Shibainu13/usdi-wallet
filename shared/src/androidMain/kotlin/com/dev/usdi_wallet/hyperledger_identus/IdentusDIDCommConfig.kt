@@ -2,5 +2,20 @@ package com.dev.usdi_wallet.hyperledger_identus
 
 object IdentusDIDCommConfig {
     const val MEDIATOR_DID =
-        "did:peer:2.Ez6LSghwSE437wnDE1pt3X6hVDUQzSjsHzinpX3XFvMjRAm7y.Vz6Mkhh1e5CEYYq6JBUcTZ6Cp2ranCWRrv7Yax3Le4N59R6dd.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6Imh0dHA6Ly8xOTIuMTY4LjEuNjo4MDgwIiwiYSI6WyJkaWRjb21tL3YyIl19fQ.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6IndzOi8vMTkyLjE2OC4xLjY6ODA4MC93cyIsImEiOlsiZGlkY29tbS92MiJdfX0"
+        "did:peer:2.Ez6LSghwSE437wnDE1pt3X6hVDUQzSjsHzinpX3XFvMjRAm7y.Vz6Mkhh1e5CEYYq6JBUcTZ6Cp2ranCWRrv7Yax3Le4N59R6dd.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6Imh0dHA6Ly8xMy45MC40NC4yNTo4MDgwIiwiYSI6WyJkaWRjb21tL3YyIl19fQ.SeyJ0IjoiZG0iLCJzIjp7InVyaSI6IndzOi8vMTMuOTAuNDQuMjU6ODA4MC93cyIsImEiOlsiZGlkY29tbS92MiJdfX0"
+    const val RUN_WITHOUT_MEDIATOR = true
+
+    @Volatile
+    private var mediatorDisabledForSession = false
+
+    fun activeMediatorDID(mediatorDID: String = MEDIATOR_DID): String? =
+        mediatorDID.takeIf { it.isNotBlank() && !mediatorDisabledForSession }
+
+    fun disableMediatorForSession() {
+        if (RUN_WITHOUT_MEDIATOR) {
+            mediatorDisabledForSession = true
+        }
+    }
+
+    fun isMediatorDisabledForSession(): Boolean = mediatorDisabledForSession
 }

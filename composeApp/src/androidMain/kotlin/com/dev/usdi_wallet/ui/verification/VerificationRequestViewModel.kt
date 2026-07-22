@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.credential.Claim
 import com.dev.usdi_wallet.domain.credential.ClaimType
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -118,7 +120,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             Logger.e(VerificationRequestUiState::class.toString()) {
                 "Failed to get credentials $e"
             }
-            _uiState.update { it.copy(error = "Failed to load credentials: $e") }
+            _uiState.update { it.copy(error = ErrorHandler.handleError("Failed to load credentials", e)) }
             emit(emptyList())
         }
         .stateIn(
@@ -132,7 +134,16 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.contactManager.getContacts() }
+            protocols.map { protocol ->
+                protocol.contactManager.getContacts()
+                    .onStart { emit(emptyList()) }
+                    .catch { error ->
+                        Logger.w(VerificationRequestViewModel::class.toString()) {
+                            "${protocol.protocolId} contacts unavailable: ${error.message}"
+                        }
+                        emit(emptyList())
+                    }
+            }
         ) { contactArrays ->
             contactArrays.toList().flatten()
         }.stateIn(
@@ -146,7 +157,16 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.credentialManager.getVerificationResults() }
+            protocols.map { protocol ->
+                protocol.credentialManager.getVerificationResults()
+                    .onStart { emit(emptyList()) }
+                    .catch { error ->
+                        Logger.w(VerificationRequestViewModel::class.toString()) {
+                            "${protocol.protocolId} verification results unavailable: ${error.message}"
+                        }
+                        emit(emptyList())
+                    }
+            }
         ) { verificationResultArray ->
             verificationResultArray.toList().flatten()
         }.stateIn(
@@ -350,7 +370,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 Logger.e(VerificationRequestViewModel::class.toString()) {
                     "Failed to load server credential definitions: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to load credential definitions: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = ErrorHandler.handleError("Failed to load credential definitions", e),
+                    )
+                }
             }
         }
     }
@@ -380,7 +405,7 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                     it.copy(
                         isLoading = false,
                         serverSchemaClaimRows = emptyList(),
-                        error = "Failed to load credential definition schema: ${e.message}",
+                        error = ErrorHandler.handleError("Failed to load credential definition schema", e),
                     )
                 }
             }
@@ -450,7 +475,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 Logger.e(VerificationRequestViewModel::class.toString()) {
                     "Failed to create server connection invitation: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to create invitation: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = ErrorHandler.handleError("Failed to create invitation", e),
+                    )
+                }
             }
         }
     }
@@ -482,7 +512,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 Logger.e(VerificationRequestViewModel::class.toString()) {
                     "Failed to check server connection: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to check connection: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = ErrorHandler.handleError("Failed to check connection", e),
+                    )
+                }
             }
         }
     }
@@ -545,7 +580,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 Logger.e(VerificationRequestViewModel::class.toString()) {
                     "Failed to send server proof request: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to send proof request: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = ErrorHandler.handleError("Failed to send proof request", e),
+                    )
+                }
             }
         }
     }
@@ -570,7 +610,12 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
                 Logger.e(VerificationRequestViewModel::class.toString()) {
                     "Failed to send verification request: ${e.message}"
                 }
-                _uiState.update { it.copy(isLoading = false, error = "Failed to send: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = ErrorHandler.handleError("Failed to send", e),
+                    )
+                }
             }
         }
     }

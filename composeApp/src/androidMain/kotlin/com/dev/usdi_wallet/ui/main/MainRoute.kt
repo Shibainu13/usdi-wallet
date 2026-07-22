@@ -52,12 +52,13 @@ fun MainRoute(
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
+    val startDestinationRoute = WalletTab.CREDENTIALS.rootRoute
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
-    } ?: WalletTab.CONTACTS
+    } ?: WalletTab.CREDENTIALS
     val navigateToCredentials = {
         navController.navigate(WalletTab.CREDENTIALS.rootRoute) {
-            popUpTo(navController.graph.startDestinationId) {
+            popUpTo(startDestinationRoute) {
                 saveState = true
             }
             launchSingleTop = true
@@ -66,11 +67,11 @@ fun MainRoute(
     }
 
     MainScreen(
-        isReady = uiState.isReady,
+        serviceNotice = uiState.serviceNotice,
         currentTab = currentTab,
         onTabSelected = { tab ->
             navController.navigate(tab.rootRoute) {
-                popUpTo(navController.graph.startDestinationId)
+                popUpTo(startDestinationRoute)
                 launchSingleTop = true
             }
         },

@@ -1,22 +1,22 @@
 package com.dev.usdi_wallet.ui.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -46,7 +46,7 @@ import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
 fun MainScreen(
-    isReady: Boolean,
+    serviceNotice: String?,
     currentTab: WalletTab,
     onTabSelected: (WalletTab) -> Unit,
     navHost: @Composable () -> Unit,
@@ -87,21 +87,33 @@ fun MainScreen(
             }
         }
     ) { padding ->
-        if (!isReady) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = WalletColors.Primary)
+        Column(modifier = Modifier.padding(padding)) {
+            serviceNotice?.let { message ->
+                ServiceNotice(message = message)
             }
-        } else {
-            Box(modifier = Modifier.padding(padding)) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 navHost()
             }
         }
     }
 }
 
+@Composable
+private fun ServiceNotice(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .background(WalletColors.WarningLight, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = WalletColors.Warning,
+        )
+    }
+}
 
 @Composable
 fun RevokedCredentialDialog(

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -30,7 +32,16 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { it.contactManager.getContacts().onStart { emit(emptyList()) } }
+            protocols.map { protocol ->
+                protocol.contactManager.getContacts()
+                    .onStart { emit(emptyList()) }
+                    .catch { error ->
+                        Logger.w(ContactViewModel::class.toString()) {
+                            "${protocol.protocolId} contacts unavailable: ${error.message}"
+                        }
+                        emit(emptyList())
+                    }
+            }
         ) { contactArrays ->
             contactArrays.toList().flatten()
         }.stateIn(
@@ -76,7 +87,7 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
                     "QR extraction error: ${e.message}"
                 }
                 _uiState.update {
-                    it.copy(isLoading = false, error = "Failed to extract QR invitation: ${e.message}")
+                    it.copy(isLoading = false, error = ErrorHandler.handleError("Failed to extract QR invitation", e))
                 }
             }
         }
@@ -114,7 +125,7 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
                 "Invitation error: ${e.message}"
             }
             _uiState.update {
-                it.copy(isLoading = false, error = "Failed to parse invitation: ${e.message}")
+                it.copy(isLoading = false, error = ErrorHandler.handleError("Failed to parse invitation", e))
             }
         }
     }

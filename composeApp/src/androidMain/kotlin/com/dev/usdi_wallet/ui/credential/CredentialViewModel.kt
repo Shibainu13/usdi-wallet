@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -39,7 +41,19 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { protocolCredentials(it) }
+            protocols.map { protocol ->
+                protocolCredentials(protocol)
+                    .onStart { emit(emptyList()) }
+                    .catch { error ->
+                        Logger.w(CredentialViewModel::class.toString()) {
+                            "${protocol.protocolId} credentials unavailable: ${error.message}"
+                        }
+                        _uiState.update {
+                            it.copy(error = "Some credentials could not be refreshed. Local data is still available.")
+                        }
+                        emit(emptyList())
+                    }
+            }
         ) { arrays ->
             arrays.toList().flatten()
         }
@@ -47,7 +61,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
             Logger.e(CredentialViewModel::class.toString()) {
                 "Failed to get credentials $e"
             }
-            _uiState.update { it.copy(error = "Failed to load credentials: $e") }
+            _uiState.update { it.copy(error = ErrorHandler.handleError("Failed to load credentials", e)) }
             emit(emptyList())
         }
         .stateIn(

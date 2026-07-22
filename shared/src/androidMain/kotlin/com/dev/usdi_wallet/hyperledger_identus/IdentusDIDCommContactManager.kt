@@ -4,6 +4,9 @@ import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.contact.Contact
 import com.dev.usdi_wallet.domain.contact.ContactManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.hyperledger.identus.walletsdk.domain.models.AttachmentData
 import org.hyperledger.identus.walletsdk.domain.models.AttachmentDescriptor
@@ -303,13 +306,21 @@ class IdentusDIDCommContactManager(
     }
 
     override fun getContacts(): Flow<List<Contact>> {
-        val contacts = sdk.pluto.getAllDidPairs().map { pairs ->
-            pairs.map { toUsdiContact(it) }
+        return flow<List<Contact>> {
+            emit(emptyList())
+            val contacts = sdk.pluto.getAllDidPairs().map { pairs ->
+                pairs.map { toUsdiContact(it) }
+            }
+            Logger.d(IdentusDIDCommContactManager::class.toString()) {
+                "Getting contacts: $contacts"
+            }
+            emitAll(contacts)
+        }.catch { error ->
+            Logger.w(IdentusDIDCommContactManager::class.toString()) {
+                "DIDComm contacts unavailable: ${error.message}"
+            }
+            emit(emptyList())
         }
-        Logger.d(IdentusDIDCommContactManager::class.toString()) {
-            "Getting contacts: $contacts"
-        }
-        return contacts
     }
 
     override fun removeContact(contact: Contact) {
