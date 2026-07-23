@@ -165,6 +165,10 @@ class HyperledgerIdentusSdk private constructor() {
         return this::agent.isInitialized
     }
 
+    fun canUseLocalAgent(): Boolean {
+        return this::agent.isInitialized && isAgentReady
+    }
+
     fun canUseMediator(): Boolean {
         return isMediatorAvailable && !IdentusDIDCommConfig.isMediatorDisabledForSession()
     }

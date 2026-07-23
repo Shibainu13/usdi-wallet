@@ -349,7 +349,7 @@ class IdentusAnonCredentialManager(
 
     private suspend fun handleIssueCredential(message: SdkMessage) {
         try {
-            logLongDebug(    "Received issue offer: $message")
+            logLongDebug( "Received issue offer: $message")
             val issueCredential = IssueCredential.fromMessage(message)
             Logger.i(IdentusAnonCredentialManager::class.toString()) {
                 "issue-credential/3.0 attachment formats: " +
@@ -499,6 +499,48 @@ class IdentusAnonCredentialManager(
         message: SdkMessage,
         disclosedClaimLabels: List<String>?,
     ) {
+        val outMessage = preparePresentationProofMessage(credential, message, disclosedClaimLabels)
+            ?: return
+
+        if (LocalAnonCredBluetoothExchange.isLocalRequest(message.id)) {
+            val sent = runCatching {
+                LocalAnonCredBluetoothExchange.sendPresentation(outMessage)
+            }.getOrElse { error ->
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof presentation send failed: ${error.message}"
+                }
+                false
+            }
+            if (sent) {
+                LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
+                clearPendingProofRequest(message)
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof presentation sent for request ${message.id}"
+                }
+            } else {
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof presentation could not be sent because no active local session is registered"
+                }
+            }
+            return
+        }
+
+        val response = sdk.sendMessage(outMessage) ?: return
+
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "sendMessage response=$response"
+        }
+        clearPendingProofRequest(message)
+        Logger.d(IdentusAnonCredentialManager::class.toString()) {
+            "Proof presentation sent for request ${message.id}"
+        }
+    }
+
+    suspend fun preparePresentationProofMessage(
+        credential: SdkCredential,
+        message: SdkMessage,
+        disclosedClaimLabels: List<String>?,
+    ): SdkMessage? {
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Preparing message $message"
         }
@@ -534,16 +576,7 @@ class IdentusAnonCredentialManager(
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "Sending proof presentation: $outMessage"
                 }
-                val response = sdk.sendMessage(outMessage) ?: return
-
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "sendMessage response=$response"
-                }
-                _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
-                db.pendingProofRequestDao().deletePending(message.id)
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Proof presentation sent for request ${message.id}"
-                }
+                return outMessage
             } catch (e: EdgeAgentError.CredentialNotValidForPresentationRequest) {
                 Logger.e(IdentusAnonCredentialManager::class.toString()) {
                     "Error presenting proof: ${e.message}"
@@ -558,6 +591,12 @@ class IdentusAnonCredentialManager(
                 "Credential ${credential.id} cannot create presentations"
             }
         }
+        return null
+    }
+
+    private suspend fun clearPendingProofRequest(message: SdkMessage) {
+        _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != message.id }
+        db.pendingProofRequestDao().deletePending(message.id)
     }
 
     override suspend fun getRevokedCredential(): StateFlow<List<SdkCredential>> {

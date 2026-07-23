@@ -4,6 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.bluetooth.BluetoothPresentProofTransport
+import com.dev.usdi_wallet.bluetooth.BluetoothProofConnectionStatus
+import com.dev.usdi_wallet.bluetooth.BluetoothProofFrame
+import com.dev.usdi_wallet.bluetooth.BluetoothProofPeer
+import com.dev.usdi_wallet.bluetooth.BluetoothProofTransportState
 import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.protocol.Protocol
@@ -12,8 +17,11 @@ import com.dev.usdi_wallet.domain.verification.VerifiableCredentialType
 import com.dev.usdi_wallet.domain.verification.VerifiableFieldSchema
 import com.dev.usdi_wallet.domain.verification.VerificationManager
 import com.dev.usdi_wallet.domain.verification.VerificationPollResult
+import com.dev.usdi_wallet.domain.verification.VerificationProtocol
 import com.dev.usdi_wallet.domain.verification.VerificationSession
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonBluetoothProofManager
+import com.dev.usdi_wallet.hyperledger_identus.LocalAnonCredBluetoothExchange
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,9 +50,13 @@ data class VerificationUiState(
     val selectedCredentialType: VerifiableCredentialType? = null,
     val fieldSelections: List<FieldSelection> = emptyList(),
     val qrContent: String? = null,
+    val waitingMessage: String = "Waiting for the holder to scan and respond",
     val pollResult: VerificationPollResult = VerificationPollResult.Pending,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val bluetoothPeers: List<BluetoothProofPeer> = emptyList(),
+    val selectedBluetoothPeerAddress: String? = null,
+    val bluetoothState: BluetoothProofTransportState = BluetoothProofTransportState(),
 )
 
 class VerificationViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,9 +69,22 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     private var activeSession: VerificationSession? = null
     private var pollJob: Job? = null
     private var credentialTypeToManager: Map<VerifiableCredentialType, VerificationManager?> = emptyMap()
+    private val bluetoothTransport = BluetoothPresentProofTransport(application, viewModelScope)
+    private val bluetoothProofManager = IdentusAnonBluetoothProofManager()
 
     init {
         loadCredentialTypes()
+        loadBluetoothPeers()
+        observeBluetoothState()
+        LocalAnonCredBluetoothExchange.registerPresentationSender { message ->
+            bluetoothTransport.send(
+                BluetoothProofFrame(
+                    messageType = BluetoothProofFrame.PRESENTATION,
+                    thid = message.threadId,
+                    messageJson = message.messageJson,
+                )
+            )
+        }
     }
 
     private fun loadCredentialTypes() {
@@ -121,6 +146,12 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             )
             return
         }
+        if (credentialType.protocol == VerificationProtocol.ANONCREDS) {
+            _uiState.value = _uiState.value.copy(
+                error = "AnonCreds QR proof invitations were removed. Use Bluetooth local proof."
+            )
+            return
+        }
         val selectedFields = state.fieldSelections.filter { it.checked }
         if (selectedFields.isEmpty()) {
             _uiState.value = _uiState.value.copy(
@@ -147,6 +178,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     qrContent = session.qrContent,
+                    waitingMessage = "Waiting for the holder to scan and respond",
                     step = VerificationStep.ShowQrWaiting,
                     pollResult = VerificationPollResult.Pending,
                 )
@@ -170,8 +202,135 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun loadBluetoothPeers() {
+        runCatching { bluetoothTransport.bondedPeers() }
+            .onSuccess { peers ->
+                _uiState.update { state ->
+                    state.copy(
+                        bluetoothPeers = peers,
+                        selectedBluetoothPeerAddress = state.selectedBluetoothPeerAddress
+                            ?: peers.firstOrNull()?.address,
+                    )
+                }
+            }
+            .onFailure { error ->
+                _uiState.update {
+                    it.copy(error = ErrorHandler.handleError("Failed to load paired Bluetooth devices", error))
+                }
+            }
+    }
+
+    fun onBluetoothPeerSelected(address: String) {
+        _uiState.update { it.copy(selectedBluetoothPeerAddress = address) }
+    }
+
+    fun onStartBluetoothHolder() {
+        _uiState.update { it.copy(error = null) }
+        bluetoothTransport.startListening(::handleBluetoothFrame)
+    }
+
+    fun onStopBluetoothSession() {
+        bluetoothTransport.close()
+    }
+
+    fun onStartBluetoothVerification() {
+        val state = _uiState.value
+        val credentialType = state.selectedCredentialType ?: run {
+            _uiState.update { it.copy(error = "Select a credential type first") }
+            return
+        }
+        if (credentialType.protocol != VerificationProtocol.ANONCREDS) {
+            _uiState.update { it.copy(error = "Bluetooth local proof currently supports AnonCreds only") }
+            return
+        }
+        val selectedFields = state.fieldSelections.filter { it.checked }
+        if (selectedFields.isEmpty()) {
+            _uiState.update { it.copy(error = "Select at least one field") }
+            return
+        }
+        val peerAddress = state.selectedBluetoothPeerAddress ?: run {
+            _uiState.update { it.copy(error = "Select a paired Bluetooth device") }
+            return
+        }
+        val requestedFields = selectedFields.map {
+            RequestedField(
+                field = it.schema,
+                predicateOperator = it.predicateOperator,
+                predicateValue = it.predicateValue.ifBlank { null },
+            )
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                pollResult = VerificationPollResult.Pending,
+                waitingMessage = "Connecting to the holder over Bluetooth",
+            )
+        }
+        bluetoothTransport.connect(
+            peerAddress = peerAddress,
+            onFrame = ::handleBluetoothFrame,
+            onConnected = {
+                runCatching {
+                    sendBluetoothProofRequest(credentialType, requestedFields)
+                }.getOrElse { error ->
+                    Logger.e(VerificationViewModel::class.toString()) {
+                        "Failed to send Bluetooth proof request: ${error.message ?: error::class.simpleName}"
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = ErrorHandler.handleError("Failed to send Bluetooth proof request", error),
+                            waitingMessage = "Bluetooth proof request failed",
+                        )
+                    }
+                    throw error
+                }
+            },
+        )
+    }
+
+    private suspend fun sendBluetoothProofRequest(
+        credentialType: VerifiableCredentialType,
+        requestedFields: List<RequestedField>,
+    ) {
+        Logger.d(VerificationViewModel::class.toString()) {
+            "Bluetooth verifier connected; creating proof request with ${requestedFields.size} fields"
+        }
+        _uiState.update { it.copy(waitingMessage = "Building Bluetooth proof request") }
+
+        val request = bluetoothProofManager.createRequest(credentialType, requestedFields)
+        Logger.d(VerificationViewModel::class.toString()) {
+            "Bluetooth proof request created messageId=${request.messageId}, thid=${request.threadId}, chars=${request.messageJson.length}"
+        }
+
+        _uiState.update { it.copy(waitingMessage = "Sending proof request over Bluetooth") }
+        bluetoothTransport.send(
+            BluetoothProofFrame(
+                messageType = BluetoothProofFrame.REQUEST_PRESENTATION,
+                thid = request.threadId,
+                messageJson = request.messageJson,
+            )
+        )
+
+        Logger.d(VerificationViewModel::class.toString()) {
+            "Bluetooth proof request sent thid=${request.threadId}"
+        }
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                qrContent = null,
+                waitingMessage = "Waiting for the holder to approve over Bluetooth",
+                step = VerificationStep.ShowQrWaiting,
+                pollResult = VerificationPollResult.Pending,
+            )
+        }
+    }
+
     fun onCancelVerification() {
         pollJob?.cancel()
+        bluetoothTransport.close()
         viewModelScope.launch {
             activeSession?.let { session ->
                 val verificationManager = credentialTypeToManager[_uiState.value.selectedCredentialType] ?: run {
@@ -186,13 +345,19 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
 
     fun onStartNewVerification() {
         pollJob?.cancel()
+        bluetoothTransport.close()
         resetToStart()
     }
 
     private fun resetToStart() {
         activeSession = null
-        _uiState.update {
-            VerificationUiState(availableCredentialTypes = it.availableCredentialTypes)
+        _uiState.update { state ->
+            VerificationUiState(
+                availableCredentialTypes = state.availableCredentialTypes,
+                bluetoothPeers = state.bluetoothPeers,
+                selectedBluetoothPeerAddress = state.selectedBluetoothPeerAddress,
+                bluetoothState = state.bluetoothState,
+            )
         }
     }
 
@@ -205,5 +370,109 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     override fun onCleared() {
         super.onCleared()
         pollJob?.cancel()
+        bluetoothTransport.close()
+        LocalAnonCredBluetoothExchange.clearPresentationSender()
+    }
+
+    private fun observeBluetoothState() {
+        viewModelScope.launch {
+            bluetoothTransport.state.collect { bluetoothState ->
+                _uiState.update { state ->
+                    val terminal = bluetoothState.status == BluetoothProofConnectionStatus.ERROR ||
+                        bluetoothState.status == BluetoothProofConnectionStatus.CLOSED
+                    state.copy(
+                        bluetoothState = bluetoothState,
+                        isLoading = if (terminal) false else state.isLoading,
+                        error = if (bluetoothState.status == BluetoothProofConnectionStatus.ERROR) {
+                            bluetoothState.message ?: state.error
+                        } else {
+                            state.error
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleBluetoothFrame(frame: BluetoothProofFrame) {
+        when (frame.messageType) {
+            BluetoothProofFrame.REQUEST_PRESENTATION -> {
+                val messageJson = frame.messageJson ?: run {
+                    sendProblemReport(frame.thid, "Bluetooth proof request was missing a DIDComm message")
+                    return
+                }
+                runCatching {
+                    bluetoothProofManager.receiveRequest(messageJson)
+                    bluetoothTransport.send(
+                        BluetoothProofFrame(
+                            messageType = BluetoothProofFrame.ACK,
+                            thid = frame.thid,
+                            description = "Proof request queued",
+                        )
+                    )
+                }.onFailure { error ->
+                    sendProblemReport(frame.thid, error.message ?: "Failed to process Bluetooth proof request")
+                    _uiState.update {
+                        it.copy(error = ErrorHandler.handleError("Failed to process Bluetooth proof request", error))
+                    }
+                }
+            }
+            BluetoothProofFrame.PRESENTATION -> {
+                val messageJson = frame.messageJson ?: run {
+                    _uiState.update {
+                        it.copy(
+                            step = VerificationStep.Result,
+                            pollResult = VerificationPollResult.Failed("Bluetooth presentation was missing a DIDComm message"),
+                        )
+                    }
+                    return
+                }
+                val result = bluetoothProofManager.verifyPresentation(messageJson)
+                bluetoothTransport.send(
+                    BluetoothProofFrame(
+                        messageType = BluetoothProofFrame.ACK,
+                        thid = result.threadId ?: frame.thid,
+                        description = if (result.isValid) "Presentation verified" else "Presentation verification failed",
+                    )
+                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        step = VerificationStep.Result,
+                        pollResult = if (result.isValid) {
+                            VerificationPollResult.Success(result.attributes)
+                        } else {
+                            VerificationPollResult.Failed(result.error ?: "Presentation verification failed")
+                        },
+                    )
+                }
+            }
+            BluetoothProofFrame.ACK -> {
+                _uiState.update {
+                    it.copy(
+                        bluetoothState = it.bluetoothState.copy(
+                            message = frame.description ?: "Bluetooth message acknowledged",
+                        )
+                    )
+                }
+            }
+            BluetoothProofFrame.PROBLEM_REPORT -> {
+                _uiState.update {
+                    it.copy(error = frame.description ?: "Bluetooth proof exchange failed")
+                }
+            }
+        }
+    }
+
+    private suspend fun sendProblemReport(threadId: String?, description: String) {
+        runCatching {
+            bluetoothTransport.send(
+                BluetoothProofFrame(
+                    messageType = BluetoothProofFrame.PROBLEM_REPORT,
+                    thid = threadId,
+                    description = description,
+                )
+            )
+        }
     }
 }
