@@ -21,7 +21,6 @@ fun MainNavHost(
     credentialViewModel: CredentialViewModel,
     verificationViewModel: VerificationViewModel,
     settingsViewModel: SettingsViewModel,
-    onCredentialAccepted: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -34,7 +33,6 @@ fun MainNavHost(
             composable("credentials/list") {
                 CredentialScreen(
                     viewModel = credentialViewModel,
-                    onCredentialAccepted = onCredentialAccepted,
                 )
             }
         }
@@ -46,7 +44,6 @@ fun MainNavHost(
             composable("contacts/list") {
                 ContactScreen(
                     viewModel = contactViewModel,
-                    onCredentialAccepted = onCredentialAccepted,
                 )
             }
         }
@@ -58,7 +55,6 @@ fun MainNavHost(
             composable("verify/list") {
                 VerificationScreen(
                     viewModel = verificationViewModel,
-                    onCredentialAccepted = onCredentialAccepted,
                 )
             }
         }

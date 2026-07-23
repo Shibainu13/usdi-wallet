@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -32,9 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -49,49 +46,25 @@ import com.dev.usdi_wallet.domain.verification.VerificationProtocol
 import com.dev.usdi_wallet.ui.common.PrimaryButton
 import com.dev.usdi_wallet.ui.common.ProtocolBadge
 import com.dev.usdi_wallet.ui.common.QrCodeView
-import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SecondaryButton
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletCard
 import com.dev.usdi_wallet.ui.common.WalletListItem
-import com.dev.usdi_wallet.ui.main.DeepLinkContentType
-import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
 fun VerificationScreen(
     viewModel: VerificationViewModel,
-    onCredentialAccepted: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.onErrorShown()
         }
-    }
-
-    if (showScanner) {
-        QrScannerScreen(
-            onResult = { content ->
-                showScanner = false
-                DeepLinkRouter.getInstance().handle(
-                    link = content,
-                    onSuccess = { result ->
-                        if (result.contentType == DeepLinkContentType.Credential) {
-                            onCredentialAccepted()
-                        }
-                    },
-                    onError = viewModel::onScanError,
-                )
-            },
-            onClose = { showScanner = false },
-        )
-        return
     }
 
     Box(modifier = Modifier.fillMaxSize().background(WalletColors.Surface)) {
@@ -117,15 +90,6 @@ fun VerificationScreen(
                 } else {
                     null
                 },
-                trailingAction = {
-                    IconButton(onClick = { showScanner = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.QrCodeScanner,
-                            contentDescription = "QR Scanner Icon",
-                            tint = WalletColors.Primary,
-                        )
-                    }
-                }
             )
 
             when (uiState.step) {
