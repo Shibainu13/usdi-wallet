@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
@@ -103,6 +104,19 @@ fun VerificationScreen(
                     is VerificationStep.ShowQrWaiting -> "Waiting for response"
                     is VerificationStep.Result -> "Verification result"
                 },
+                leadingAction = if (uiState.step is VerificationStep.SelectFields) {
+                    {
+                        IconButton(onClick = viewModel::onBackToCredentialTypes) {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = WalletColors.TextPrimary,
+                            )
+                        }
+                    }
+                } else {
+                    null
+                },
                 trailingAction = {
                     IconButton(onClick = { showScanner = true }) {
                         Icon(
@@ -139,7 +153,6 @@ fun VerificationScreen(
                     onRefreshBluetoothPeers = viewModel::loadBluetoothPeers,
                     onBluetoothPeerSelected = viewModel::onBluetoothPeerSelected,
                     onBluetoothContinue = viewModel::onStartBluetoothVerification,
-                    onBack = viewModel::onBackToCredentialTypes,
                     onContinue = viewModel::onStartVerification,
                 )
                 is VerificationStep.ShowQrWaiting -> ShowQrWaitingStep(
@@ -222,7 +235,6 @@ private fun SelectFieldsStep(
     onRefreshBluetoothPeers: () -> Unit,
     onBluetoothPeerSelected: (String) -> Unit,
     onBluetoothContinue: () -> Unit,
-    onBack: () -> Unit,
     onContinue: () -> Unit,
 ) {
     val showQrAction = credentialType?.protocol != VerificationProtocol.ANONCREDS
@@ -256,22 +268,16 @@ private fun SelectFieldsStep(
             item { Spacer(modifier = Modifier.height(12.dp)) }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SecondaryButton(
-                text = "Back",
-                onClick = onBack,
-                modifier = if (showQrAction) Modifier.weight(1f) else Modifier.fillMaxWidth(),
-            )
-            if (showQrAction) {
+        if (showQrAction) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
                 if (isLoading) {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = WalletColors.Primary)
                     }
                 } else {
-                    PrimaryButton(text = "Generate QR", onClick = onContinue, modifier = Modifier.weight(1f))
+                    PrimaryButton(text = "Generate QR", onClick = onContinue)
                 }
             }
         }

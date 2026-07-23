@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -104,6 +105,8 @@ class BluetoothPresentProofTransport(
     private var connectionJob: Job? = null
     private var socket: BluetoothSocket? = null
     private var serverSocket: BluetoothServerSocket? = null
+    @Volatile
+    private var holdOpenUntilUserStop = false
 
     val state: StateFlow<BluetoothProofTransportState> = _state.asStateFlow()
 
@@ -205,7 +208,16 @@ class BluetoothPresentProofTransport(
         }
     }
 
+    fun holdOpenUntilUserStop(message: String = "Bluetooth proof session completed") {
+        holdOpenUntilUserStop = true
+        val current = _state.value
+        if (current.status == BluetoothProofConnectionStatus.CONNECTED) {
+            _state.value = current.copy(message = message)
+        }
+    }
+
     fun close() {
+        holdOpenUntilUserStop = false
         val oldJob = connectionJob
         connectionJob = null
         oldJob?.cancel()
@@ -222,6 +234,7 @@ class BluetoothPresentProofTransport(
         onFrame: suspend (BluetoothProofFrame) -> Unit,
         onConnected: suspend () -> Unit = {},
     ) {
+        holdOpenUntilUserStop = false
         socket = connectedSocket
         _state.value = BluetoothProofTransportState(
             status = BluetoothProofConnectionStatus.CONNECTED,
@@ -253,6 +266,9 @@ class BluetoothPresentProofTransport(
                         "Received Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}"
                     }
                     onFrame(frame)
+                    if (holdOpenUntilUserStop) {
+                        waitUntilUserStops(activeSocket)
+                    }
                 }
             }
         } catch (error: Exception) {
@@ -265,6 +281,16 @@ class BluetoothPresentProofTransport(
             if (_state.value.status != BluetoothProofConnectionStatus.ERROR) {
                 _state.value = BluetoothProofTransportState(status = BluetoothProofConnectionStatus.CLOSED)
             }
+        }
+    }
+
+    private suspend fun waitUntilUserStops(activeSocket: BluetoothSocket) {
+        while (
+            coroutineContext.isActive &&
+            socket === activeSocket &&
+            holdOpenUntilUserStop
+        ) {
+            delay(250)
         }
     }
 

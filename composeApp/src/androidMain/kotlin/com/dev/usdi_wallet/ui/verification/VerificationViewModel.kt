@@ -428,13 +428,25 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                     return
                 }
                 val result = bluetoothProofManager.verifyPresentation(messageJson)
-                bluetoothTransport.send(
-                    BluetoothProofFrame(
-                        messageType = BluetoothProofFrame.ACK,
-                        thid = result.threadId ?: frame.thid,
-                        description = if (result.isValid) "Presentation verified" else "Presentation verification failed",
+                val ackDescription = if (result.isValid) {
+                    "Presentation verified"
+                } else {
+                    "Presentation verification failed"
+                }
+                runCatching {
+                    bluetoothTransport.send(
+                        BluetoothProofFrame(
+                            messageType = BluetoothProofFrame.ACK,
+                            thid = result.threadId ?: frame.thid,
+                            description = ackDescription,
+                        )
                     )
-                )
+                }.onFailure { error ->
+                    Logger.w(VerificationViewModel::class.toString()) {
+                        "Bluetooth presentation ACK could not be sent after verification result: ${error.message ?: error::class.simpleName}"
+                    }
+                }
+                bluetoothTransport.holdOpenUntilUserStop("Bluetooth proof completed")
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -448,10 +460,14 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                 }
             }
             BluetoothProofFrame.ACK -> {
+                val description = frame.description ?: "Bluetooth message acknowledged"
+                if (description == "Presentation verified" || description == "Presentation verification failed") {
+                    bluetoothTransport.holdOpenUntilUserStop("Bluetooth proof completed")
+                }
                 _uiState.update {
                     it.copy(
                         bluetoothState = it.bluetoothState.copy(
-                            message = frame.description ?: "Bluetooth message acknowledged",
+                            message = description,
                         )
                     )
                 }
