@@ -2,6 +2,7 @@ package com.dev.usdi_wallet.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
@@ -10,6 +11,7 @@ import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -104,9 +107,11 @@ class BluetoothPresentProofTransport(
     private val _state = MutableStateFlow(BluetoothProofTransportState())
     private var connectionJob: Job? = null
     private var socket: BluetoothSocket? = null
-    private var serverSocket: BluetoothServerSocket? = null
+    private var serverSockets: List<BluetoothServerSocket> = emptyList()
     @Volatile
     private var holdOpenUntilUserStop = false
+    @Volatile
+    private var waitingForLocalResponse = false
 
     val state: StateFlow<BluetoothProofTransportState> = _state.asStateFlow()
 
@@ -127,21 +132,26 @@ class BluetoothPresentProofTransport(
     fun startListening(onFrame: suspend (BluetoothProofFrame) -> Unit) {
         close()
         connectionJob = scope.launch(Dispatchers.IO) {
-            runCatching {
+            val acceptedSocket = runCatching {
                 val adapter = requireAdapter()
                 _state.value = BluetoothProofTransportState(
                     status = BluetoothProofConnectionStatus.LISTENING,
                     message = "Listening for a paired holder-verifier session",
                 )
-                val server = adapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SERVICE_UUID)
-                serverSocket = server
-                val acceptedSocket = server.accept()
-                server.close()
-                serverSocket = null
+                adapter.cancelDiscovery()
+                acceptIncomingSocket(adapter)
+            }.getOrElse { error ->
+                if (isActive) {
+                    setError("Bluetooth listen failed: ${error.message ?: error::class.simpleName}")
+                }
+                return@launch
+            }
+
+            runCatching {
                 openSocket(acceptedSocket, onFrame)
             }.onFailure { error ->
                 if (isActive) {
-                    setError("Bluetooth listen failed: ${error.message ?: error::class.simpleName}")
+                    setError("Bluetooth session failed: ${error.message ?: error::class.simpleName}")
                 }
             }
         }
@@ -155,7 +165,7 @@ class BluetoothPresentProofTransport(
     ) {
         close()
         connectionJob = scope.launch(Dispatchers.IO) {
-            runCatching {
+            val connectedSocket = runCatching {
                 val adapter = requireAdapter()
                 val device = adapter.getRemoteDevice(peerAddress)
                 _state.value = BluetoothProofTransportState(
@@ -164,16 +174,23 @@ class BluetoothPresentProofTransport(
                     peerAddress = peerAddress,
                     message = "Connecting over Bluetooth",
                 )
-                Logger.d("Success 1")
                 adapter.cancelDiscovery()
-                val connectedSocket = device.createRfcommSocketToServiceRecord(SERVICE_UUID)
-                Logger.d("Success 2")
-                connectedSocket.connect()
-                Logger.d("Success 3")
+                if (device.bondState != BluetoothDevice.BOND_BONDED) {
+                    error("Bluetooth device is not paired. Pair it in Android settings first.")
+                }
+                connectSocket(adapter, device)
+            }.getOrElse { error ->
+                if (isActive) {
+                    setError("Bluetooth connect failed: ${error.message ?: error::class.simpleName}")
+                }
+                return@launch
+            }
+
+            runCatching {
                 openSocket(connectedSocket, onFrame, onConnected)
             }.onFailure { error ->
                 if (isActive) {
-                    setError("Bluetooth connect failed: ${error.message ?: error::class.simpleName}")
+                    setError("Bluetooth session failed: ${error.message ?: error::class.simpleName}")
                 }
             }
         }
@@ -182,37 +199,165 @@ class BluetoothPresentProofTransport(
     suspend fun send(frame: BluetoothProofFrame) {
         val activeSocket = socket ?: error("Bluetooth session is not connected")
         withContext(Dispatchers.IO) {
-            val frameJson = frame.toJsonString()
-            val bytes = frameJson.toByteArray(StandardCharsets.UTF_8)
-            Logger.d(BluetoothPresentProofTransport::class.toString()) {
-                "Sending Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}, bytes=${bytes.size}"
-            }
-            if (bytes.size <= MAX_FRAME_BYTES) {
-                activeSocket.writeLine(frameJson)
-            } else {
-                val encoded = Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(bytes)
-                val chunks = encoded.chunked(MAX_CHUNK_CHARS)
-                chunks.forEachIndexed { index, chunk ->
-                    activeSocket.writeLine(
-                        JSONObject()
-                            .put("messageId", frame.id)
-                            .put("chunkIndex", index)
-                            .put("chunkCount", chunks.size)
-                            .put("bytes", chunk)
-                            .toString()
-                    )
+            val releaseLocalResponseHold = frame.messageType == BluetoothProofFrame.PRESENTATION ||
+                frame.messageType == BluetoothProofFrame.PROBLEM_REPORT
+            try {
+                val frameJson = frame.toJsonString()
+                val bytes = frameJson.toByteArray(StandardCharsets.UTF_8)
+                Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                    "Sending Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}, bytes=${bytes.size}"
                 }
-            }
-            Logger.d(BluetoothPresentProofTransport::class.toString()) {
-                "Sent Bluetooth proof frame type=${frame.messageType}, id=${frame.id}"
+                if (bytes.size <= MAX_FRAME_BYTES) {
+                    activeSocket.writeLine(frameJson)
+                } else {
+                    val encoded = Base64.getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString(bytes)
+                    val chunks = encoded.chunked(MAX_CHUNK_CHARS)
+                    chunks.forEachIndexed { index, chunk ->
+                        activeSocket.writeLine(
+                            JSONObject()
+                                .put("messageId", frame.id)
+                                .put("chunkIndex", index)
+                                .put("chunkCount", chunks.size)
+                                .put("bytes", chunk)
+                                .toString()
+                        )
+                    }
+                }
+                Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                    "Sent Bluetooth proof frame type=${frame.messageType}, id=${frame.id}"
+                }
+            } finally {
+                if (releaseLocalResponseHold) {
+                    waitingForLocalResponse = false
+                }
             }
         }
     }
 
+    @SuppressLint("MissingPermission")
+    private suspend fun acceptIncomingSocket(adapter: BluetoothAdapter): BluetoothSocket = supervisorScope {
+        var lastError: Throwable? = null
+        val servers = SocketSecurity.values().mapNotNull { security ->
+            runCatching {
+                ListeningServer(
+                    security = security,
+                    serverSocket = when (security) {
+                        SocketSecurity.SECURE -> adapter.listenUsingRfcommWithServiceRecord(
+                            SERVICE_NAME,
+                            SERVICE_UUID,
+                        )
+                        SocketSecurity.INSECURE_FALLBACK -> adapter.listenUsingInsecureRfcommWithServiceRecord(
+                            "$SERVICE_NAME fallback",
+                            INSECURE_FALLBACK_SERVICE_UUID,
+                        )
+                    },
+                )
+            }.onFailure { error ->
+                lastError = error
+                Logger.w(BluetoothPresentProofTransport::class.toString()) {
+                    "${security.label} Bluetooth listener could not start: ${error.message ?: error::class.simpleName}"
+                }
+            }.getOrNull()
+        }
+        if (servers.isEmpty()) {
+            throwAcceptFailure(lastError)
+        }
+
+        serverSockets = servers.map { it.serverSocket }
+        val acceptResults = Channel<AcceptAttempt>(capacity = servers.size)
+        val acceptJobs = servers.map { server ->
+            launch(Dispatchers.IO) {
+                val result = runCatching { server.serverSocket.accept() }
+                acceptResults.trySend(
+                    AcceptAttempt(
+                        security = server.security,
+                        socket = result.getOrNull(),
+                        error = result.exceptionOrNull(),
+                    )
+                )
+            }
+        }
+
+        try {
+            repeat(servers.size) {
+                val attempt = acceptResults.receive()
+                attempt.socket?.let { acceptedSocket ->
+                    Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                        "Accepted ${attempt.security.label} Bluetooth socket"
+                    }
+                    return@supervisorScope acceptedSocket
+                }
+
+                lastError = attempt.error
+                Logger.w(BluetoothPresentProofTransport::class.toString()) {
+                    "${attempt.security.label} Bluetooth accept failed: ${attempt.error?.message ?: attempt.error?.javaClass?.simpleName}"
+                }
+            }
+
+            throwAcceptFailure(lastError)
+        } finally {
+            acceptJobs.forEach { it.cancel() }
+            acceptResults.close()
+            closeServerSockets()
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun connectSocket(
+        adapter: BluetoothAdapter,
+        device: BluetoothDevice,
+    ): BluetoothSocket {
+        var lastError: Throwable? = null
+
+        for (security in SocketSecurity.values()) {
+            val candidate = when (security) {
+                SocketSecurity.SECURE -> device.createRfcommSocketToServiceRecord(SERVICE_UUID)
+                SocketSecurity.INSECURE_FALLBACK -> device.createInsecureRfcommSocketToServiceRecord(
+                    INSECURE_FALLBACK_SERVICE_UUID,
+                )
+            }
+
+            try {
+                adapter.cancelDiscovery()
+                Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                    "Connecting with ${security.label} Bluetooth socket"
+                }
+                candidate.connect()
+                Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                    "Connected with ${security.label} Bluetooth socket"
+                }
+                return candidate
+            } catch (error: Exception) {
+                lastError = error
+                runCatching { candidate.close() }
+                Logger.w(BluetoothPresentProofTransport::class.toString()) {
+                    "${security.label} Bluetooth connect failed: ${error.message ?: error::class.simpleName}"
+                }
+                delay(CONNECT_RETRY_DELAY_MS)
+            }
+        }
+
+        val peerName = device.name ?: device.address
+        val reason = lastError?.message ?: lastError?.javaClass?.simpleName ?: "unknown error"
+        throw IllegalStateException(
+            "Could not connect to $peerName. On the other device, tap Listen first, keep both devices paired and nearby, then retry. Last Bluetooth error: $reason",
+            lastError,
+        )
+    }
+
     fun holdOpenUntilUserStop(message: String = "Bluetooth proof session completed") {
         holdOpenUntilUserStop = true
+        waitingForLocalResponse = false
+        val current = _state.value
+        if (current.status == BluetoothProofConnectionStatus.CONNECTED) {
+            _state.value = current.copy(message = message)
+        }
+    }
+
+    fun holdOpenUntilLocalResponse(message: String = "Bluetooth proof request received") {
+        waitingForLocalResponse = true
         val current = _state.value
         if (current.status == BluetoothProofConnectionStatus.CONNECTED) {
             _state.value = current.copy(message = message)
@@ -221,6 +366,7 @@ class BluetoothPresentProofTransport(
 
     fun close() {
         holdOpenUntilUserStop = false
+        waitingForLocalResponse = false
         val oldJob = connectionJob
         connectionJob = null
         oldJob?.cancel()
@@ -238,6 +384,7 @@ class BluetoothPresentProofTransport(
         onConnected: suspend () -> Unit = {},
     ) {
         holdOpenUntilUserStop = false
+        waitingForLocalResponse = false
         socket = connectedSocket
         _state.value = BluetoothProofTransportState(
             status = BluetoothProofConnectionStatus.CONNECTED,
@@ -269,6 +416,9 @@ class BluetoothPresentProofTransport(
                         "Received Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}"
                     }
                     onFrame(frame)
+                    if (waitingForLocalResponse) {
+                        waitUntilLocalResponse(activeSocket)
+                    }
                     if (holdOpenUntilUserStop) {
                         waitUntilUserStops(activeSocket)
                     }
@@ -284,6 +434,16 @@ class BluetoothPresentProofTransport(
             if (_state.value.status != BluetoothProofConnectionStatus.ERROR) {
                 _state.value = BluetoothProofTransportState(status = BluetoothProofConnectionStatus.CLOSED)
             }
+        }
+    }
+
+    private suspend fun waitUntilLocalResponse(activeSocket: BluetoothSocket) {
+        while (
+            coroutineContext.isActive &&
+            socket === activeSocket &&
+            waitingForLocalResponse
+        ) {
+            delay(250)
         }
     }
 
@@ -305,10 +465,16 @@ class BluetoothPresentProofTransport(
         return adapter
     }
 
+    private fun closeServerSockets() {
+        serverSockets.forEach { serverSocket ->
+            runCatching { serverSocket.close() }
+        }
+        serverSockets = emptyList()
+    }
+
     private fun closeSockets() {
-        runCatching { serverSocket?.close() }
+        closeServerSockets()
         runCatching { socket?.close() }
-        serverSocket = null
         socket = null
         synchronized(chunkBuffers) {
             chunkBuffers.clear()
@@ -356,6 +522,14 @@ class BluetoothPresentProofTransport(
         return BluetoothProofFrame.fromJsonString(String(decoded, StandardCharsets.UTF_8))
     }
 
+    private fun throwAcceptFailure(lastError: Throwable?): Nothing {
+        val reason = lastError?.message ?: lastError?.javaClass?.simpleName ?: "unknown error"
+        throw IllegalStateException(
+            "No Bluetooth listener could accept an incoming connection. Last Bluetooth error: $reason",
+            lastError,
+        )
+    }
+
     private fun setError(message: String) {
         Logger.e(BluetoothPresentProofTransport::class.toString()) { message }
         closeSockets()
@@ -369,8 +543,26 @@ class BluetoothPresentProofTransport(
         const val SERVICE_NAME = "USDI Local Present Proof"
         const val MAX_FRAME_BYTES = 12_000
         const val MAX_CHUNK_CHARS = 12_000
+        const val CONNECT_RETRY_DELAY_MS = 300L
         val SERVICE_UUID: UUID = UUID.fromString("8b1e7f10-6d3b-4c43-9fc9-31ff623c4912")
+        val INSECURE_FALLBACK_SERVICE_UUID: UUID = UUID.fromString("8b1e7f11-6d3b-4c43-9fc9-31ff623c4912")
     }
+
+    private enum class SocketSecurity(val label: String) {
+        SECURE("secure"),
+        INSECURE_FALLBACK("insecure fallback"),
+    }
+
+    private data class ListeningServer(
+        val security: SocketSecurity,
+        val serverSocket: BluetoothServerSocket,
+    )
+
+    private data class AcceptAttempt(
+        val security: SocketSecurity,
+        val socket: BluetoothSocket? = null,
+        val error: Throwable? = null,
+    )
 
     private data class ChunkAccumulator(
         val chunkCount: Int,

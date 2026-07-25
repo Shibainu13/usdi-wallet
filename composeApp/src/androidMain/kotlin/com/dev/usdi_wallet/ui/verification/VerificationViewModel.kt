@@ -397,6 +397,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     private suspend fun handleBluetoothFrame(frame: BluetoothProofFrame) {
         when (frame.messageType) {
             BluetoothProofFrame.REQUEST_PRESENTATION -> {
+                bluetoothTransport.holdOpenUntilLocalResponse("Bluetooth proof request received")
                 val messageJson = frame.messageJson ?: run {
                     sendProblemReport(frame.thid, "Bluetooth proof request was missing a DIDComm message")
                     return
@@ -410,6 +411,13 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                             description = "Proof request queued",
                         )
                     )
+                    _uiState.update {
+                        it.copy(
+                            bluetoothState = it.bluetoothState.copy(
+                                message = "Bluetooth proof request queued",
+                            )
+                        )
+                    }
                 }.onFailure { error ->
                     sendProblemReport(frame.thid, error.message ?: "Failed to process Bluetooth proof request")
                     _uiState.update {

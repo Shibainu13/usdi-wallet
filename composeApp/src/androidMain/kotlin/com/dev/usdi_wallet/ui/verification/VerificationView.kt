@@ -416,7 +416,7 @@ private fun bluetoothStatusText(state: BluetoothProofTransportState): String =
         BluetoothProofConnectionStatus.IDLE -> "Idle"
         BluetoothProofConnectionStatus.LISTENING -> "Listening for a paired device"
         BluetoothProofConnectionStatus.CONNECTING -> "Connecting to ${state.peerName ?: "paired device"}"
-        BluetoothProofConnectionStatus.CONNECTED -> "Connected to ${state.peerName ?: "paired device"}"
+        BluetoothProofConnectionStatus.CONNECTED -> state.message ?: "Connected to ${state.peerName ?: "paired device"}"
         BluetoothProofConnectionStatus.CLOSED -> "Bluetooth session closed"
         BluetoothProofConnectionStatus.ERROR -> state.message ?: "Bluetooth session failed"
     }
