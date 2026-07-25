@@ -125,8 +125,33 @@ class IdentusAnonCredentialManager(
     }
 
     override suspend fun denyProofRequest(proofRequest: SdkMessage) {
-        _proofRequestToProcess.value = _proofRequestToProcess.value.filter { it.id != proofRequest.id }
-        db.pendingProofRequestDao().deletePending(proofRequest.id)
+        if (LocalAnonCredBluetoothExchange.isLocalRequest(proofRequest.id)) {
+            val sent = runCatching {
+                LocalAnonCredBluetoothExchange.sendProblemReport(
+                    threadId = proofRequest.thid ?: proofRequest.id,
+                    description = LocalAnonCredBluetoothExchange.HOLDER_DENIED_PROOF_REQUEST,
+                )
+            }.getOrElse { error ->
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof denial send failed: ${error.message}"
+                }
+                false
+            }
+
+            if (sent) {
+                Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof denial sent for request ${proofRequest.id}"
+                }
+            } else {
+                Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                    "Bluetooth proof denial could not be sent because no active local session is registered"
+                }
+            }
+
+            LocalAnonCredBluetoothExchange.clearLocalRequest(proofRequest.id)
+        }
+
+        clearPendingProofRequest(proofRequest)
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Proof request denied locally: ${proofRequest.id}"
         }

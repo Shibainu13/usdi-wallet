@@ -95,12 +95,8 @@ fun VerificationScreen(
             when (uiState.step) {
                 is VerificationStep.SelectCredentialType -> SelectCredentialTypeStep(
                     credentialTypes = uiState.availableCredentialTypes,
-                    bluetoothPeers = uiState.bluetoothPeers,
-                    selectedBluetoothPeerAddress = uiState.selectedBluetoothPeerAddress,
                     bluetoothState = uiState.bluetoothState,
                     onSelected = viewModel::onCredentialTypeSelected,
-                    onRefreshBluetoothPeers = viewModel::loadBluetoothPeers,
-                    onBluetoothPeerSelected = viewModel::onBluetoothPeerSelected,
                     onStartBluetoothHolder = viewModel::onStartBluetoothHolder,
                     onStopBluetoothSession = viewModel::onStopBluetoothSession,
                 )
@@ -116,6 +112,7 @@ fun VerificationScreen(
                     onPredicateValueChanged = viewModel::onFieldPredicateValueChanged,
                     onRefreshBluetoothPeers = viewModel::loadBluetoothPeers,
                     onBluetoothPeerSelected = viewModel::onBluetoothPeerSelected,
+                    onBluetoothConnect = viewModel::onConnectBluetoothPeer,
                     onBluetoothContinue = viewModel::onStartBluetoothVerification,
                     onContinue = viewModel::onStartVerification,
                 )
@@ -140,12 +137,8 @@ fun VerificationScreen(
 @Composable
 private fun SelectCredentialTypeStep(
     credentialTypes: List<VerifiableCredentialType>,
-    bluetoothPeers: List<BluetoothProofPeer>,
-    selectedBluetoothPeerAddress: String?,
     bluetoothState: BluetoothProofTransportState,
     onSelected: (VerifiableCredentialType) -> Unit,
-    onRefreshBluetoothPeers: () -> Unit,
-    onBluetoothPeerSelected: (String) -> Unit,
     onStartBluetoothHolder: () -> Unit,
     onStopBluetoothSession: () -> Unit,
 ) {
@@ -155,13 +148,9 @@ private fun SelectCredentialTypeStep(
     ) {
         item {
             BluetoothHolderPanel(
-                peers = bluetoothPeers,
-                selectedPeerAddress = selectedBluetoothPeerAddress,
                 state = bluetoothState,
-                onRefreshPeers = onRefreshBluetoothPeers,
-                onPeerSelected = onBluetoothPeerSelected,
-                onListen = onStartBluetoothHolder,
-                onStop = onStopBluetoothSession,
+                onReceive = onStartBluetoothHolder,
+                onDisconnect = onStopBluetoothSession,
             )
         }
         item { SectionLabel(text = "Available credentials") }
@@ -198,6 +187,7 @@ private fun SelectFieldsStep(
     onPredicateValueChanged: (String, String) -> Unit,
     onRefreshBluetoothPeers: () -> Unit,
     onBluetoothPeerSelected: (String) -> Unit,
+    onBluetoothConnect: () -> Unit,
     onBluetoothContinue: () -> Unit,
     onContinue: () -> Unit,
 ) {
@@ -226,6 +216,7 @@ private fun SelectFieldsStep(
                     isLoading = isLoading,
                     onRefreshPeers = onRefreshBluetoothPeers,
                     onPeerSelected = onBluetoothPeerSelected,
+                    onConnect = onBluetoothConnect,
                     onSend = onBluetoothContinue,
                 )
             }
@@ -250,17 +241,13 @@ private fun SelectFieldsStep(
 
 @Composable
 private fun BluetoothHolderPanel(
-    peers: List<BluetoothProofPeer>,
-    selectedPeerAddress: String?,
     state: BluetoothProofTransportState,
-    onRefreshPeers: () -> Unit,
-    onPeerSelected: (String) -> Unit,
-    onListen: () -> Unit,
-    onStop: () -> Unit,
+    onReceive: () -> Unit,
+    onDisconnect: () -> Unit,
 ) {
-    val isActive = state.status == BluetoothProofConnectionStatus.LISTENING ||
-        state.status == BluetoothProofConnectionStatus.CONNECTING ||
-        state.status == BluetoothProofConnectionStatus.CONNECTED
+    val isConnected = state.status == BluetoothProofConnectionStatus.CONNECTED
+    val isWaiting = state.status == BluetoothProofConnectionStatus.LISTENING ||
+        state.status == BluetoothProofConnectionStatus.CONNECTING
 
     WalletCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -275,37 +262,32 @@ private fun BluetoothHolderPanel(
                     tint = WalletColors.Primary,
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Bluetooth local proof", style = MaterialTheme.typography.titleMedium)
+                    Text("Bluetooth connection", style = MaterialTheme.typography.titleMedium)
                     Text(bluetoothStatusText(state), style = MaterialTheme.typography.bodySmall)
                 }
             }
-
-            BluetoothPeerSelector(
-                peers = peers,
-                selectedPeerAddress = selectedPeerAddress,
-                onPeerSelected = onPeerSelected,
-            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SecondaryButton(
-                    text = "Refresh",
-                    onClick = onRefreshPeers,
-                    modifier = Modifier.weight(1f),
-                )
-                if (isActive) {
+                if (isConnected) {
                     SecondaryButton(
-                        text = "Stop",
-                        onClick = onStop,
-                        modifier = Modifier.weight(1f),
+                        text = "End connection",
+                        onClick = onDisconnect,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else if (isWaiting) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDisconnect,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
                     PrimaryButton(
-                        text = "Listen",
-                        onClick = onListen,
-                        modifier = Modifier.weight(1f),
+                        text = "Receive requests",
+                        onClick = onReceive,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -322,13 +304,17 @@ private fun BluetoothVerifierPanel(
     isLoading: Boolean,
     onRefreshPeers: () -> Unit,
     onPeerSelected: (String) -> Unit,
+    onConnect: () -> Unit,
     onSend: () -> Unit,
 ) {
     val canSend = isAnonCreds &&
         !isLoading &&
+        state.status == BluetoothProofConnectionStatus.CONNECTED
+    val canConnect = isAnonCreds &&
+        !isLoading &&
         selectedPeerAddress != null &&
-        state.status != BluetoothProofConnectionStatus.CONNECTING &&
-        state.status != BluetoothProofConnectionStatus.LISTENING
+        state.status != BluetoothProofConnectionStatus.CONNECTED &&
+        state.status != BluetoothProofConnectionStatus.CONNECTING
 
     WalletCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -343,7 +329,7 @@ private fun BluetoothVerifierPanel(
                     tint = WalletColors.Success,
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Send over Bluetooth", style = MaterialTheme.typography.titleMedium)
+                    Text("Bluetooth connection", style = MaterialTheme.typography.titleMedium)
                     Text(bluetoothStatusText(state), style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -371,10 +357,22 @@ private fun BluetoothVerifierPanel(
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryButton(
-                    text = "Send",
-                    onClick = onSend,
+                    text = if (state.status == BluetoothProofConnectionStatus.CONNECTED) {
+                        "Send request"
+                    } else {
+                        "Connect"
+                    },
+                    onClick = if (state.status == BluetoothProofConnectionStatus.CONNECTED) {
+                        onSend
+                    } else {
+                        onConnect
+                    },
                     modifier = Modifier.weight(1f),
-                    enabled = canSend,
+                    enabled = if (state.status == BluetoothProofConnectionStatus.CONNECTED) {
+                        canSend
+                    } else {
+                        canConnect
+                    },
                 )
             }
         }
@@ -413,10 +411,10 @@ private fun BluetoothPeerSelector(
 
 private fun bluetoothStatusText(state: BluetoothProofTransportState): String =
     when (state.status) {
-        BluetoothProofConnectionStatus.IDLE -> "Idle"
-        BluetoothProofConnectionStatus.LISTENING -> "Listening for a paired device"
+        BluetoothProofConnectionStatus.IDLE -> "Not connected"
+        BluetoothProofConnectionStatus.LISTENING -> "Waiting for Bluetooth connection"
         BluetoothProofConnectionStatus.CONNECTING -> "Connecting to ${state.peerName ?: "paired device"}"
-        BluetoothProofConnectionStatus.CONNECTED -> state.message ?: "Connected to ${state.peerName ?: "paired device"}"
+        BluetoothProofConnectionStatus.CONNECTED -> state.message ?: "Bluetooth connected"
         BluetoothProofConnectionStatus.CLOSED -> "Bluetooth session closed"
         BluetoothProofConnectionStatus.ERROR -> state.message ?: "Bluetooth session failed"
     }

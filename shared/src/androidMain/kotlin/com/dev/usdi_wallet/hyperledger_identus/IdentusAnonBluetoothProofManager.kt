@@ -36,16 +36,31 @@ data class LocalAnonCredVerificationResult(
     val error: String? = null,
 )
 
+data class LocalAnonCredProblemReport(
+    val messageId: String = UUID.randomUUID().toString(),
+    val threadId: String,
+    val description: String,
+)
+
 object LocalAnonCredBluetoothExchange {
     private val localRequestIds = mutableSetOf<String>()
     private var presentationSender: (suspend (LocalAnonCredProofMessage) -> Unit)? = null
+    private var problemReportSender: (suspend (LocalAnonCredProblemReport) -> Unit)? = null
 
     fun registerPresentationSender(sender: suspend (LocalAnonCredProofMessage) -> Unit) {
         presentationSender = sender
     }
 
+    fun registerProblemReportSender(sender: suspend (LocalAnonCredProblemReport) -> Unit) {
+        problemReportSender = sender
+    }
+
     fun clearPresentationSender() {
         presentationSender = null
+    }
+
+    fun clearProblemReportSender() {
+        problemReportSender = null
     }
 
     fun markLocalRequest(messageId: String) {
@@ -78,8 +93,20 @@ object LocalAnonCredBluetoothExchange {
         return true
     }
 
+    suspend fun sendProblemReport(threadId: String, description: String): Boolean {
+        val sender = problemReportSender ?: return false
+        sender(
+            LocalAnonCredProblemReport(
+                threadId = threadId,
+                description = description,
+            )
+        )
+        return true
+    }
+
     const val MESSAGE_TYPE_REQUEST_PRESENTATION = "request-presentation"
     const val MESSAGE_TYPE_PRESENTATION = "presentation"
+    const val HOLDER_DENIED_PROOF_REQUEST = "Proof request denied by holder"
 }
 
 class IdentusAnonBluetoothProofManager {

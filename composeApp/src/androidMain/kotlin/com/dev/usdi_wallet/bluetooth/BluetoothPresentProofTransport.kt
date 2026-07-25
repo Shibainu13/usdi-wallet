@@ -23,6 +23,7 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 import java.util.Base64
@@ -136,13 +137,13 @@ class BluetoothPresentProofTransport(
                 val adapter = requireAdapter()
                 _state.value = BluetoothProofTransportState(
                     status = BluetoothProofConnectionStatus.LISTENING,
-                    message = "Listening for a paired holder-verifier session",
+                    message = "Waiting for Bluetooth connection",
                 )
                 adapter.cancelDiscovery()
                 acceptIncomingSocket(adapter)
             }.getOrElse { error ->
                 if (isActive) {
-                    setError("Bluetooth listen failed: ${error.message ?: error::class.simpleName}")
+                    setError("Bluetooth receive setup failed: ${error.message ?: error::class.simpleName}")
                 }
                 return@launch
             }
@@ -257,7 +258,7 @@ class BluetoothPresentProofTransport(
             }.onFailure { error ->
                 lastError = error
                 Logger.w(BluetoothPresentProofTransport::class.toString()) {
-                    "${security.label} Bluetooth listener could not start: ${error.message ?: error::class.simpleName}"
+                    "${security.label} Bluetooth receive socket could not start: ${error.message ?: error::class.simpleName}"
                 }
             }.getOrNull()
         }
@@ -342,7 +343,7 @@ class BluetoothPresentProofTransport(
         val peerName = device.name ?: device.address
         val reason = lastError?.message ?: lastError?.javaClass?.simpleName ?: "unknown error"
         throw IllegalStateException(
-            "Could not connect to $peerName. On the other device, tap Listen first, keep both devices paired and nearby, then retry. Last Bluetooth error: $reason",
+            "Could not connect to $peerName. On the other device, tap Receive requests first, keep both devices paired and nearby, then retry. Last Bluetooth error: $reason",
             lastError,
         )
     }
@@ -390,7 +391,7 @@ class BluetoothPresentProofTransport(
             status = BluetoothProofConnectionStatus.CONNECTED,
             peerName = connectedSocket.remoteDevice?.name ?: connectedSocket.remoteDevice?.address,
             peerAddress = connectedSocket.remoteDevice?.address,
-            message = "Bluetooth proof session connected",
+            message = "Bluetooth connected",
         )
         runCatching {
             onConnected()
@@ -425,7 +426,11 @@ class BluetoothPresentProofTransport(
                 }
             }
         } catch (error: Exception) {
-            if (coroutineContext.isActive) {
+            if (isNormalSocketClose(error)) {
+                Logger.d(BluetoothPresentProofTransport::class.toString()) {
+                    "Bluetooth session closed by peer: ${error.message ?: error::class.simpleName}"
+                }
+            } else if (coroutineContext.isActive) {
                 setError("Bluetooth session failed: ${error.message ?: error::class.simpleName}")
                 return
             }
@@ -525,8 +530,16 @@ class BluetoothPresentProofTransport(
     private fun throwAcceptFailure(lastError: Throwable?): Nothing {
         val reason = lastError?.message ?: lastError?.javaClass?.simpleName ?: "unknown error"
         throw IllegalStateException(
-            "No Bluetooth listener could accept an incoming connection. Last Bluetooth error: $reason",
+            "No Bluetooth connection could be received. Last Bluetooth error: $reason",
             lastError,
+        )
+    }
+
+    private fun isNormalSocketClose(error: Exception): Boolean {
+        val message = error.message?.lowercase().orEmpty()
+        return error is IOException && (
+            "bt socket closed" in message ||
+                ("socket closed" in message && "read return: -1" in message)
         )
     }
 
