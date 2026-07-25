@@ -12,41 +12,37 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dev.usdi_wallet.ui.common.ProtocolBadge
-import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletListItem
-import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
-fun ContactScreen(viewModel: ContactViewModel) {
+fun ContactScreen(
+    viewModel: ContactViewModel,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val contacts by viewModel.contacts.collectAsStateWithLifecycle()
-    var showScanner by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    if (showScanner) {
-        QrScannerScreen(
-            onResult = { content ->
-                showScanner = false
-                DeepLinkRouter.getInstance().handle(content)
-            },
-            onClose = { showScanner = false },
-        )
-        return
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.onErrorShown()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(WalletColors.Surface)) {
@@ -55,15 +51,6 @@ fun ContactScreen(viewModel: ContactViewModel) {
                 title = "Contacts",
                 subtitle = if (contacts.isEmpty()) "No contacts yet"
                 else "${contacts.size} connection${if (contacts.size == 1) "" else "s"}",
-                trailingAction = {
-                    IconButton(onClick = { showScanner = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.QrCodeScanner,
-                            contentDescription = "QR Scanner Icon",
-                            tint = WalletColors.Primary,
-                        )
-                    }
-                }
             )
 
             if (contacts.isEmpty()) {
@@ -112,5 +99,9 @@ fun ContactScreen(viewModel: ContactViewModel) {
                 }
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }

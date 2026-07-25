@@ -122,6 +122,10 @@ class EudiSdk private constructor() {
         Logger.d(EudiSdk::class.toString()) { "EUDI Wallet initialized successfully" }
     }
 
+    fun isStarted(): Boolean {
+        return this::wallet.isInitialized
+    }
+
     fun processInvitation(uri: String) {
         if (uri.contains("credential_offer=") || uri.startsWith("openid-credential-offer://")) {
             val message = EudiMessage.CredentialOffer(uri)

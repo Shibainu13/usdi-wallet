@@ -13,10 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -30,50 +31,40 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dev.usdi_wallet.ui.common.QrCodeView
+import com.dev.usdi_wallet.bluetooth.BluetoothProofConnectionStatus
+import com.dev.usdi_wallet.bluetooth.BluetoothProofPeer
+import com.dev.usdi_wallet.bluetooth.BluetoothProofTransportState
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.verification.VerifiableCredentialType
 import com.dev.usdi_wallet.domain.verification.VerificationPollResult
 import com.dev.usdi_wallet.domain.verification.VerificationProtocol
 import com.dev.usdi_wallet.ui.common.PrimaryButton
 import com.dev.usdi_wallet.ui.common.ProtocolBadge
-import com.dev.usdi_wallet.ui.common.QrScannerScreen
+import com.dev.usdi_wallet.ui.common.QrCodeView
 import com.dev.usdi_wallet.ui.common.ScreenHeader
 import com.dev.usdi_wallet.ui.common.SecondaryButton
 import com.dev.usdi_wallet.ui.common.SectionLabel
+import com.dev.usdi_wallet.ui.common.WalletCard
 import com.dev.usdi_wallet.ui.common.WalletListItem
-import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
-fun VerificationScreen(viewModel: VerificationViewModel) {
+fun VerificationScreen(
+    viewModel: VerificationViewModel,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showScanner by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.onErrorShown()
         }
-    }
-
-    if (showScanner) {
-        QrScannerScreen(
-            onResult = { content ->
-                showScanner = false
-                DeepLinkRouter.getInstance().handle(content)
-            },
-            onClose = { showScanner = false },
-        )
-        return
     }
 
     Box(modifier = Modifier.fillMaxSize().background(WalletColors.Surface)) {
@@ -86,34 +77,51 @@ fun VerificationScreen(viewModel: VerificationViewModel) {
                     is VerificationStep.ShowQrWaiting -> "Waiting for response"
                     is VerificationStep.Result -> "Verification result"
                 },
-                trailingAction = {
-                    IconButton(onClick = { showScanner = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.QrCodeScanner,
-                            contentDescription = "QR Scanner Icon",
-                            tint = WalletColors.Primary,
-                        )
+                leadingAction = if (uiState.step is VerificationStep.SelectFields) {
+                    {
+                        IconButton(onClick = viewModel::onBackToCredentialTypes) {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = WalletColors.TextPrimary,
+                            )
+                        }
                     }
-                }
+                } else {
+                    null
+                },
             )
 
             when (uiState.step) {
                 is VerificationStep.SelectCredentialType -> SelectCredentialTypeStep(
                     credentialTypes = uiState.availableCredentialTypes,
+                    bluetoothPeers = uiState.bluetoothPeers,
+                    selectedBluetoothPeerAddress = uiState.selectedBluetoothPeerAddress,
+                    bluetoothState = uiState.bluetoothState,
                     onSelected = viewModel::onCredentialTypeSelected,
+                    onRefreshBluetoothPeers = viewModel::loadBluetoothPeers,
+                    onBluetoothPeerSelected = viewModel::onBluetoothPeerSelected,
+                    onStartBluetoothHolder = viewModel::onStartBluetoothHolder,
+                    onStopBluetoothSession = viewModel::onStopBluetoothSession,
                 )
                 is VerificationStep.SelectFields -> SelectFieldsStep(
                     credentialType = uiState.selectedCredentialType,
                     fieldSelections = uiState.fieldSelections,
                     isLoading = uiState.isLoading,
+                    bluetoothPeers = uiState.bluetoothPeers,
+                    selectedBluetoothPeerAddress = uiState.selectedBluetoothPeerAddress,
+                    bluetoothState = uiState.bluetoothState,
                     onFieldChecked = viewModel::onFieldChecked,
                     onPredicateOperatorChanged = viewModel::onFieldPredicateOperatorChanged,
                     onPredicateValueChanged = viewModel::onFieldPredicateValueChanged,
-                    onBack = viewModel::onBackToCredentialTypes,
+                    onRefreshBluetoothPeers = viewModel::loadBluetoothPeers,
+                    onBluetoothPeerSelected = viewModel::onBluetoothPeerSelected,
+                    onBluetoothContinue = viewModel::onStartBluetoothVerification,
                     onContinue = viewModel::onStartVerification,
                 )
                 is VerificationStep.ShowQrWaiting -> ShowQrWaitingStep(
                     qrContent = uiState.qrContent,
+                    waitingMessage = uiState.waitingMessage,
                     onCancel = viewModel::onCancelVerification,
                 )
                 is VerificationStep.Result -> ResultStep(
@@ -132,12 +140,30 @@ fun VerificationScreen(viewModel: VerificationViewModel) {
 @Composable
 private fun SelectCredentialTypeStep(
     credentialTypes: List<VerifiableCredentialType>,
+    bluetoothPeers: List<BluetoothProofPeer>,
+    selectedBluetoothPeerAddress: String?,
+    bluetoothState: BluetoothProofTransportState,
     onSelected: (VerifiableCredentialType) -> Unit,
+    onRefreshBluetoothPeers: () -> Unit,
+    onBluetoothPeerSelected: (String) -> Unit,
+    onStartBluetoothHolder: () -> Unit,
+    onStopBluetoothSession: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        item {
+            BluetoothHolderPanel(
+                peers = bluetoothPeers,
+                selectedPeerAddress = selectedBluetoothPeerAddress,
+                state = bluetoothState,
+                onRefreshPeers = onRefreshBluetoothPeers,
+                onPeerSelected = onBluetoothPeerSelected,
+                onListen = onStartBluetoothHolder,
+                onStop = onStopBluetoothSession,
+            )
+        }
         item { SectionLabel(text = "Available credentials") }
         items(credentialTypes, key = { it.id }) { credentialType ->
             val (tint, bg) = if (credentialType.protocol == VerificationProtocol.EUDI) {
@@ -164,12 +190,19 @@ private fun SelectFieldsStep(
     credentialType: VerifiableCredentialType?,
     fieldSelections: List<FieldSelection>,
     isLoading: Boolean,
+    bluetoothPeers: List<BluetoothProofPeer>,
+    selectedBluetoothPeerAddress: String?,
+    bluetoothState: BluetoothProofTransportState,
     onFieldChecked: (String, Boolean) -> Unit,
     onPredicateOperatorChanged: (String, PredicateOperator?) -> Unit,
     onPredicateValueChanged: (String, String) -> Unit,
-    onBack: () -> Unit,
+    onRefreshBluetoothPeers: () -> Unit,
+    onBluetoothPeerSelected: (String) -> Unit,
+    onBluetoothContinue: () -> Unit,
     onContinue: () -> Unit,
 ) {
+    val showQrAction = credentialType?.protocol != VerificationProtocol.ANONCREDS
+
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
@@ -184,24 +217,209 @@ private fun SelectFieldsStep(
                     onPredicateValueChanged = { onPredicateValueChanged(selection.schema.name, it) },
                 )
             }
+            item {
+                BluetoothVerifierPanel(
+                    peers = bluetoothPeers,
+                    selectedPeerAddress = selectedBluetoothPeerAddress,
+                    state = bluetoothState,
+                    isAnonCreds = credentialType?.protocol == VerificationProtocol.ANONCREDS,
+                    isLoading = isLoading,
+                    onRefreshPeers = onRefreshBluetoothPeers,
+                    onPeerSelected = onBluetoothPeerSelected,
+                    onSend = onBluetoothContinue,
+                )
+            }
             item { Spacer(modifier = Modifier.height(12.dp)) }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SecondaryButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
-            if (isLoading) {
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = WalletColors.Primary)
+        if (showQrAction) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = WalletColors.Primary)
+                    }
+                } else {
+                    PrimaryButton(text = "Generate QR", onClick = onContinue)
                 }
-            } else {
-                PrimaryButton(text = "Generate QR", onClick = onContinue, modifier = Modifier.weight(1f))
             }
         }
     }
 }
+
+@Composable
+private fun BluetoothHolderPanel(
+    peers: List<BluetoothProofPeer>,
+    selectedPeerAddress: String?,
+    state: BluetoothProofTransportState,
+    onRefreshPeers: () -> Unit,
+    onPeerSelected: (String) -> Unit,
+    onListen: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val isActive = state.status == BluetoothProofConnectionStatus.LISTENING ||
+        state.status == BluetoothProofConnectionStatus.CONNECTING ||
+        state.status == BluetoothProofConnectionStatus.CONNECTED
+
+    WalletCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Bluetooth,
+                    contentDescription = null,
+                    tint = WalletColors.Primary,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Bluetooth local proof", style = MaterialTheme.typography.titleMedium)
+                    Text(bluetoothStatusText(state), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            BluetoothPeerSelector(
+                peers = peers,
+                selectedPeerAddress = selectedPeerAddress,
+                onPeerSelected = onPeerSelected,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SecondaryButton(
+                    text = "Refresh",
+                    onClick = onRefreshPeers,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isActive) {
+                    SecondaryButton(
+                        text = "Stop",
+                        onClick = onStop,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    PrimaryButton(
+                        text = "Listen",
+                        onClick = onListen,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BluetoothVerifierPanel(
+    peers: List<BluetoothProofPeer>,
+    selectedPeerAddress: String?,
+    state: BluetoothProofTransportState,
+    isAnonCreds: Boolean,
+    isLoading: Boolean,
+    onRefreshPeers: () -> Unit,
+    onPeerSelected: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val canSend = isAnonCreds &&
+        !isLoading &&
+        selectedPeerAddress != null &&
+        state.status != BluetoothProofConnectionStatus.CONNECTING &&
+        state.status != BluetoothProofConnectionStatus.LISTENING
+
+    WalletCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Bluetooth,
+                    contentDescription = null,
+                    tint = WalletColors.Success,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Send over Bluetooth", style = MaterialTheme.typography.titleMedium)
+                    Text(bluetoothStatusText(state), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (!isAnonCreds) {
+                Text(
+                    text = "Bluetooth local proof is available for AnonCreds requests.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            BluetoothPeerSelector(
+                peers = peers,
+                selectedPeerAddress = selectedPeerAddress,
+                onPeerSelected = onPeerSelected,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SecondaryButton(
+                    text = "Refresh",
+                    onClick = onRefreshPeers,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryButton(
+                    text = "Send",
+                    onClick = onSend,
+                    modifier = Modifier.weight(1f),
+                    enabled = canSend,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BluetoothPeerSelector(
+    peers: List<BluetoothProofPeer>,
+    selectedPeerAddress: String?,
+    onPeerSelected: (String) -> Unit,
+) {
+    if (peers.isEmpty()) {
+        Text(
+            text = "No paired Bluetooth devices found.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        peers.forEach { peer ->
+            FilterChip(
+                selected = peer.address == selectedPeerAddress,
+                onClick = { onPeerSelected(peer.address) },
+                label = {
+                    Text(
+                        text = peer.name,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                },
+            )
+        }
+    }
+}
+
+private fun bluetoothStatusText(state: BluetoothProofTransportState): String =
+    when (state.status) {
+        BluetoothProofConnectionStatus.IDLE -> "Idle"
+        BluetoothProofConnectionStatus.LISTENING -> "Listening for a paired device"
+        BluetoothProofConnectionStatus.CONNECTING -> "Connecting to ${state.peerName ?: "paired device"}"
+        BluetoothProofConnectionStatus.CONNECTED -> "Connected to ${state.peerName ?: "paired device"}"
+        BluetoothProofConnectionStatus.CLOSED -> "Bluetooth session closed"
+        BluetoothProofConnectionStatus.ERROR -> state.message ?: "Bluetooth session failed"
+    }
 
 @Composable
 private fun FieldSelectionRow(
@@ -270,6 +488,7 @@ private fun PredicateEditor(
 @Composable
 private fun ShowQrWaitingStep(
     qrContent: String?,
+    waitingMessage: String,
     onCancel: () -> Unit,
 ) {
     Column(
@@ -290,7 +509,7 @@ private fun ShowQrWaitingStep(
         CircularProgressIndicator(color = WalletColors.Primary)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Waiting for the holder to scan and respond",
+            text = waitingMessage,
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(modifier = Modifier.height(24.dp))

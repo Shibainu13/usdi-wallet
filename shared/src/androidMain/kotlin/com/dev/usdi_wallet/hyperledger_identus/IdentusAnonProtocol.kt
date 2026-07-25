@@ -2,6 +2,7 @@ package com.dev.usdi_wallet.hyperledger_identus
 
 import android.app.Application
 import androidx.lifecycle.MutableLiveData
+import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.backup.WalletBackupManager
 import com.dev.usdi_wallet.domain.connection.ConnectionManager
 import com.dev.usdi_wallet.domain.contact.ContactManager
@@ -28,14 +29,26 @@ class IdentusAnonProtocol(
     private val sdk = HyperledgerIdentusSdk.getInstance()
 
     override suspend fun startConnection() {
-        // Start sdk
-        connectionManager.start()
-        connectionManager.receiveMessage { msg ->
-            messages.value = messages.value?.plus(msg) ?: emptyList()
-            credentialManager.handleInbound(
-                msg,
-                connectionManager
-            )
+        runCatching { connectionManager.start() }
+            .onFailure { error ->
+                Logger.w(IdentusAnonProtocol::class.toString()) {
+                    "DIDComm startup failed; continuing without mediator: ${error.message}"
+                }
+                return
+            }
+
+        runCatching {
+            connectionManager.receiveMessage { msg ->
+                messages.value = messages.value?.plus(msg) ?: emptyList()
+                credentialManager.handleInbound(
+                    msg,
+                    connectionManager
+                )
+            }
+        }.onFailure { error ->
+            Logger.w(IdentusAnonProtocol::class.toString()) {
+                "DIDComm message receiving stopped: ${error.message}"
+            }
         }
     }
 

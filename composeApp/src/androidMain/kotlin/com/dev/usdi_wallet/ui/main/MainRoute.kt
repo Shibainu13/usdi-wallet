@@ -1,15 +1,21 @@
 package com.dev.usdi_wallet.ui.main
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dev.usdi_wallet.ui.auth.LockScreen
 import com.dev.usdi_wallet.ui.auth.LockState
 import com.dev.usdi_wallet.ui.auth.LockViewModel
+import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.onboarding.OnboardingScreen
@@ -52,19 +58,60 @@ fun MainRoute(
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
+    val startDestinationRoute = WalletTab.CREDENTIALS.rootRoute
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showScanner by remember { mutableStateOf(false) }
+    var scanError by remember { mutableStateOf<String?>(null) }
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
-    } ?: WalletTab.CONTACTS
+    } ?: WalletTab.CREDENTIALS
+    val navigateToCredentials = {
+        navController.navigate(WalletTab.CREDENTIALS.rootRoute) {
+            popUpTo(startDestinationRoute) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    LaunchedEffect(scanError) {
+        scanError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            scanError = null
+        }
+    }
+
+    if (showScanner) {
+        QrScannerScreen(
+            onResult = { content ->
+                showScanner = false
+                DeepLinkRouter.getInstance().handle(
+                    link = content,
+                    onSuccess = { result ->
+                        if (result.contentType == DeepLinkContentType.Credential) {
+                            navigateToCredentials()
+                        }
+                    },
+                    onError = { message -> scanError = message },
+                )
+            },
+            onClose = { showScanner = false },
+        )
+        return
+    }
 
     MainScreen(
-        isReady = uiState.isReady,
+        serviceNotice = uiState.serviceNotice,
         currentTab = currentTab,
+        snackbarHostState = snackbarHostState,
         onTabSelected = { tab ->
             navController.navigate(tab.rootRoute) {
-                popUpTo(navController.graph.startDestinationId)
+                popUpTo(startDestinationRoute)
                 launchSingleTop = true
             }
         },
+        onScanSelected = { showScanner = true },
         navHost = {
             MainNavHost(
                 navController = navController,

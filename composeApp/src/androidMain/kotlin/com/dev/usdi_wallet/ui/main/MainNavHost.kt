@@ -31,7 +31,9 @@ fun MainNavHost(
             route = WalletTab.CREDENTIALS.rootRoute,
         ) {
             composable("credentials/list") {
-                CredentialScreen(credentialViewModel)
+                CredentialScreen(
+                    viewModel = credentialViewModel,
+                )
             }
         }
 
@@ -40,7 +42,9 @@ fun MainNavHost(
             route = WalletTab.CONTACTS.rootRoute,
         ) {
             composable("contacts/list") {
-                ContactScreen(contactViewModel)
+                ContactScreen(
+                    viewModel = contactViewModel,
+                )
             }
         }
 
@@ -49,7 +53,9 @@ fun MainNavHost(
             route = WalletTab.VERIFY.rootRoute,
         ) {
             composable("verify/list") {
-                VerificationScreen(verificationViewModel)
+                VerificationScreen(
+                    viewModel = verificationViewModel,
+                )
             }
         }
 

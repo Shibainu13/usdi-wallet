@@ -37,15 +37,17 @@ import com.dev.usdi_wallet.ui.theme.WalletColors
 fun ScreenHeader(
     title: String,
     subtitle: String? = null,
+    leadingAction: (@Composable () -> Unit)? = null,
     trailingAction: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Column {
+        leadingAction?.invoke()
+        Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.headlineLarge)
             subtitle?.let {
                 Spacer(modifier = Modifier.height(2.dp))

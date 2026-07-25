@@ -4,10 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
+import com.dev.usdi_wallet.ui.main.DeepLinkContentType
 import com.dev.usdi_wallet.ui.main.DeepLinkRouter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -38,7 +41,19 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         MutableStateFlow(emptyList())
     } else {
         combine(
-            protocols.map { protocolCredentials(it) }
+            protocols.map { protocol ->
+                protocolCredentials(protocol)
+                    .onStart { emit(emptyList()) }
+                    .catch { error ->
+                        Logger.w(CredentialViewModel::class.toString()) {
+                            "${protocol.protocolId} credentials unavailable: ${error.message}"
+                        }
+                        _uiState.update {
+                            it.copy(error = "Some credentials could not be refreshed. Local data is still available.")
+                        }
+                        emit(emptyList())
+                    }
+            }
         ) { arrays ->
             arrays.toList().flatten()
         }
@@ -46,7 +61,7 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
             Logger.e(CredentialViewModel::class.toString()) {
                 "Failed to get credentials $e"
             }
-            _uiState.update { it.copy(error = "Failed to load credentials: $e") }
+            _uiState.update { it.copy(error = ErrorHandler.handleError("Failed to load credentials", e)) }
             emit(emptyList())
         }
         .stateIn(
@@ -64,8 +79,18 @@ class CredentialViewModel(application: Application) : AndroidViewModel(applicati
         return sdkFlow;
     }
 
-    fun onQrScanned(content: String) {
-        DeepLinkRouter.getInstance().handle(content)
+    fun onQrScanned(content: String, onCredentialAccepted: () -> Unit = {}) {
+        DeepLinkRouter.getInstance().handle(
+            link = content,
+            onSuccess = { result ->
+                if (result.contentType == DeepLinkContentType.Credential) {
+                    onCredentialAccepted()
+                }
+            },
+            onError = { message ->
+                _uiState.update { it.copy(error = message) }
+            },
+        )
     }
 
     fun onCredentialClicked(credential: Credential) {

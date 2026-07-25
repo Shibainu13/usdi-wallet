@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.backup.UnifiedBackupService
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
@@ -91,11 +92,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(isLoading = true, backupError = null)
         viewModelScope.launch {
             val encrypted = runCatching { backupService.exportEncrypted(state.backupPassphrase) }
-                .getOrElse {
+                .getOrElse { error ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            backupError = "Failed to create backup: $it"
+                            backupError = ErrorHandler.handleError("Failed to create backup", error)
                         )
                     }
                     return@launch
@@ -141,7 +142,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 getApplication<Application>().contentResolver.openInputStream(uri)
                     ?.bufferedReader()
                     ?.readText()
-            }.getOrNull()
+            }.getOrElse { error ->
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    restoreError = ErrorHandler.handleError("Could not read backup file", error),
+                )
+                return@launch
+            }
 
             if (encrypted == null) {
                 _uiState.value = _uiState.value.copy(

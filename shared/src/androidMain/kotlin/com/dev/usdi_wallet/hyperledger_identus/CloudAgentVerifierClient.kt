@@ -1,35 +1,15 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
-import com.dev.usdi_wallet.domain.credential.Claim
-import com.dev.usdi_wallet.domain.credential.Predicate
-import com.dev.usdi_wallet.domain.credential.PredicateOperator
+import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.accept
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.contentType
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.Base64
-import co.touchlab.kermit.Logger
-data class CloudAgentConnectionInvitation(
-    val connectionId: String,
-    val invitationUrl: String,
-    val state: String? = null,
-)
-
-data class CloudAgentProofRequestResult(
-    val presentationId: String?,
-    val status: String?,
-    val invitationUrl: String?,
-    val raw: String,
-    val revealedAttributes: Map<String, String> = emptyMap(),
-)
 
 data class CloudAgentAnonCredSchema(
     val guid: String,
@@ -90,143 +70,6 @@ class CloudAgentVerifierClient(
 
         return JSONObject(responseText).toAnonCredSchema()
     }
-
-    suspend fun createConnectionInvitation(
-        baseUrl: String,
-        apiKey: String?,
-        label: String,
-    ): CloudAgentConnectionInvitation {
-        val body = JSONObject()
-            .put("label", label.ifBlank { "usdi-mobile-verifier" })
-            .put("goalCode", "present-proof")
-            .put("goal", "Mobile verifier connection")
-
-        val responseText = httpClient.post(endpoint(baseUrl, "connections")) {
-            contentType(ContentType.Application.Json)
-            apiKey(apiKey)
-            setBody(body.toString())
-        }.bodyAsText()
-
-        val response = JSONObject(responseText)
-        return CloudAgentConnectionInvitation(
-            connectionId = connectionId(response),
-            invitationUrl = invitationUrl(response),
-            state = response.optString("state").ifBlank { null },
-        )
-    }
-
-    suspend fun getConnection(
-        baseUrl: String,
-        apiKey: String?,
-        connectionId: String,
-    ): CloudAgentConnectionInvitation {
-        val responseText = httpClient.get(endpoint(baseUrl, "connections/$connectionId")) {
-            apiKey(apiKey)
-        }.bodyAsText()
-
-        val response = JSONObject(responseText)
-        return CloudAgentConnectionInvitation(
-            connectionId = connectionId(response).ifBlank { connectionId },
-            invitationUrl = invitationUrl(response),
-            state = response.optString("state").ifBlank { null },
-        )
-    }
-
-    suspend fun sendAnonCredProofRequest(
-        baseUrl: String,
-        apiKey: String?,
-        claims: List<Claim>,
-        predicates: List<Predicate>,
-        credentialDefinitionId: String?,
-        requestName: String,
-    ): CloudAgentProofRequestResult {
-        val proofRequest = JSONObject()
-            .put("requested_attributes", requestedAttributes(claims, credentialDefinitionId))
-            .put("requested_predicates", requestedPredicates(predicates, credentialDefinitionId))
-            .put("name", requestName.ifBlank { "Mobile verifier proof" })
-            .put("nonce", numericNonce())
-            .put("version", "1.0")
-
-        val body = JSONObject()
-            .put("credentialFormat", "AnonCreds")
-            .put("proofs", JSONArray())
-            .put("anoncredPresentationRequest", proofRequest)
-
-        val responseText = httpClient.post(endpoint(baseUrl, "present-proof/presentations/invitation")) {
-            contentType(ContentType.Application.Json)
-            apiKey(apiKey)
-            setBody(body.toString())
-        }.bodyAsText()
-
-        val response = JSONObject(responseText)
-        return CloudAgentProofRequestResult(
-            presentationId = response.optString("presentationId")
-                .ifBlank { response.optString("id") }
-                .ifBlank { response.optString("recordId") }
-                .ifBlank { null },
-            status = response.optString("status")
-                .ifBlank { response.optString("state") }
-                .ifBlank { null },
-            invitationUrl = invitationUrl(response).ifBlank { null },
-            raw = responseText,
-            revealedAttributes = extractAnonCredRevealedAttributes(response),
-        )
-    }
-
-    private fun requestedAttributes(
-        claims: List<Claim>,
-        credentialDefinitionId: String?,
-    ): JSONObject {
-        val attributes = JSONObject()
-        claims.forEach { claim ->
-            attributes.put(
-                "${claim.name}_attr",
-                JSONObject()
-                    .put("name", claim.name)
-                    .putRestrictions(credentialDefinitionId),
-            )
-        }
-        return attributes
-    }
-
-    private fun requestedPredicates(
-        predicates: List<Predicate>,
-        credentialDefinitionId: String?,
-    ): JSONObject {
-        val requestedPredicates = JSONObject()
-        predicates.forEach { predicate ->
-            requestedPredicates.put(
-                "${predicate.name}_predicate",
-                JSONObject()
-                    .put("name", predicate.name)
-                    .put("p_type", predicate.operator.anonCredOperator())
-                    .put("p_value", predicate.value)
-                    .putRestrictions(credentialDefinitionId),
-            )
-        }
-        return requestedPredicates
-    }
-
-    private fun JSONObject.putRestrictions(credentialDefinitionId: String?): JSONObject {
-        if (!credentialDefinitionId.isNullOrBlank()) {
-            put(
-                "restrictions",
-                JSONArray().put(JSONObject().put("cred_def_id", credentialDefinitionId)),
-            )
-        }
-        return this
-    }
-
-    private fun PredicateOperator.anonCredOperator(): String =
-        when (this) {
-            PredicateOperator.GREATER_THAN -> ">"
-            PredicateOperator.GREATER_THAN_OR_EQUAL -> ">="
-            PredicateOperator.LESS_THAN -> "<"
-            PredicateOperator.LESS_THAN_OR_EQUAL -> "<="
-        }
-
-    private fun numericNonce(): String =
-        System.currentTimeMillis().toString() + (100000..999999).random().toString()
 
     private fun schemaItems(responseText: String): List<JSONObject> {
         return responseItems(responseText)
@@ -293,59 +136,6 @@ class CloudAgentVerifierClient(
             version = optString("version").ifBlank { credentialDefinition.optString("version") },
             tag = optString("tag").ifBlank { credentialDefinition.optString("tag") },
         )
-    }
-
-    private fun connectionId(response: JSONObject): String =
-        response.optString("connectionId")
-            .ifBlank { response.optString("connection_id") }
-            .ifBlank { response.optString("id") }
-            .ifBlank { response.optString("guid") }
-
-    private fun invitationUrl(response: JSONObject): String =
-        response.optString("invitationUrl")
-            .ifBlank { response.optString("invitation_url") }
-            .ifBlank { response.optString("invitationURL") }
-            .ifBlank { response.optString("url") }
-            .ifBlank { response.optString("oobUrl") }
-            .ifBlank { response.optString("outOfBandInvitationUrl") }
-            .ifBlank { response.optString("presentationInvitationUrl") }
-            .ifBlank { nestedInvitationUrl(response) }
-            .ifBlank { encodedInvitationUrl(response) }
-
-    private fun nestedInvitationUrl(response: JSONObject): String {
-        val keys = listOf("invitation", "oobInvitation", "outOfBandInvitation")
-        keys.forEach { key ->
-            val value = response.opt(key)
-            when (value) {
-                is JSONObject -> invitationUrl(value).ifBlank { encodedOobUrl(value) }.let {
-                    if (it.isNotBlank()) return it
-                }
-                is String -> stringInvitationUrl(value).let {
-                    if (it.isNotBlank()) return it
-                }
-            }
-        }
-        return ""
-    }
-
-    private fun encodedInvitationUrl(response: JSONObject): String {
-        if (!response.has("type") || !response.optString("type").contains("out-of-band")) {
-            return ""
-        }
-        return encodedOobUrl(response)
-    }
-
-    private fun stringInvitationUrl(value: String): String {
-        if (value.contains("_oob=")) return value
-        val parsed = runCatching { JSONObject(value) }.getOrNull() ?: return ""
-        return invitationUrl(parsed).ifBlank { encodedOobUrl(parsed) }
-    }
-
-    private fun encodedOobUrl(invitation: JSONObject): String {
-        val encoded = Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(invitation.toString().toByteArray())
-        return "https://usdi-wallet.local?_oob=$encoded"
     }
 
     private fun endpoint(baseUrl: String, path: String): String =
