@@ -37,6 +37,7 @@ class IdentusAnonVerificationManager(
                     fields = fields,
                     metadata = mapOf(
                         "credentialDefinitionId" to definition.guid,
+                        "credentialDefinitionUrl" to definition.credentialDefinitionUrl(baseUrl),
                         "schemaId" to definition.schemaId
                     )
                 )
@@ -61,5 +62,16 @@ class IdentusAnonVerificationManager(
 
     override suspend fun cancelVerification(session: VerificationSession) {
         // Do nothing
+    }
+
+    private fun CloudAgentCredentialDefinition.credentialDefinitionUrl(baseUrl: String): String {
+        val trimmedId = id.normalizedCredentialDefinitionReference()
+        val trimmedBaseUrl = baseUrl.trim().trimEnd('/')
+        return when {
+            trimmedId.startsWith("http://") || trimmedId.startsWith("https://") -> trimmedId
+            trimmedId.startsWith("/credential-definition-registry/") -> "$trimmedBaseUrl$trimmedId"
+            trimmedId.startsWith("credential-definition-registry/") -> "$trimmedBaseUrl/$trimmedId"
+            else -> "$trimmedBaseUrl/credential-definition-registry/definitions/$guid/definition"
+        }.withCredentialDefinitionResourceSuffix()
     }
 }

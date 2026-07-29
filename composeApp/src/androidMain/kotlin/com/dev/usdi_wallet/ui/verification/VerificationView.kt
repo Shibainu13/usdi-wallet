@@ -51,6 +51,7 @@ import com.dev.usdi_wallet.ui.common.SecondaryButton
 import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletCard
 import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @Composable
@@ -160,12 +161,13 @@ private fun SelectCredentialTypeStep(
             } else {
                 WalletColors.Success to WalletColors.SuccessLight
             }
+            val visibleFieldCount = credentialType.fields.count { isUserVisibleClaim(it.name) }
             WalletListItem(
                 icon = Icons.Default.Badge,
                 iconTint = tint,
                 iconBackground = bg,
                 title = credentialType.label,
-                subtitle = "${credentialType.fields.size} verifiable fields",
+                subtitle = "$visibleFieldCount verifiable fields",
                 badge = { ProtocolBadge(protocol = credentialType.protocol.name) },
                 onClick = { onSelected(credentialType) },
             )
@@ -192,6 +194,7 @@ private fun SelectFieldsStep(
     onContinue: () -> Unit,
 ) {
     val showQrAction = credentialType?.protocol != VerificationProtocol.ANONCREDS
+    val visibleFieldSelections = fieldSelections.filter { isUserVisibleClaim(it.schema.name) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -199,7 +202,7 @@ private fun SelectFieldsStep(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item { SectionLabel(text = credentialType?.label.orEmpty()) }
-            items(fieldSelections, key = { it.schema.name }) { selection ->
+            items(visibleFieldSelections, key = { it.schema.name }) { selection ->
                 FieldSelectionRow(
                     selection = selection,
                     onChecked = { onFieldChecked(selection.schema.name, it) },
@@ -527,6 +530,7 @@ private fun ResultStep(
     ) {
         when (result) {
             is VerificationPollResult.Success -> {
+                val visibleClaims = result.claims.filterKeys(::isUserVisibleClaim)
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = null,
@@ -542,15 +546,19 @@ private fun ResultStep(
                         .background(WalletColors.White, MaterialTheme.shapes.large)
                         .padding(16.dp),
                 ) {
-                    result.claims.forEach { (key, value) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(text = key, style = MaterialTheme.typography.bodyMedium)
-                            Text(text = value.toString(), style = MaterialTheme.typography.titleSmall)
+                    if (visibleClaims.isEmpty()) {
+                        Text(text = "No attributes disclosed.", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        visibleClaims.forEach { (key, value) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(text = key, style = MaterialTheme.typography.bodyMedium)
+                                Text(text = value.toString(), style = MaterialTheme.typography.titleSmall)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }

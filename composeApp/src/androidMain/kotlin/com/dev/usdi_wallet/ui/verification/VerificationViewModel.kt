@@ -23,6 +23,8 @@ import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonBluetoothProofManager
 import com.dev.usdi_wallet.hyperledger_identus.LocalAnonCredBluetoothExchange
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
+import com.dev.usdi_wallet.ui.common.isSystemIndexClaim
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,12 +116,19 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     fun onCredentialTypeSelected(credentialType: VerifiableCredentialType) {
         _uiState.value = _uiState.value.copy(
             selectedCredentialType = credentialType,
-            fieldSelections = credentialType.fields.map { schema -> FieldSelection(schema) },
+            fieldSelections = credentialType.fields.map { schema ->
+                FieldSelection(
+                    schema = schema,
+                    checked = credentialType.protocol == VerificationProtocol.ANONCREDS &&
+                        isSystemIndexClaim(schema.name),
+                )
+            },
             step = VerificationStep.SelectFields,
         )
     }
 
     fun onFieldChecked(fieldName: String, checked: Boolean) {
+        if (isSystemIndexClaim(fieldName)) return
         updateField(fieldName) { it.copy(checked = checked) }
     }
 
@@ -163,7 +172,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             )
             return
         }
-        val selectedFields = state.fieldSelections.filter { it.checked }
+        val selectedFields = selectedUserVisibleFields(state)
         if (selectedFields.isEmpty()) {
             _uiState.value = _uiState.value.copy(
                 error = "Select at least one field"
@@ -174,7 +183,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             _uiState.value = _uiState.value.copy(error = "No verifier available for this credential type")
             return
         }
-        val requestedFields = selectedFields.map {
+        val requestedFields = requestedFieldSelections(state).map {
             RequestedField(
                 field = it.schema,
                 predicateOperator = it.predicateOperator,
@@ -375,6 +384,20 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    private fun selectedUserVisibleFields(state: VerificationUiState): List<FieldSelection> =
+        state.fieldSelections.filter { it.checked && isUserVisibleClaim(it.schema.name) }
+
+    private fun requestedFieldSelections(state: VerificationUiState): List<FieldSelection> =
+        state.fieldSelections.filter {
+            it.checked || isAutoRequiredIndexField(it, state.selectedCredentialType?.protocol)
+        }
+
+    private fun isAutoRequiredIndexField(
+        selection: FieldSelection,
+        protocol: VerificationProtocol?,
+    ): Boolean =
+        protocol == VerificationProtocol.ANONCREDS && isSystemIndexClaim(selection.schema.name)
+
     fun onCancelVerification() {
         pollJob?.cancel()
         bluetoothTransport.close()
@@ -483,7 +506,10 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                     }
                     return
                 }
-                val result = bluetoothProofManager.verifyPresentation(messageJson)
+                val result = bluetoothProofManager.verifyPresentation(
+                    messageJson = messageJson,
+                    credentialType = _uiState.value.selectedCredentialType,
+                )
                 val ackDescription = if (result.isValid) {
                     "Presentation verified"
                 } else {

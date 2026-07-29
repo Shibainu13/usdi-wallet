@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -38,6 +39,7 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 
 private enum class VerificationTab(val title: String) {
     FROM_CREDENTIAL("From credential"),
@@ -151,7 +153,10 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
                             )
                         }
 
-                        itemsIndexed(uiState.claimItems, key = { index, item -> "${item.name}-$index" }) { index, item ->
+                        val visibleClaimItems = uiState.claimItems
+                            .mapIndexed { index, item -> index to item }
+                            .filter { (_, item) -> isUserVisibleClaim(item.name) }
+                        items(visibleClaimItems, key = { (index, item) -> "${item.name}-$index" }) { (index, item) ->
                             ClaimItemCard(
                                 item = item,
                                 onCheckedChange = { viewModel.onClaimChecked(index, it) },
@@ -224,6 +229,8 @@ fun VerificationRequestScreen(viewModel: VerificationRequestViewModel) {
 
 @Composable
 private fun VerificationResultCard(result: VerificationResult) {
+    val visibleAttributes = result.attributes.filterKeys(::isUserVisibleClaim)
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -233,10 +240,10 @@ private fun VerificationResultCard(result: VerificationResult) {
                 text = if (result.isValid) "Verification successful" else "Verification failed",
                 style = MaterialTheme.typography.titleMedium,
             )
-            if (result.attributes.isEmpty()) {
+            if (visibleAttributes.isEmpty()) {
                 Text(text = "Message ID: ${result.messageId}")
             } else {
-                result.attributes.forEach { (name, value) ->
+                visibleAttributes.forEach { (name, value) ->
                     Text(text = "$name: $value")
                 }
             }

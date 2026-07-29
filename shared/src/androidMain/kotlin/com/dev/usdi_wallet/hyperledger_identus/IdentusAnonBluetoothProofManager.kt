@@ -112,6 +112,7 @@ object LocalAnonCredBluetoothExchange {
 class IdentusAnonBluetoothProofManager {
     private val sdk = HyperledgerIdentusSdk.getInstance()
     private val json = Json { ignoreUnknownKeys = true }
+    private val vdrStatusListClient = VdrStatusListClient()
 
     suspend fun createRequest(
         credentialType: VerifiableCredentialType,
@@ -121,12 +122,11 @@ class IdentusAnonBluetoothProofManager {
 
         val selectedClaims = requestedFields.filter { it.predicateOperator == null }
         val selectedPredicates = requestedFields.filter { it.predicateOperator != null }
-        val credentialDefinitionId = credentialType.metadata["credentialDefinitionId"]
-            ?: credentialType.metadata["credentialDefinitionUrl"]
+        val credentialDefinitionId = credentialDefinitionRestriction(credentialType)
         val presentationDefinitionRequest = sdk.agent.pollux.createPresentationDefinitionRequest(
             type = CredentialType.ANONCREDS_PROOF_REQUEST,
             presentationClaims = AnoncredsPresentationClaims(
-                attributes = requestedAttributes(selectedClaims, credentialDefinitionId),
+                attributes = requestedAttributes(selectedClaims, credentialType, credentialDefinitionId),
                 predicates = requestedPredicates(selectedPredicates),
             ),
             options = AnoncredsPresentationOptions(nonce = numericNonce()),
@@ -171,7 +171,7 @@ class IdentusAnonBluetoothProofManager {
 
     suspend fun receiveRequest(messageJson: String): LocalAnonCredProofMessage {
         awaitAgent()
-
+        Logger.d(IdentusAnonBluetoothProofManager::class.toString()) { "Received local Bluetooth proof request" }
         val message = decodeMessage(messageJson, Message.Direction.RECEIVED)
         require(message.piuri == ProtocolType.DidcommRequestPresentation.value) {
             "Expected request-presentation message, received ${message.piuri}"
@@ -196,9 +196,12 @@ class IdentusAnonBluetoothProofManager {
         )
     }
 
-    suspend fun verifyPresentation(messageJson: String): LocalAnonCredVerificationResult {
+    suspend fun verifyPresentation(
+        messageJson: String,
+        credentialType: VerifiableCredentialType?,
+    ): LocalAnonCredVerificationResult {
         awaitAgent()
-
+        Logger.d(IdentusAnonBluetoothProofManager::class.toString()) { "Received local Bluetooth presentation" }
         val message = decodeMessage(messageJson, Message.Direction.RECEIVED)
         require(message.piuri == ProtocolType.DidcommPresentation.value) {
             "Expected presentation message, received ${message.piuri}"
@@ -210,12 +213,33 @@ class IdentusAnonBluetoothProofManager {
             val attributes = extractAnonCredRevealedAttributes(message.toJsonString())
                 .ifEmpty { extractAnonCredRevealedAttributes(message.toString()) }
 
-            LocalAnonCredVerificationResult(
-                messageId = message.id,
-                threadId = message.thid,
-                isValid = isValid,
-                attributes = attributes,
-            )
+            if (!isValid) {
+                LocalAnonCredVerificationResult(
+                    messageId = message.id,
+                    threadId = message.thid,
+                    isValid = false,
+                    attributes = attributes,
+                    error = "Presentation verification failed",
+                )
+            } else {
+                val revocationStatus = checkVdrRevocationStatus(credentialType, attributes)
+                if (!revocationStatus.isActive) {
+                    LocalAnonCredVerificationResult(
+                        messageId = message.id,
+                        threadId = message.thid,
+                        isValid = false,
+                        attributes = attributes,
+                        error = revocationStatus.error ?: PRESENTATION_REVOKED_MESSAGE,
+                    )
+                } else {
+                    LocalAnonCredVerificationResult(
+                        messageId = message.id,
+                        threadId = message.thid,
+                        isValid = true,
+                        attributes = attributes,
+                    )
+                }
+            }
         }.getOrElse { error ->
             Logger.e(IdentusAnonBluetoothProofManager::class.toString()) {
                 "Failed to verify local Bluetooth presentation ${message.id}: ${error.message}"
@@ -229,8 +253,45 @@ class IdentusAnonBluetoothProofManager {
         }
     }
 
+    private suspend fun checkVdrRevocationStatus(
+        credentialType: VerifiableCredentialType?,
+        attributes: Map<String, String>,
+    ): VdrRevocationStatus {
+        val index = revocationIndex(attributes)
+            ?: return revocationStatusNotChecked("Presentation is missing revocation index")
+        val credentialId = revocationCredentialId(credentialType, attributes)
+            ?: return revocationStatusNotChecked("Presentation is missing credential ID for revocation check")
+
+        return runCatching {
+            Logger.d(IdentusAnonBluetoothProofManager::class.toString()) {
+                "Checking VDR revocation status for credentialId=$credentialId, index=$index"
+            }
+            val isActive = vdrStatusListClient.isCredentialActive(credentialId, index)
+            VdrRevocationStatus(
+                isActive = isActive,
+                error = if (isActive) null else PRESENTATION_REVOKED_MESSAGE,
+            )
+        }.getOrElse { error ->
+            Logger.e(IdentusAnonBluetoothProofManager::class.toString()) {
+                "VDR revocation check failed for credentialId=$credentialId, index=$index: ${error.message}"
+            }
+            VdrRevocationStatus(
+                isActive = false,
+                error = "Could not check credential revocation status: ${error.message ?: error::class.simpleName}",
+            )
+        }
+    }
+
+    private fun revocationStatusNotChecked(reason: String): VdrRevocationStatus {
+        Logger.w(IdentusAnonBluetoothProofManager::class.toString()) {
+            "$reason; accepting valid Bluetooth presentation without VDR revocation check"
+        }
+        return VdrRevocationStatus(isActive = true)
+    }
+
     private fun requestedAttributes(
         fields: List<RequestedField>,
+        credentialType: VerifiableCredentialType,
         credentialDefinitionId: String?,
     ): Map<String, RequestedAttributes> {
         val restrictions = credentialDefinitionId
@@ -238,8 +299,7 @@ class IdentusAnonBluetoothProofManager {
             ?.let { mapOf("cred_def_id" to it) }
             ?: emptyMap()
 
-        return fields.associate { field ->
-            val name = field.field.name
+        return requestedAttributeNames(fields, credentialType).associate { name ->
             name to RequestedAttributes(
                 name = name,
                 names = setOf(name),
@@ -247,6 +307,42 @@ class IdentusAnonBluetoothProofManager {
                 nonRevoked = null,
             )
         }
+    }
+
+    private fun credentialDefinitionRestriction(
+        credentialType: VerifiableCredentialType,
+    ): String? {
+        val candidates = listOfNotNull(
+            credentialType.metadata["credentialDefinitionUrl"],
+            credentialType.metadata["credentialDefinitionId"],
+            credentialType.id,
+        ).mapNotNull { value ->
+            value.withCredentialDefinitionResourceSuffix().takeIf { it.isNotBlank() }
+        }
+        val restriction = candidates.firstOrNull { !it.isBareUuid() }
+        if (restriction == null && candidates.isNotEmpty()) {
+            Logger.w(IdentusAnonBluetoothProofManager::class.toString()) {
+                "Skipping bare UUID credential definition restriction candidates=$candidates"
+            }
+        }
+        return restriction
+    }
+
+    private fun requestedAttributeNames(
+        fields: List<RequestedField>,
+        credentialType: VerifiableCredentialType,
+    ): List<String> {
+        val requestedNames = fields.map { it.field.name }
+        if (requestedNames.any { it.normalizedSystemClaimName() == REVOCATION_INDEX_ATTRIBUTE }) {
+            return requestedNames
+        }
+
+        val schemaIndexName = credentialType.fields
+            .firstOrNull { it.name.normalizedSystemClaimName() == REVOCATION_INDEX_ATTRIBUTE }
+            ?.name
+            ?: REVOCATION_INDEX_ATTRIBUTE
+
+        return requestedNames + schemaIndexName
     }
 
     private fun requestedPredicates(
@@ -268,6 +364,41 @@ class IdentusAnonBluetoothProofManager {
     private fun decodeMessage(value: String, direction: Message.Direction): Message =
         json.decodeFromString<Message>(value).copy(direction = direction)
 
+    private fun revocationIndex(attributes: Map<String, String>): String? =
+        attributes.firstValueForSystemClaim(REVOCATION_INDEX_ATTRIBUTE)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+    private fun revocationCredentialId(
+        credentialType: VerifiableCredentialType?,
+        attributes: Map<String, String>,
+    ): String? =
+        attributes.firstValueForSystemClaim("credentialid")
+            ?.takeIf { it.isNotBlank() }
+            ?: credentialType?.metadata?.get("credentialDefinitionUrl")?.takeIf { it.isNotBlank() }
+            ?: credentialType?.metadata?.get("credentialDefinitionId")?.takeIf { it.isNotBlank() }
+            ?: credentialType?.id?.takeIf { it.isNotBlank() }
+
+    private fun Map<String, String>.firstValueForSystemClaim(systemClaim: String): String? =
+        entries.firstOrNull { (key, _) -> key.normalizedSystemClaimName() == systemClaim }?.value
+
+    private fun String.normalizedSystemClaimName(): String =
+        trim()
+            .withoutKnownTypeSuffix()
+            .filterNot { it == '_' || it == '-' }
+            .lowercase()
+
+    private fun String.withoutKnownTypeSuffix(): String {
+        val suffix = substringAfterLast("_", missingDelimiterValue = "")
+        return if (suffix.lowercase() in KNOWN_TYPE_SUFFIXES) {
+            substringBeforeLast("_")
+        } else {
+            this
+        }
+    }
+
+    private fun String.isBareUuid(): Boolean = BARE_UUID.matches(trim())
+
     private suspend fun awaitAgent() {
         while (!sdk.canUseLocalAgent()) {
             delay(100)
@@ -281,4 +412,18 @@ class IdentusAnonBluetoothProofManager {
         Base64.getUrlEncoder()
             .withoutPadding()
             .encodeToString(toByteArray(StandardCharsets.UTF_8))
+
+    private data class VdrRevocationStatus(
+        val isActive: Boolean,
+        val error: String? = null,
+    )
+
+    private companion object {
+        const val PRESENTATION_REVOKED_MESSAGE = "Presentation is already revoked"
+        const val REVOCATION_INDEX_ATTRIBUTE = "index"
+        val BARE_UUID = Regex(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        )
+        val KNOWN_TYPE_SUFFIXES = setOf("str", "num", "bool", "date")
+    }
 }

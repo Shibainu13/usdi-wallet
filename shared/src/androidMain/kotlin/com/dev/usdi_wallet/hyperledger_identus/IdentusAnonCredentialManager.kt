@@ -16,6 +16,7 @@ import com.dev.usdi_wallet.domain.credential.ProofRequestField
 import com.dev.usdi_wallet.domain.credential.VerificationRequest
 import com.dev.usdi_wallet.domain.credential.VerificationResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -42,7 +43,6 @@ import org.hyperledger.identus.walletsdk.domain.models.RequestedAttributes
 import org.hyperledger.identus.walletsdk.domain.models.ProvableCredential
 import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 import org.hyperledger.identus.walletsdk.edgeagent.DIDCOMM1
-import org.hyperledger.identus.walletsdk.edgeagent.EdgeAgentError
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.ProtocolType
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.IssueCredential
 import org.hyperledger.identus.walletsdk.edgeagent.protocols.issueCredential.OfferCredential
@@ -439,9 +439,12 @@ class IdentusAnonCredentialManager(
             "Received proof verification result from server"
         }
         try {
+            Logger.d("is fuking valid")
             val isValid = sdk.agent.handlePresentation(message)
+            Logger.d("fuck u")
             val attributes = extractAnonCredRevealedAttributes(message.toJsonString())
                 .ifEmpty { extractAnonCredRevealedAttributes(message.toString()) }
+            Logger.d("fuk u ver 2")
             _verificationResults.update { current ->
                 current + VerificationResult(
                     messageId = message.id,
@@ -524,10 +527,21 @@ class IdentusAnonCredentialManager(
         message: SdkMessage,
         disclosedClaimLabels: List<String>?,
     ) {
-        val outMessage = preparePresentationProofMessage(credential, message, disclosedClaimLabels)
-            ?: return
+        val isLocalBluetoothRequest = LocalAnonCredBluetoothExchange.isLocalRequest(message.id)
+        val outMessage = runCatching {
+            buildPresentationProofMessage(credential, message, disclosedClaimLabels)
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Failed to prepare proof presentation for request ${message.id}: ${error.message}"
+            }
+            if (isLocalBluetoothRequest) {
+                notifyBluetoothProofFailure(message, error)
+            }
+            return
+        }
 
-        if (LocalAnonCredBluetoothExchange.isLocalRequest(message.id)) {
+        if (isLocalBluetoothRequest) {
             val sent = runCatching {
                 LocalAnonCredBluetoothExchange.sendPresentation(outMessage)
             }.getOrElse { error ->
@@ -565,58 +579,99 @@ class IdentusAnonCredentialManager(
         credential: SdkCredential,
         message: SdkMessage,
         disclosedClaimLabels: List<String>?,
-    ): SdkMessage? {
+    ): SdkMessage? =
+        runCatching {
+            buildPresentationProofMessage(credential, message, disclosedClaimLabels)
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Failed to prepare proof presentation for request ${message.id}: ${error.message}"
+            }
+            null
+        }
+
+    private suspend fun buildPresentationProofMessage(
+        credential: SdkCredential,
+        message: SdkMessage,
+        disclosedClaimLabels: List<String>?,
+    ): SdkMessage {
         Logger.d(IdentusAnonCredentialManager::class.toString()) {
             "Preparing message $message"
         }
         if (credential is ProvableCredential) {
-            try {
-                logLongDebug("Creating proof presentation for request ${message.id} with credential ${credential.id}")
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Preparing presentation for proof request"
-                }
-                val presentation = sdk.agent.preparePresentationForRequestProof(
-                    RequestPresentation.fromMessage(message),
-                    credential,
-                )
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Presentation prepared"
-                }
-                val outMessage = presentation.makeMessage()
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Presentation message created"
-                }
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    """
-                     Sending proof presentation:
-                     request.id=${message.id}
-                     request.thid=${message.thid}
-                     presentation.id=${outMessage.id}
-                     presentation.thid=${outMessage.thid}
-                     presentation.from=${outMessage.from}
-                     presentation.to=${outMessage.to}
-                     presentation.piuri=${outMessage.piuri}
-                     """.trimIndent()
-                }
-                Logger.d(IdentusAnonCredentialManager::class.toString()) {
-                    "Sending proof presentation: $outMessage"
-                }
-                return outMessage
-            } catch (e: EdgeAgentError.CredentialNotValidForPresentationRequest) {
-                Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                    "Error presenting proof: ${e.message}"
-                }
-            } catch (e: Exception) {
-                Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                    "Failed to send proof presentation: ${e.message}"
-                }
+            logLongDebug("Creating proof presentation for request ${message.id} with credential ${credential.id}")
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Preparing presentation for proof request"
+            }
+            val presentation = sdk.agent.preparePresentationForRequestProof(
+                RequestPresentation.fromMessage(message),
+                credential,
+                disclosedClaimLabels,
+            )
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Presentation prepared"
+            }
+            val outMessage = presentation.makeMessage()
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Presentation message created"
+            }
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                """
+                 Sending proof presentation:
+                 request.id=${message.id}
+                 request.thid=${message.thid}
+                 presentation.id=${outMessage.id}
+                 presentation.thid=${outMessage.thid}
+                 presentation.from=${outMessage.from}
+                 presentation.to=${outMessage.to}
+                 presentation.piuri=${outMessage.piuri}
+                 """.trimIndent()
+            }
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "Sending proof presentation: $outMessage"
+            }
+            return outMessage
+        } else {
+            throw IllegalArgumentException("Credential ${credential.id} cannot create presentations")
+        }
+    }
+
+    private suspend fun notifyBluetoothProofFailure(message: SdkMessage, error: Throwable) {
+        val description = bluetoothProofFailureDescription(error)
+        val sent = runCatching {
+            LocalAnonCredBluetoothExchange.sendProblemReport(
+                threadId = message.thid ?: message.id,
+                description = description,
+            )
+        }.getOrElse { sendError ->
+            if (sendError is CancellationException) throw sendError
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Bluetooth proof failure report send failed: ${sendError.message}"
+            }
+            false
+        }
+
+        if (sent) {
+            LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
+            clearPendingProofRequest(message)
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Bluetooth proof failure reported for request ${message.id}: $description"
             }
         } else {
             Logger.e(IdentusAnonCredentialManager::class.toString()) {
-                "Credential ${credential.id} cannot create presentations"
+                "Bluetooth proof failure could not be reported because no active local session is registered"
             }
         }
-        return null
+    }
+
+    private fun bluetoothProofFailureDescription(error: Throwable): String {
+        val detail = error.message
+            ?.takeIf { it.isNotBlank() }
+            ?: error::class.simpleName
+            ?: "unknown error"
+        return "Holder could not create the Bluetooth proof presentation. " +
+            "The credential may not satisfy the request, or schema/credential definition data could not be resolved. " +
+            detail
     }
 
     private suspend fun clearPendingProofRequest(message: SdkMessage) {

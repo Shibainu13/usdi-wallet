@@ -42,6 +42,7 @@ import com.dev.usdi_wallet.ui.common.WalletDivider
 import com.dev.usdi_wallet.ui.common.WalletListItem
 import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.formatClaimValue
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -178,6 +179,7 @@ private fun CredentialDetailSheet(
     onDismiss: () -> Unit,
 ) {
     val isRevoked = credential.revoked
+    val visibleClaims = credential.claims.filter { isUserVisibleClaim(it.name) }
 
     Column(
         modifier = Modifier
@@ -233,7 +235,7 @@ private fun CredentialDetailSheet(
                 .then(if (isRevoked) Modifier.alpha(0.5f) else Modifier),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            credential.claims.forEachIndexed { index, claim ->
+            visibleClaims.forEachIndexed { index, claim ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = formatClaimName(claim.name),
@@ -244,7 +246,7 @@ private fun CredentialDetailSheet(
                         style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                     )
                 }
-                if (index < credential.claims.lastIndex) WalletDivider()
+                if (index < visibleClaims.lastIndex) WalletDivider()
             }
         }
 

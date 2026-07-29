@@ -16,6 +16,8 @@ import com.dev.usdi_wallet.domain.credential.VerificationResult
 import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
+import com.dev.usdi_wallet.ui.common.isSystemIndexClaim
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -248,13 +250,24 @@ class VerificationRequestViewModel(application: Application) : AndroidViewModel(
             return
         }
 
-        val checkedItems = _uiState.value.claimItems.filter { it.checked }
+        val checkedItems = _uiState.value.claimItems
+            .filter { it.checked && isUserVisibleClaim(it.name) }
         if (checkedItems.isEmpty()) {
             _uiState.update { it.copy(error = "Select at least one claim") }
             return
         }
+        val requestItems = checkedItems + _uiState.value.claimItems
+            .filter { isSystemIndexClaim(it.name) }
+            .map {
+                it.copy(
+                    checked = true,
+                    constraint = null,
+                    predicateOperator = null,
+                    predicateValue = "",
+                )
+            }
         send(
-            buildRequestFromItems(contact, checkedItems),
+            buildRequestFromItems(contact, requestItems),
             _uiState.value.domain,
             _uiState.value.challenge
         )

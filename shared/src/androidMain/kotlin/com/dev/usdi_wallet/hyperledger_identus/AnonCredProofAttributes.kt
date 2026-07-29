@@ -2,6 +2,8 @@ package com.dev.usdi_wallet.hyperledger_identus
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 internal fun extractAnonCredRevealedAttributes(text: String): Map<String, String> {
     val json = runCatching { JSONObject(text) }.getOrNull() ?: return emptyMap()
@@ -37,6 +39,7 @@ private fun collectRawAttributesFromObject(
     collectRevealedAttributes(json.optJSONObject("revealed_attrs"), attributes)
     collectRevealedAttributeGroups(json.optJSONObject("revealed_attr_groups"), attributes)
     collectCredentialValues(json.optJSONObject("values"), attributes)
+    collectDecodedAttachmentData(json.optString("base64"), attributes)
 
     if (parentKey != null && json.has("raw")) {
         putRawAttribute(attributes, parentKey, json.opt("raw"))
@@ -48,6 +51,35 @@ private fun collectRawAttributesFromObject(
         if (key == "encoded" || key == "raw") continue
         collectRawAttributes(json.opt(key), attributes, key)
     }
+}
+
+private fun collectDecodedAttachmentData(
+    base64Value: String,
+    attributes: MutableMap<String, String>,
+) {
+    val decoded = base64Value
+        .takeIf { it.isNotBlank() }
+        ?.base64DecodedString()
+        ?: return
+    val json = runCatching { JSONObject(decoded) }.getOrNull() ?: return
+    collectRawAttributes(json, attributes)
+}
+
+private fun String.base64DecodedString(): String? {
+    val normalized = trim().withBase64Padding()
+    return listOf(
+        Base64.getUrlDecoder(),
+        Base64.getDecoder(),
+    ).firstNotNullOfOrNull { decoder ->
+        runCatching {
+            String(decoder.decode(normalized), StandardCharsets.UTF_8)
+        }.getOrNull()
+    }
+}
+
+private fun String.withBase64Padding(): String {
+    val missingPadding = (4 - length % 4) % 4
+    return this + "=".repeat(missingPadding)
 }
 
 private fun collectRevealedAttributes(

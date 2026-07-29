@@ -48,6 +48,7 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.formatClaimValue
+import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
 
@@ -271,6 +272,8 @@ fun ProofRequestSheet(
     var selectedCredential by remember { mutableStateOf<Credential?>(null) }
     var selectedClaims by remember { mutableStateOf<Set<String>>(emptySet()) }
     val requiresDisclosedClaims = request.protocolId == "OPENID4VC"
+    val visibleRequestedFields = request.details.requestedFields
+        .filter { isUserVisibleClaim(it.name) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -293,14 +296,14 @@ fun ProofRequestSheet(
             )
 
             Text("Required fields", style = MaterialTheme.typography.titleSmall)
-            if (request.details.requestedFields.isEmpty()) {
+            if (visibleRequestedFields.isEmpty()) {
                 Text(
                     text = "No requested fields found in this request.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    request.details.requestedFields.forEach { field ->
+                    visibleRequestedFields.forEach { field ->
                         val requirement = field.requirement?.let { " - $it" }.orEmpty()
                         Text(
                             text = "${formatClaimName(field.name)}$requirement",
@@ -342,7 +345,10 @@ fun ProofRequestSheet(
                                             if (requiresDisclosedClaims) {
                                                 selectedCredential = credential
                                                 selectedClaims = credential.claims
-                                                    .filter { it.type != ClaimType.BYTEARRAY }
+                                                    .filter {
+                                                        it.type != ClaimType.BYTEARRAY &&
+                                                            isUserVisibleClaim(it.name)
+                                                    }
                                                     .map { it.name }
                                                     .toSet()
                                             } else {
@@ -360,7 +366,8 @@ fun ProofRequestSheet(
                 }
             } else {
                 val credential = selectedCredential!!
-                val selectableClaims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
+                val selectableClaims = credential.claims
+                    .filter { it.type != ClaimType.BYTEARRAY && isUserVisibleClaim(it.name) }
                 Text("Select claims to disclose:")
                 Text(
                     text = credential.subject ?: credential.id,
@@ -461,7 +468,8 @@ private fun CredentialSelectHeadline(credential: Credential) {
 
 @Composable
 private fun CredentialClaimValues(credential: Credential) {
-    val claims = credential.claims.filter { it.type != ClaimType.BYTEARRAY }
+    val claims = credential.claims
+        .filter { it.type != ClaimType.BYTEARRAY && isUserVisibleClaim(it.name) }
 
     if (claims.isEmpty()) {
         Text(credential.issuer)

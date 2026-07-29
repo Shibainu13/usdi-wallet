@@ -125,12 +125,17 @@ class CloudAgentVerifierClient(
         val credentialDefinition = optJSONObject("credentialDefinition")
             ?: optJSONObject("definition")
             ?: this
+        val credentialDefinitionId = credentialDefinition.optString("id")
+            .ifBlank { credentialDefinition.optString("credentialDefinitionId") }
+            .ifBlank { credentialDefinition.optString("credDefId") }
+            .ifBlank { credentialDefinition.optString("cred_def_id") }
+            .ifBlank { optString("credentialDefinitionId") }
+            .ifBlank { optString("self") }
+            .ifBlank { optString("id") }
 
         return CloudAgentCredentialDefinition(
             guid = guid,
-            id = optString("id")
-                .ifBlank { optString("credentialDefinitionId") }
-                .ifBlank { optString("self") },
+            id = credentialDefinitionId,
             schemaId = optString("schemaId").ifBlank { credentialDefinition.optString("schemaId") },
             name = optString("name").ifBlank { credentialDefinition.optString("name") }.ifBlank { guid },
             version = optString("version").ifBlank { credentialDefinition.optString("version") },
