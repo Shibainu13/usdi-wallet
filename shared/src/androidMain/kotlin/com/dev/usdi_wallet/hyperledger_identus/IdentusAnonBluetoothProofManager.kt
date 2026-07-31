@@ -1,5 +1,6 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
+import android.os.SystemClock
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.verification.RequestedField
@@ -119,6 +120,7 @@ class IdentusAnonBluetoothProofManager {
         requestedFields: List<RequestedField>,
     ): LocalAnonCredProofMessage {
         awaitAgent()
+        val startMs = nowMs()
 
         val selectedClaims = requestedFields.filter { it.predicateOperator == null }
         val selectedPredicates = requestedFields.filter { it.predicateOperator != null }
@@ -160,6 +162,10 @@ class IdentusAnonBluetoothProofManager {
         Logger.d(IdentusAnonBluetoothProofManager::class.toString()) {
             "Created local Bluetooth proof request messageId=${message.id}, thid=${message.thid}"
         }
+        logPerf(
+            event = "proof_manager_request_create_end",
+            details = "role=verifier messageId=${message.id} thid=${message.thid.orEmpty()} fields=${requestedFields.size} durationMs=${nowMs() - startMs}",
+        )
 
         return LocalAnonCredProofMessage(
             messageType = LocalAnonCredBluetoothExchange.MESSAGE_TYPE_REQUEST_PRESENTATION,
@@ -171,6 +177,7 @@ class IdentusAnonBluetoothProofManager {
 
     suspend fun receiveRequest(messageJson: String): LocalAnonCredProofMessage {
         awaitAgent()
+        val startMs = nowMs()
         Logger.d(IdentusAnonBluetoothProofManager::class.toString()) { "Received local Bluetooth proof request" }
         val message = decodeMessage(messageJson, Message.Direction.RECEIVED)
         require(message.piuri == ProtocolType.DidcommRequestPresentation.value) {
@@ -187,6 +194,10 @@ class IdentusAnonBluetoothProofManager {
         Logger.d(IdentusAnonBluetoothProofManager::class.toString()) {
             "Queued local Bluetooth proof request messageId=${message.id}, thid=${message.thid}"
         }
+        logPerf(
+            event = "proof_manager_request_receive_end",
+            details = "role=holder messageId=${message.id} thid=${message.thid.orEmpty()} chars=${messageJson.length} durationMs=${nowMs() - startMs}",
+        )
 
         return LocalAnonCredProofMessage(
             messageType = LocalAnonCredBluetoothExchange.MESSAGE_TYPE_REQUEST_PRESENTATION,
@@ -201,6 +212,7 @@ class IdentusAnonBluetoothProofManager {
         credentialType: VerifiableCredentialType?,
     ): LocalAnonCredVerificationResult {
         awaitAgent()
+        val startMs = nowMs()
         Logger.d(IdentusAnonBluetoothProofManager::class.toString()) { "Received local Bluetooth presentation" }
         val message = decodeMessage(messageJson, Message.Direction.RECEIVED)
         require(message.piuri == ProtocolType.DidcommPresentation.value) {
@@ -213,7 +225,7 @@ class IdentusAnonBluetoothProofManager {
             val attributes = extractAnonCredRevealedAttributes(message.toJsonString())
                 .ifEmpty { extractAnonCredRevealedAttributes(message.toString()) }
 
-            if (!isValid) {
+            val result = if (!isValid) {
                 LocalAnonCredVerificationResult(
                     messageId = message.id,
                     threadId = message.thid,
@@ -240,10 +252,19 @@ class IdentusAnonBluetoothProofManager {
                     )
                 }
             }
+            logPerf(
+                event = "proof_manager_presentation_verify_end",
+                details = "role=verifier messageId=${message.id} thid=${message.thid.orEmpty()} valid=${result.isValid} chars=${messageJson.length} attributes=${attributes.size} durationMs=${nowMs() - startMs}",
+            )
+            result
         }.getOrElse { error ->
             Logger.e(IdentusAnonBluetoothProofManager::class.toString()) {
                 "Failed to verify local Bluetooth presentation ${message.id}: ${error.message}"
             }
+            logPerf(
+                event = "proof_manager_presentation_verify_end",
+                details = "role=verifier messageId=${message.id} thid=${message.thid.orEmpty()} valid=false chars=${messageJson.length} error=${error.shortName()} durationMs=${nowMs() - startMs}",
+            )
             LocalAnonCredVerificationResult(
                 messageId = message.id,
                 threadId = message.thid,
@@ -413,12 +434,23 @@ class IdentusAnonBluetoothProofManager {
             .withoutPadding()
             .encodeToString(toByteArray(StandardCharsets.UTF_8))
 
+    private fun nowMs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000_000
+
+    private fun logPerf(event: String, details: String) {
+        Logger.i(PERF_TAG) { "event=$event $details tMs=${nowMs()}" }
+    }
+
+    private fun Throwable.shortName(): String =
+        message?.replace('\n', ' ')?.takeIf { it.isNotBlank() }
+            ?: javaClass.simpleName
+
     private data class VdrRevocationStatus(
         val isActive: Boolean,
         val error: String? = null,
     )
 
     private companion object {
+        const val PERF_TAG = "BtPerf"
         const val PRESENTATION_REVOKED_MESSAGE = "Presentation is already revoked"
         const val REVOCATION_INDEX_ATTRIBUTE = "index"
         val BARE_UUID = Regex(

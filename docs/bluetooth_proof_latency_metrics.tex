@@ -1,0 +1,47 @@
+\subsection{Bluetooth Proof Exchange Latency}
+
+To evaluate the performance of the local Bluetooth proof transport, both the holder and verifier devices were instrumented with timestamped \texttt{BtPerf} logs. The measurement separates Bluetooth transport overhead from AnonCreds proof processing. Each log entry records the event type, DIDComm thread identifier, payload size, chunk count, and measured duration in milliseconds.
+
+The experiment produced five Bluetooth proof attempts. Four attempts completed successfully, while one attempt ended with a holder-side denial and was excluded from the successful latency summary. The successful exchanges used AnonCreds proof requests with two requested fields. The request payload was approximately 1.62 KB and was sent as a single Bluetooth frame. The generated presentation payload was approximately 25.05 KB and was split into three Bluetooth chunks.
+
+\begin{table}[h]
+\centering
+\caption{Bluetooth proof exchange latency for successful runs}
+\label{tab:bluetooth-proof-latency}
+\begin{tabular}{lrrrr}
+\hline
+Metric & Mean (ms) & Median (ms) & Min (ms) & Max (ms) \\
+\hline
+Connection setup & 1462.6 & 962.0 & 579 & 2729 \\
+Proof request creation & 59.0 & 57.5 & 51 & 70 \\
+Request write call & 36.0 & 36.0 & 34 & 38 \\
+Request ACK round-trip & 46.0 & 44.0 & 37 & 59 \\
+Holder request queueing & 29.8 & 28.0 & 23 & 40 \\
+Holder proof generation & 788.0 & 787.5 & 759 & 818 \\
+Presentation write call & 12.8 & 11.5 & 6 & 22 \\
+Verifier presentation validation & 1376.0 & 1202.5 & 1187 & 1912 \\
+End-to-end proof flow & 4921.0 & 4490.5 & 3939 & 6764 \\
+\hline
+\end{tabular}
+\end{table}
+
+The results show that the Bluetooth write operations themselves were small compared with the cryptographic processing stages. The request acknowledgement round-trip had a median latency of 44 ms, indicating that small request/ACK messages add little delay over the established Bluetooth socket. In contrast, holder-side AnonCreds proof generation required approximately 788 ms on average, while verifier-side presentation validation required approximately 1.38 seconds on average.
+
+The full proof flow, measured from verifier request initiation to final verifier result and excluding Bluetooth pairing, completed with a median latency of 4.49 seconds. This end-to-end value includes application-level processing and holder interaction delay, so it should be interpreted as observed workflow latency rather than pure Bluetooth transport latency.
+
+\begin{table}[h]
+\centering
+\caption{Bluetooth proof message sizes}
+\label{tab:bluetooth-message-size}
+\begin{tabular}{lrr}
+\hline
+Message type & Mean size (bytes) & Chunks \\
+\hline
+Request presentation & 1622.0 & 1 \\
+Presentation & 25046.8 & 3 \\
+ACK & 198.5 & 1 \\
+\hline
+\end{tabular}
+\end{table}
+
+Overall, the measured bottleneck is not the Bluetooth socket write path but the AnonCreds proof generation and verification stages. Bluetooth remains suitable for the local proof exchange because the request message fits in one frame and the larger presentation can be reliably transferred using the implemented chunking mechanism.

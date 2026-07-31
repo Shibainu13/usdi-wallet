@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.hyperledger_identus
 
 import android.content.Context
+import android.os.SystemClock
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.db.AppDatabase
 import com.dev.usdi_wallet.db.data.MessageReadStatus
@@ -528,6 +529,7 @@ class IdentusAnonCredentialManager(
         disclosedClaimLabels: List<String>?,
     ) {
         val isLocalBluetoothRequest = LocalAnonCredBluetoothExchange.isLocalRequest(message.id)
+        val proofBuildStartMs = nowMs()
         val outMessage = runCatching {
             buildPresentationProofMessage(credential, message, disclosedClaimLabels)
         }.getOrElse { error ->
@@ -536,19 +538,40 @@ class IdentusAnonCredentialManager(
                 "Failed to prepare proof presentation for request ${message.id}: ${error.message}"
             }
             if (isLocalBluetoothRequest) {
+                logPerf(
+                    event = "holder_proof_generation_end",
+                    details = "role=holder requestId=${message.id} thid=${message.thid.orEmpty()} success=false error=${error.shortName()} durationMs=${nowMs() - proofBuildStartMs}",
+                )
                 notifyBluetoothProofFailure(message, error)
             }
             return
         }
+        if (isLocalBluetoothRequest) {
+            logPerf(
+                event = "holder_proof_generation_end",
+                details = "role=holder requestId=${message.id} thid=${message.thid.orEmpty()} success=true presentationId=${outMessage.id} durationMs=${nowMs() - proofBuildStartMs}",
+            )
+        }
 
         if (isLocalBluetoothRequest) {
+            val sendStartMs = nowMs()
             val sent = runCatching {
                 LocalAnonCredBluetoothExchange.sendPresentation(outMessage)
             }.getOrElse { error ->
                 Logger.e(IdentusAnonCredentialManager::class.toString()) {
                     "Bluetooth proof presentation send failed: ${error.message}"
                 }
+                logPerf(
+                    event = "holder_presentation_send_call_end",
+                    details = "role=holder requestId=${message.id} thid=${message.thid.orEmpty()} presentationId=${outMessage.id} success=false error=${error.shortName()} durationMs=${nowMs() - sendStartMs}",
+                )
                 false
+            }
+            if (sent) {
+                logPerf(
+                    event = "holder_presentation_send_call_end",
+                    details = "role=holder requestId=${message.id} thid=${message.thid.orEmpty()} presentationId=${outMessage.id} success=true durationMs=${nowMs() - sendStartMs}",
+                )
             }
             if (sent) {
                 LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
@@ -1289,7 +1312,18 @@ class IdentusAnonCredentialManager(
         ).joinToString(", ").takeIf { it.isNotBlank() }
     }
 
+    private fun nowMs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000_000
+
+    private fun logPerf(event: String, details: String) {
+        Logger.i(PERF_TAG) { "event=$event $details tMs=${nowMs()}" }
+    }
+
+    private fun Throwable.shortName(): String =
+        message?.replace('\n', ' ')?.takeIf { it.isNotBlank() }
+            ?: javaClass.simpleName
+
     private companion object {
+        const val PERF_TAG = "BtPerf"
         const val ANONCREDS_CREDENTIAL_FORMAT = "anoncreds/credential@v1.0"
         const val ANONCREDS_REVOCATION_FORMAT = "anoncreds/credential-revocation@v1.0"
         const val REVOCATION_METADATA_LINK_SECRET_NAME = "anoncred-revocation-metadata"

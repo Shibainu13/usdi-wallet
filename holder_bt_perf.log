@@ -1,0 +1,70 @@
+--------- beginning of main
+         1785491053.438 20100 20257 I BtPerf  : event=listen_start role=holder tMs=779480387
+         1785491063.289 20100 20281 I BtPerf  : event=connect_start role=verifier peer=70:21:7F:4C:E2:0C tMs=779490238
+         1785491065.485 20100 20281 I BtPerf  : event=connect_end role=verifier peer=70:21:7F:4C:E2:0C durationMs=2196 tMs=779492434
+         1785491066.813 20100 20100 I BtPerf  : event=proof_flow_start role=verifier credentialType=/credential-definition-registry/definitions/e8ff2f3b-623d-34dd-8e45-e94a5c079c31 fields=2 tMs=779493762
+         1785491066.883 20100 20100 I BtPerf  : event=proof_manager_request_create_end role=verifier messageId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e fields=2 durationMs=69 tMs=779493832
+         1785491066.884 20100 20100 I BtPerf  : event=request_build_end role=verifier messageId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e chars=1331 durationMs=70 tMs=779493833
+         1785491066.889 20100 20280 I BtPerf  : event=send_end type=request-presentation id=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e bytes=1618 chunks=1 durationMs=1 tMs=779493838
+         1785491066.922 20100 20100 I BtPerf  : event=request_send_call_end role=verifier messageId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e durationMs=38 tMs=779493871
+         1785491066.980 20100 20281 I BtPerf  : event=receive_end type=ack id=bb0a8578-4419-4c86-b6ac-9ccb54479af7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e lineChars=198 payloadChars=0 durationMs=1 tMs=779493929
+         1785491066.981 20100 20281 I BtPerf  : event=request_ack_rtt_end role=verifier thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e durationMs=59 tMs=779493930
+         1785491069.584 20100 20281 I BtPerf  : event=receive_end type=presentation id=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e lineChars=9479 payloadChars=24784 durationMs=33 tMs=779496533
+         1785491071.496 20100 20280 I BtPerf  : event=proof_manager_presentation_verify_end role=verifier messageId=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e valid=true chars=24784 attributes=1 durationMs=1912 tMs=779498445
+         1785491071.496 20100 20280 I BtPerf  : event=presentation_verify_end role=verifier messageId=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e valid=true attributes=1 durationMs=1912 tMs=779498445
+         1785491071.496 20100 20280 I BtPerf  : event=proof_flow_end role=verifier thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e valid=true totalMs=4683 tMs=779498445
+         1785491071.497 20100 20280 I BtPerf  : event=send_end type=ack id=838fefc8-e19e-45ea-9de1-4b08c4636579 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e bytes=199 chunks=1 durationMs=0 tMs=779498446
+         1785491077.678 20100 20280 I BtPerf  : event=listen_start role=holder tMs=779504627
+         1785491089.663 20100 20282 I BtPerf  : event=accept_end role=holder durationMs=11985 peer=70:21:7F:4C:E2:0C tMs=779516612
+         1785491090.715 20100 20282 I BtPerf  : event=receive_end type=request-presentation id=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b lineChars=1618 payloadChars=1331 durationMs=16 tMs=779517664
+         1785491090.718 20100 20282 I BtPerf  : event=request_handle_start role=holder frameId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b payloadChars=1331 tMs=779517667
+         1785491090.735 20100 20282 I BtPerf  : event=proof_manager_request_receive_end role=holder messageId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b chars=1331 durationMs=16 tMs=779517684
+         1785491090.738 20100 20282 I BtPerf  : event=request_queue_end role=holder messageId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b durationMs=21 tMs=779517687
+         1785491090.742 20100 20282 I BtPerf  : event=send_end type=ack id=61ab299c-d0ff-4aa1-8274-afcc79344c91 thid=4a561dce-d91a-438b-9df9-143c0ec0053b bytes=198 chunks=1 durationMs=1 tMs=779517691
+         1785491090.742 20100 20282 I BtPerf  : event=request_ack_send_call_end role=holder thid=4a561dce-d91a-438b-9df9-143c0ec0053b durationMs=4 tMs=779517691
+         1785491092.571 20100 20280 I BtPerf  : event=send_end type=problem-report id=e7fb97e3-abcc-42fb-aeee-020f3fda22c1 thid=4a561dce-d91a-438b-9df9-143c0ec0053b bytes=219 chunks=1 durationMs=1 tMs=779519520
+         1785491095.944 20100 20508 I BtPerf  : event=listen_start role=holder tMs=779522893
+         1785491106.318 20100 20508 I BtPerf  : event=connect_start role=verifier peer=70:21:7F:4C:E2:0C tMs=779533267
+         1785491109.047 20100 20508 I BtPerf  : event=connect_end role=verifier peer=70:21:7F:4C:E2:0C durationMs=2729 tMs=779535996
+         1785491109.635 20100 20100 I BtPerf  : event=proof_flow_start role=verifier credentialType=/credential-definition-registry/definitions/e8ff2f3b-623d-34dd-8e45-e94a5c079c31 fields=2 tMs=779536584
+         1785491109.687 20100 20100 I BtPerf  : event=proof_manager_request_create_end role=verifier messageId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 fields=2 durationMs=50 tMs=779536637
+         1785491109.688 20100 20100 I BtPerf  : event=request_build_end role=verifier messageId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 chars=1331 durationMs=51 tMs=779536637
+         1785491109.692 20100 20258 I BtPerf  : event=send_end type=request-presentation id=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 bytes=1618 chunks=1 durationMs=0 tMs=779536641
+         1785491109.722 20100 20100 I BtPerf  : event=request_send_call_end role=verifier messageId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 durationMs=34 tMs=779536671
+         1785491109.763 20100 20508 I BtPerf  : event=receive_end type=ack id=721c51f1-1940-4e63-b232-e5e963d8a024 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 lineChars=198 payloadChars=0 durationMs=1 tMs=779536712
+         1785491109.763 20100 20508 I BtPerf  : event=request_ack_rtt_end role=verifier thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 durationMs=41 tMs=779536712
+         1785491112.370 20100 20508 I BtPerf  : event=receive_end type=presentation id=9c2d31af-5573-47c0-bea8-a82c3c562bde thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 lineChars=9528 payloadChars=24821 durationMs=31 tMs=779539320
+         1785491113.574 20100 20508 I BtPerf  : event=proof_manager_presentation_verify_end role=verifier messageId=9c2d31af-5573-47c0-bea8-a82c3c562bde thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 valid=true chars=24821 attributes=1 durationMs=1203 tMs=779540523
+         1785491113.574 20100 20508 I BtPerf  : event=presentation_verify_end role=verifier messageId=9c2d31af-5573-47c0-bea8-a82c3c562bde thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 valid=true attributes=1 durationMs=1203 tMs=779540523
+         1785491113.574 20100 20508 I BtPerf  : event=proof_flow_end role=verifier thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 valid=true totalMs=3939 tMs=779540523
+         1785491113.576 20100 20508 I BtPerf  : event=send_end type=ack id=e475eefb-4b5c-458f-8bad-e763eff8708b thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 bytes=199 chunks=1 durationMs=0 tMs=779540525
+         1785491117.254 20100 20538 I BtPerf  : event=listen_start role=holder tMs=779544203
+         1785491146.797 20100 20256 I BtPerf  : event=connect_start role=verifier peer=70:21:7F:4C:E2:0C tMs=779573746
+         1785491147.376 20100 20256 I BtPerf  : event=connect_end role=verifier peer=70:21:7F:4C:E2:0C durationMs=579 tMs=779574325
+         1785491148.501 20100 20100 I BtPerf  : event=proof_flow_start role=verifier credentialType=/credential-definition-registry/definitions/e8ff2f3b-623d-34dd-8e45-e94a5c079c31 fields=2 tMs=779575450
+         1785491148.562 20100 20100 I BtPerf  : event=proof_manager_request_create_end role=verifier messageId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 fields=2 durationMs=60 tMs=779575511
+         1785491148.562 20100 20100 I BtPerf  : event=request_build_end role=verifier messageId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 chars=1339 durationMs=61 tMs=779575512
+         1785491148.567 20100 20508 I BtPerf  : event=send_end type=request-presentation id=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 bytes=1626 chunks=1 durationMs=0 tMs=779575516
+         1785491148.599 20100 20100 I BtPerf  : event=request_send_call_end role=verifier messageId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 durationMs=36 tMs=779575549
+         1785491148.645 20100 20256 I BtPerf  : event=receive_end type=ack id=1ef81b39-f75c-41de-8e93-edf5dc2a192a thid=c56b9e74-44f6-4551-8137-132111d6fee5 lineChars=198 payloadChars=0 durationMs=0 tMs=779575595
+         1785491148.646 20100 20256 I BtPerf  : event=request_ack_rtt_end role=verifier thid=c56b9e74-44f6-4551-8137-132111d6fee5 durationMs=47 tMs=779575595
+         1785491154.062 20100 20256 I BtPerf  : event=receive_end type=presentation id=3073872a-7518-43c3-9c33-561a4a8aa1d0 thid=c56b9e74-44f6-4551-8137-132111d6fee5 lineChars=9480 payloadChars=24785 durationMs=21 tMs=779581011
+         1785491155.264 20100 20280 I BtPerf  : event=proof_manager_presentation_verify_end role=verifier messageId=3073872a-7518-43c3-9c33-561a4a8aa1d0 thid=c56b9e74-44f6-4551-8137-132111d6fee5 valid=true chars=24785 attributes=1 durationMs=1202 tMs=779582213
+         1785491155.264 20100 20280 I BtPerf  : event=presentation_verify_end role=verifier messageId=3073872a-7518-43c3-9c33-561a4a8aa1d0 thid=c56b9e74-44f6-4551-8137-132111d6fee5 valid=true attributes=1 durationMs=1202 tMs=779582213
+         1785491155.264 20100 20280 I BtPerf  : event=proof_flow_end role=verifier thid=c56b9e74-44f6-4551-8137-132111d6fee5 valid=true totalMs=6764 tMs=779582213
+         1785491155.266 20100 20280 I BtPerf  : event=send_end type=ack id=461a85b9-b5a0-42ee-b257-be5e15b5d37a thid=c56b9e74-44f6-4551-8137-132111d6fee5 bytes=199 chunks=1 durationMs=1 tMs=779582215
+         1785491161.697 20100 20256 I BtPerf  : event=listen_start role=holder tMs=779588646
+         1785491172.049 20100 20508 I BtPerf  : event=connect_start role=verifier peer=70:21:7F:4C:E2:0C tMs=779598998
+         1785491173.011 20100 20508 I BtPerf  : event=connect_end role=verifier peer=70:21:7F:4C:E2:0C durationMs=962 tMs=779599960
+         1785491174.408 20100 20100 I BtPerf  : event=proof_flow_start role=verifier credentialType=/credential-definition-registry/definitions/e8ff2f3b-623d-34dd-8e45-e94a5c079c31 fields=2 tMs=779601357
+         1785491174.462 20100 20100 I BtPerf  : event=proof_manager_request_create_end role=verifier messageId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 fields=2 durationMs=53 tMs=779601411
+         1785491174.462 20100 20100 I BtPerf  : event=request_build_end role=verifier messageId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 chars=1339 durationMs=54 tMs=779601412
+         1785491174.467 20100 20257 I BtPerf  : event=send_end type=request-presentation id=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 bytes=1626 chunks=1 durationMs=0 tMs=779601416
+         1785491174.499 20100 20100 I BtPerf  : event=request_send_call_end role=verifier messageId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 durationMs=36 tMs=779601448
+         1785491174.535 20100 20508 I BtPerf  : event=receive_end type=ack id=73056522-ce4a-4c8c-b4af-996a43d4ff47 thid=400664b5-61fb-4174-bfb2-49271e30e845 lineChars=198 payloadChars=0 durationMs=0 tMs=779601484
+         1785491174.536 20100 20508 I BtPerf  : event=request_ack_rtt_end role=verifier thid=400664b5-61fb-4174-bfb2-49271e30e845 durationMs=37 tMs=779601485
+         1785491177.518 20100 20508 I BtPerf  : event=receive_end type=presentation id=f6ec35b2-54c9-4293-988b-efd730a9c84f thid=400664b5-61fb-4174-bfb2-49271e30e845 lineChars=9469 payloadChars=24777 durationMs=16 tMs=779604467
+         1785491178.705 20100 20258 I BtPerf  : event=proof_manager_presentation_verify_end role=verifier messageId=f6ec35b2-54c9-4293-988b-efd730a9c84f thid=400664b5-61fb-4174-bfb2-49271e30e845 valid=true chars=24777 attributes=1 durationMs=1186 tMs=779605654
+         1785491178.706 20100 20258 I BtPerf  : event=presentation_verify_end role=verifier messageId=f6ec35b2-54c9-4293-988b-efd730a9c84f thid=400664b5-61fb-4174-bfb2-49271e30e845 valid=true attributes=1 durationMs=1187 tMs=779605655
+         1785491178.706 20100 20258 I BtPerf  : event=proof_flow_end role=verifier thid=400664b5-61fb-4174-bfb2-49271e30e845 valid=true totalMs=4298 tMs=779605655
+         1785491178.709 20100 20258 I BtPerf  : event=send_end type=ack id=33d9b5d7-1963-4ad4-9d99-c74a5966e041 thid=400664b5-61fb-4174-bfb2-49271e30e845 bytes=199 chunks=1 durationMs=1 tMs=779605658

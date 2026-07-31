@@ -1,0 +1,61 @@
+--------- beginning of main
+         1785491053.678 13077 20065 I BtPerf  : event=listen_start role=holder tMs=1877834429
+         1785491065.377 13077 20065 I BtPerf  : event=accept_end role=holder durationMs=11699 peer=50:3D:C6:99:06:A1 tMs=1877846128
+         1785491066.800 13077 20065 I BtPerf  : event=receive_end type=request-presentation id=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e lineChars=1618 payloadChars=1331 durationMs=1 tMs=1877847551
+         1785491066.801 13077 20065 I BtPerf  : event=request_handle_start role=holder frameId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e payloadChars=1331 tMs=1877847552
+         1785491066.840 13077 20065 I BtPerf  : event=proof_manager_request_receive_end role=holder messageId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e chars=1331 durationMs=37 tMs=1877847591
+         1785491066.841 13077 20065 I BtPerf  : event=request_queue_end role=holder messageId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e durationMs=40 tMs=1877847592
+         1785491066.842 13077 20065 I BtPerf  : event=send_end type=ack id=bb0a8578-4419-4c86-b6ac-9ccb54479af7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e bytes=198 chunks=1 durationMs=1 tMs=1877847594
+         1785491066.843 13077 20065 I BtPerf  : event=request_ack_send_call_end role=holder thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e durationMs=2 tMs=1877847594
+         1785491069.124 13077 13077 I BtPerf  : event=holder_proof_generation_end role=holder requestId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e success=true presentationId=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 durationMs=759 tMs=1877849875
+         1785491069.131 13077 20038 I BtPerf  : event=send_end type=presentation id=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e bytes=25039 chunks=3 durationMs=3 tMs=1877849882
+         1785491069.132 13077 13077 I BtPerf  : event=holder_presentation_send_call_end role=holder requestId=3a0f822e-4f95-49b8-8100-c97765ea36d7 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e presentationId=e1a7440f-31a5-48ea-8ecb-55a54ab6c1a9 success=true durationMs=8 tMs=1877849883
+         1785491071.394 13077 20038 I BtPerf  : event=receive_end type=ack id=838fefc8-e19e-45ea-9de1-4b08c4636579 thid=5e2d9e8f-e365-46de-929d-cb062fef9c3e lineChars=199 payloadChars=0 durationMs=1 tMs=1877852145
+         1785491076.917 13077 20038 I BtPerf  : event=listen_start role=holder tMs=1877857668
+         1785491088.708 13077 20034 I BtPerf  : event=connect_start role=verifier peer=50:3D:C6:99:06:A1 tMs=1877869459
+         1785491089.554 13077 20034 I BtPerf  : event=connect_end role=verifier peer=50:3D:C6:99:06:A1 durationMs=847 tMs=1877870306
+         1785491090.503 13077 13077 I BtPerf  : event=proof_flow_start role=verifier credentialType=/credential-definition-registry/definitions/e8ff2f3b-623d-34dd-8e45-e94a5c079c31 fields=2 tMs=1877871254
+         1785491090.549 13077 13077 I BtPerf  : event=proof_manager_request_create_end role=verifier messageId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b fields=2 durationMs=45 tMs=1877871300
+         1785491090.549 13077 13077 I BtPerf  : event=request_build_end role=verifier messageId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b chars=1331 durationMs=45 tMs=1877871300
+         1785491090.551 13077 20066 I BtPerf  : event=send_end type=request-presentation id=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b bytes=1618 chunks=1 durationMs=0 tMs=1877871302
+         1785491090.574 13077 13077 I BtPerf  : event=request_send_call_end role=verifier messageId=9f313de5-6c30-4d76-ac68-2c424553595c thid=4a561dce-d91a-438b-9df9-143c0ec0053b durationMs=24 tMs=1877871325
+         1785491090.642 13077 20034 I BtPerf  : event=receive_end type=ack id=61ab299c-d0ff-4aa1-8274-afcc79344c91 thid=4a561dce-d91a-438b-9df9-143c0ec0053b lineChars=198 payloadChars=0 durationMs=0 tMs=1877871393
+         1785491090.642 13077 20034 I BtPerf  : event=request_ack_rtt_end role=verifier thid=4a561dce-d91a-438b-9df9-143c0ec0053b durationMs=69 tMs=1877871394
+         1785491092.463 13077 20034 I BtPerf  : event=receive_end type=problem-report id=e7fb97e3-abcc-42fb-aeee-020f3fda22c1 thid=4a561dce-d91a-438b-9df9-143c0ec0053b lineChars=219 payloadChars=0 durationMs=0 tMs=1877873214
+         1785491092.464 13077 20034 I BtPerf  : event=problem_report_received thid=4a561dce-d91a-438b-9df9-143c0ec0053b description=Proof request denied by holder tMs=1877873215
+         1785491096.279 13077 20034 I BtPerf  : event=listen_start role=holder tMs=1877877030
+         1785491108.928 13077 20065 I BtPerf  : event=accept_end role=holder durationMs=12650 peer=50:3D:C6:99:06:A1 tMs=1877889680
+         1785491109.589 13077 20065 I BtPerf  : event=receive_end type=request-presentation id=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 lineChars=1618 payloadChars=1331 durationMs=2 tMs=1877890340
+         1785491109.590 13077 20065 I BtPerf  : event=request_handle_start role=holder frameId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 payloadChars=1331 tMs=1877890342
+         1785491109.617 13077 20065 I BtPerf  : event=proof_manager_request_receive_end role=holder messageId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 chars=1331 durationMs=26 tMs=1877890368
+         1785491109.619 13077 20065 I BtPerf  : event=request_queue_end role=holder messageId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 durationMs=29 tMs=1877890370
+         1785491109.620 13077 20065 I BtPerf  : event=send_end type=ack id=721c51f1-1940-4e63-b232-e5e963d8a024 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 bytes=198 chunks=1 durationMs=1 tMs=1877890372
+         1785491109.621 13077 20065 I BtPerf  : event=request_ack_send_call_end role=holder thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 durationMs=2 tMs=1877890372
+         1785491111.826 13077 13077 I BtPerf  : event=holder_proof_generation_end role=holder requestId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 success=true presentationId=9c2d31af-5573-47c0-bea8-a82c3c562bde durationMs=816 tMs=1877892577
+         1785491111.839 13077 20104 I BtPerf  : event=send_end type=presentation id=9c2d31af-5573-47c0-bea8-a82c3c562bde thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 bytes=25076 chunks=3 durationMs=6 tMs=1877892591
+         1785491111.840 13077 13077 I BtPerf  : event=holder_presentation_send_call_end role=holder requestId=6398e560-8d91-418d-9749-f2098cc49593 thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 presentationId=9c2d31af-5573-47c0-bea8-a82c3c562bde success=true durationMs=15 tMs=1877892592
+         1785491113.508 13077 20104 I BtPerf  : event=receive_end type=ack id=e475eefb-4b5c-458f-8bad-e763eff8708b thid=acdef610-a0e5-4ef0-b398-c6bd9731e1f3 lineChars=199 payloadChars=0 durationMs=1 tMs=1877894259
+         1785491117.768 13077 20104 I BtPerf  : event=listen_start role=holder tMs=1877898519
+         1785491147.261 13077 20066 I BtPerf  : event=accept_end role=holder durationMs=29493 peer=50:3D:C6:99:06:A1 tMs=1877928012
+         1785491148.463 13077 20066 I BtPerf  : event=receive_end type=request-presentation id=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 lineChars=1626 payloadChars=1339 durationMs=2 tMs=1877929214
+         1785491148.464 13077 20066 I BtPerf  : event=request_handle_start role=holder frameId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 payloadChars=1339 tMs=1877929215
+         1785491148.487 13077 20066 I BtPerf  : event=proof_manager_request_receive_end role=holder messageId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 chars=1339 durationMs=22 tMs=1877929238
+         1785491148.491 13077 20066 I BtPerf  : event=request_queue_end role=holder messageId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 durationMs=27 tMs=1877929242
+         1785491148.494 13077 20066 I BtPerf  : event=send_end type=ack id=1ef81b39-f75c-41de-8e93-edf5dc2a192a thid=c56b9e74-44f6-4551-8137-132111d6fee5 bytes=198 chunks=1 durationMs=1 tMs=1877929244
+         1785491148.501 13077 20066 I BtPerf  : event=request_ack_send_call_end role=holder thid=c56b9e74-44f6-4551-8137-132111d6fee5 durationMs=5 tMs=1877929248
+         1785491153.606 13077 13077 I BtPerf  : event=holder_proof_generation_end role=holder requestId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 success=true presentationId=3073872a-7518-43c3-9c33-561a4a8aa1d0 durationMs=818 tMs=1877934357
+         1785491153.610 13077 20066 I BtPerf  : event=send_end type=presentation id=3073872a-7518-43c3-9c33-561a4a8aa1d0 thid=c56b9e74-44f6-4551-8137-132111d6fee5 bytes=25040 chunks=3 durationMs=2 tMs=1877934361
+         1785491153.611 13077 13077 I BtPerf  : event=holder_presentation_send_call_end role=holder requestId=8db97c9a-7021-4ca3-8bd7-7b7cdbb95dbb thid=c56b9e74-44f6-4551-8137-132111d6fee5 presentationId=3073872a-7518-43c3-9c33-561a4a8aa1d0 success=true durationMs=6 tMs=1877934363
+         1785491155.166 13077 20104 I BtPerf  : event=receive_end type=ack id=461a85b9-b5a0-42ee-b257-be5e15b5d37a thid=c56b9e74-44f6-4551-8137-132111d6fee5 lineChars=199 payloadChars=0 durationMs=0 tMs=1877935918
+         1785491162.112 13077 20104 I BtPerf  : event=listen_start role=holder tMs=1877942863
+         1785491172.892 13077 20066 I BtPerf  : event=accept_end role=holder durationMs=10781 peer=50:3D:C6:99:06:A1 tMs=1877953644
+         1785491174.376 13077 20066 I BtPerf  : event=receive_end type=request-presentation id=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 lineChars=1626 payloadChars=1339 durationMs=2 tMs=1877955127
+         1785491174.377 13077 20066 I BtPerf  : event=request_handle_start role=holder frameId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 payloadChars=1339 tMs=1877955129
+         1785491174.398 13077 20066 I BtPerf  : event=proof_manager_request_receive_end role=holder messageId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 chars=1339 durationMs=20 tMs=1877955150
+         1785491174.400 13077 20066 I BtPerf  : event=request_queue_end role=holder messageId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 durationMs=23 tMs=1877955152
+         1785491174.402 13077 20066 I BtPerf  : event=send_end type=ack id=73056522-ce4a-4c8c-b4af-996a43d4ff47 thid=400664b5-61fb-4174-bfb2-49271e30e845 bytes=198 chunks=1 durationMs=0 tMs=1877955153
+         1785491174.403 13077 20066 I BtPerf  : event=request_ack_send_call_end role=holder thid=400664b5-61fb-4174-bfb2-49271e30e845 durationMs=2 tMs=1877955154
+         1785491177.056 13077 13077 I BtPerf  : event=holder_proof_generation_end role=holder requestId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 success=true presentationId=f6ec35b2-54c9-4293-988b-efd730a9c84f durationMs=759 tMs=1877957807
+         1785491177.075 13077 20066 I BtPerf  : event=send_end type=presentation id=f6ec35b2-54c9-4293-988b-efd730a9c84f thid=400664b5-61fb-4174-bfb2-49271e30e845 bytes=25032 chunks=3 durationMs=10 tMs=1877957826
+         1785491177.078 13077 13077 I BtPerf  : event=holder_presentation_send_call_end role=holder requestId=d9413820-0e4e-4fbe-b607-9cfa864370ae thid=400664b5-61fb-4174-bfb2-49271e30e845 presentationId=f6ec35b2-54c9-4293-988b-efd730a9c84f success=true durationMs=22 tMs=1877957829
+         1785491178.610 13077 20066 I BtPerf  : event=receive_end type=ack id=33d9b5d7-1963-4ad4-9d99-c74a5966e041 thid=400664b5-61fb-4174-bfb2-49271e30e845 lineChars=199 payloadChars=0 durationMs=0 tMs=1877959361

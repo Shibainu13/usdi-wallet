@@ -1,6 +1,7 @@
 package com.dev.usdi_wallet.ui.verification
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
@@ -73,6 +74,8 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     private var credentialTypeToManager: Map<VerifiableCredentialType, VerificationManager?> = emptyMap()
     private val bluetoothTransport = BluetoothPresentProofTransport(application, viewModelScope)
     private val bluetoothProofManager = IdentusAnonBluetoothProofManager()
+    private val bluetoothRequestSentAtByThread = mutableMapOf<String, Long>()
+    private val bluetoothFlowStartAtByThread = mutableMapOf<String, Long>()
 
     init {
         loadCredentialTypes()
@@ -82,6 +85,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             bluetoothTransport.send(
                 BluetoothProofFrame(
                     messageType = BluetoothProofFrame.PRESENTATION,
+                    id = message.messageId,
                     thid = message.threadId,
                     messageJson = message.messageJson,
                 )
@@ -351,23 +355,42 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         credentialType: VerifiableCredentialType,
         requestedFields: List<RequestedField>,
     ) {
+        val flowStartMs = nowMs()
+        logPerf(
+            event = "proof_flow_start",
+            details = "role=verifier credentialType=${credentialType.id} fields=${requestedFields.size}",
+        )
         Logger.d(VerificationViewModel::class.toString()) {
             "Bluetooth verifier connected; creating proof request with ${requestedFields.size} fields"
         }
         _uiState.update { it.copy(waitingMessage = "Building Bluetooth proof request") }
 
+        val requestBuildStartMs = nowMs()
         val request = bluetoothProofManager.createRequest(credentialType, requestedFields)
+        logPerf(
+            event = "request_build_end",
+            details = "role=verifier messageId=${request.messageId} thid=${request.threadId} chars=${request.messageJson.length} durationMs=${nowMs() - requestBuildStartMs}",
+        )
         Logger.d(VerificationViewModel::class.toString()) {
             "Bluetooth proof request created messageId=${request.messageId}, thid=${request.threadId}, chars=${request.messageJson.length}"
         }
 
         _uiState.update { it.copy(waitingMessage = "Sending proof request over Bluetooth") }
+        val sendStartMs = nowMs()
         bluetoothTransport.send(
             BluetoothProofFrame(
                 messageType = BluetoothProofFrame.REQUEST_PRESENTATION,
+                id = request.messageId,
                 thid = request.threadId,
                 messageJson = request.messageJson,
             )
+        )
+        val sentAtMs = nowMs()
+        bluetoothRequestSentAtByThread[request.threadId] = sentAtMs
+        bluetoothFlowStartAtByThread[request.threadId] = flowStartMs
+        logPerf(
+            event = "request_send_call_end",
+            details = "role=verifier messageId=${request.messageId} thid=${request.threadId} durationMs=${sentAtMs - sendStartMs}",
         )
 
         Logger.d(VerificationViewModel::class.toString()) {
@@ -468,19 +491,33 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     private suspend fun handleBluetoothFrame(frame: BluetoothProofFrame) {
         when (frame.messageType) {
             BluetoothProofFrame.REQUEST_PRESENTATION -> {
+                val holderHandleStartMs = nowMs()
+                logPerf(
+                    event = "request_handle_start",
+                    details = "role=holder frameId=${frame.id} thid=${frame.thid.orEmpty()} payloadChars=${frame.messageJson?.length ?: 0}",
+                )
                 bluetoothTransport.holdOpenUntilLocalResponse("Bluetooth proof request received")
                 val messageJson = frame.messageJson ?: run {
                     sendProblemReport(frame.thid, "Bluetooth proof request was missing a DIDComm message")
                     return
                 }
                 runCatching {
-                    bluetoothProofManager.receiveRequest(messageJson)
+                    val request = bluetoothProofManager.receiveRequest(messageJson)
+                    logPerf(
+                        event = "request_queue_end",
+                        details = "role=holder messageId=${request.messageId} thid=${request.threadId} durationMs=${nowMs() - holderHandleStartMs}",
+                    )
+                    val ackStartMs = nowMs()
                     bluetoothTransport.send(
                         BluetoothProofFrame(
                             messageType = BluetoothProofFrame.ACK,
                             thid = frame.thid,
                             description = "Proof request queued",
                         )
+                    )
+                    logPerf(
+                        event = "request_ack_send_call_end",
+                        details = "role=holder thid=${frame.thid.orEmpty()} durationMs=${nowMs() - ackStartMs}",
                     )
                     _uiState.update {
                         it.copy(
@@ -506,10 +543,25 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                     }
                     return
                 }
+                val verifyStartMs = nowMs()
                 val result = bluetoothProofManager.verifyPresentation(
                     messageJson = messageJson,
                     credentialType = _uiState.value.selectedCredentialType,
                 )
+                val verifyEndMs = nowMs()
+                val threadId = result.threadId ?: frame.thid
+                logPerf(
+                    event = "presentation_verify_end",
+                    details = "role=verifier messageId=${result.messageId} thid=${threadId.orEmpty()} valid=${result.isValid} attributes=${result.attributes.size} durationMs=${verifyEndMs - verifyStartMs}",
+                )
+                threadId?.let { nonNullThreadId ->
+                    bluetoothFlowStartAtByThread.remove(nonNullThreadId)?.let { startMs ->
+                        logPerf(
+                            event = "proof_flow_end",
+                            details = "role=verifier thid=$nonNullThreadId valid=${result.isValid} totalMs=${verifyEndMs - startMs}",
+                        )
+                    }
+                }
                 val ackDescription = if (result.isValid) {
                     "Presentation verified"
                 } else {
@@ -542,6 +594,16 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             }
             BluetoothProofFrame.ACK -> {
                 val description = frame.description ?: "Bluetooth message acknowledged"
+                if (description == "Proof request queued") {
+                    frame.thid?.let { threadId ->
+                        bluetoothRequestSentAtByThread.remove(threadId)?.let { sentAtMs ->
+                            logPerf(
+                                event = "request_ack_rtt_end",
+                                details = "role=verifier thid=$threadId durationMs=${nowMs() - sentAtMs}",
+                            )
+                        }
+                    }
+                }
                 val isTerminalPresentationAck = description == "Presentation verified" ||
                     description == "Presentation verification failed"
                 _uiState.update {
@@ -557,6 +619,10 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             }
             BluetoothProofFrame.PROBLEM_REPORT -> {
                 val description = frame.description ?: "Bluetooth proof exchange failed"
+                logPerf(
+                    event = "problem_report_received",
+                    details = "thid=${frame.thid.orEmpty()} description=${description.replace('\n', ' ')}",
+                )
                 _uiState.update {
                     if (it.step is VerificationStep.ShowQrWaiting) {
                         it.copy(
@@ -578,6 +644,10 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private suspend fun sendProblemReport(threadId: String?, description: String) {
+        logPerf(
+            event = "problem_report_send",
+            details = "thid=${threadId.orEmpty()} description=${description.replace('\n', ' ')}",
+        )
         runCatching {
             bluetoothTransport.send(
                 BluetoothProofFrame(
@@ -587,5 +657,15 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
                 )
             )
         }
+    }
+
+    private fun nowMs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000_000
+
+    private fun logPerf(event: String, details: String) {
+        Logger.i(PERF_TAG) { "event=$event $details tMs=${nowMs()}" }
+    }
+
+    private companion object {
+        const val PERF_TAG = "BtPerf"
     }
 }

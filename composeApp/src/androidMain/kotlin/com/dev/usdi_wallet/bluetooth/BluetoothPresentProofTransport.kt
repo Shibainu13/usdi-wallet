@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.os.SystemClock
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +134,11 @@ class BluetoothPresentProofTransport(
     fun startListening(onFrame: suspend (BluetoothProofFrame) -> Unit) {
         close()
         connectionJob = scope.launch(Dispatchers.IO) {
+            val listenStartMs = nowMs()
+            logPerf(
+                event = "listen_start",
+                details = "role=holder",
+            )
             val acceptedSocket = runCatching {
                 val adapter = requireAdapter()
                 _state.value = BluetoothProofTransportState(
@@ -143,10 +149,18 @@ class BluetoothPresentProofTransport(
                 acceptIncomingSocket(adapter)
             }.getOrElse { error ->
                 if (isActive) {
+                    logPerf(
+                        event = "listen_failed",
+                        details = "role=holder durationMs=${nowMs() - listenStartMs} error=${error.shortName()}",
+                    )
                     setError("Bluetooth receive setup failed: ${error.message ?: error::class.simpleName}")
                 }
                 return@launch
             }
+            logPerf(
+                event = "accept_end",
+                details = "role=holder durationMs=${nowMs() - listenStartMs} peer=${acceptedSocket.remoteDevice?.address.orEmpty()}",
+            )
 
             runCatching {
                 openSocket(acceptedSocket, onFrame)
@@ -166,6 +180,11 @@ class BluetoothPresentProofTransport(
     ) {
         close()
         connectionJob = scope.launch(Dispatchers.IO) {
+            val connectStartMs = nowMs()
+            logPerf(
+                event = "connect_start",
+                details = "role=verifier peer=$peerAddress",
+            )
             val connectedSocket = runCatching {
                 val adapter = requireAdapter()
                 val device = adapter.getRemoteDevice(peerAddress)
@@ -182,10 +201,18 @@ class BluetoothPresentProofTransport(
                 connectSocket(adapter, device)
             }.getOrElse { error ->
                 if (isActive) {
+                    logPerf(
+                        event = "connect_failed",
+                        details = "role=verifier peer=$peerAddress durationMs=${nowMs() - connectStartMs} error=${error.shortName()}",
+                    )
                     setError("Bluetooth connect failed: ${error.message ?: error::class.simpleName}")
                 }
                 return@launch
             }
+            logPerf(
+                event = "connect_end",
+                details = "role=verifier peer=$peerAddress durationMs=${nowMs() - connectStartMs}",
+            )
 
             runCatching {
                 openSocket(connectedSocket, onFrame, onConnected)
@@ -205,9 +232,11 @@ class BluetoothPresentProofTransport(
             try {
                 val frameJson = frame.toJsonString()
                 val bytes = frameJson.toByteArray(StandardCharsets.UTF_8)
+                val sendStartMs = nowMs()
                 Logger.d(BluetoothPresentProofTransport::class.toString()) {
                     "Sending Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}, bytes=${bytes.size}"
                 }
+                var chunkCount = 1
                 if (bytes.size <= MAX_FRAME_BYTES) {
                     activeSocket.writeLine(frameJson)
                 } else {
@@ -215,6 +244,7 @@ class BluetoothPresentProofTransport(
                         .withoutPadding()
                         .encodeToString(bytes)
                     val chunks = encoded.chunked(MAX_CHUNK_CHARS)
+                    chunkCount = chunks.size
                     chunks.forEachIndexed { index, chunk ->
                         activeSocket.writeLine(
                             JSONObject()
@@ -226,6 +256,10 @@ class BluetoothPresentProofTransport(
                         )
                     }
                 }
+                logPerf(
+                    event = "send_end",
+                    details = "type=${frame.messageType} id=${frame.id} thid=${frame.thid.orEmpty()} bytes=${bytes.size} chunks=$chunkCount durationMs=${nowMs() - sendStartMs}",
+                )
                 Logger.d(BluetoothPresentProofTransport::class.toString()) {
                     "Sent Bluetooth proof frame type=${frame.messageType}, id=${frame.id}"
                 }
@@ -412,7 +446,12 @@ class BluetoothPresentProofTransport(
             BufferedReader(InputStreamReader(activeSocket.inputStream, StandardCharsets.UTF_8)).use { reader ->
                 while (coroutineContext.isActive) {
                     val line = reader.readLine() ?: break
+                    val receiveStartMs = nowMs()
                     val frame = decodeLine(line) ?: continue
+                    logPerf(
+                        event = "receive_end",
+                        details = "type=${frame.messageType} id=${frame.id} thid=${frame.thid.orEmpty()} lineChars=${line.length} payloadChars=${frame.messageJson?.length ?: 0} durationMs=${nowMs() - receiveStartMs}",
+                    )
                     Logger.d(BluetoothPresentProofTransport::class.toString()) {
                         "Received Bluetooth proof frame type=${frame.messageType}, id=${frame.id}, thid=${frame.thid}"
                     }
@@ -552,7 +591,18 @@ class BluetoothPresentProofTransport(
         )
     }
 
+    private fun nowMs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000_000
+
+    private fun logPerf(event: String, details: String) {
+        Logger.i(PERF_TAG) { "event=$event $details tMs=${nowMs()}" }
+    }
+
+    private fun Throwable.shortName(): String =
+        message?.replace('\n', ' ')?.takeIf { it.isNotBlank() }
+            ?: javaClass.simpleName
+
     private companion object {
+        const val PERF_TAG = "BtPerf"
         const val SERVICE_NAME = "USDI Local Present Proof"
         const val MAX_FRAME_BYTES = 12_000
         const val MAX_CHUNK_CHARS = 12_000
