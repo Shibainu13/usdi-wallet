@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.QrCode
@@ -67,9 +68,17 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.launch
 
+enum class QrScannerResultSource {
+    QrCode,
+    Url,
+}
+
 @Composable
 fun QrScannerScreen(
-    onResult: (String) -> Unit,
+    errorTitle: String? = null,
+    errorMessage: String? = null,
+    onErrorDismiss: () -> Unit = {},
+    onResult: (String, QrScannerResultSource) -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -106,7 +115,7 @@ fun QrScannerScreen(
             isProcessingGallery = false
             if (result != null) {
                 hasScanned = true
-                onResult(result)
+                onResult(result, QrScannerResultSource.QrCode)
             } else {
                 galleryError = "No QR code found in this image"
             }
@@ -116,6 +125,12 @@ fun QrScannerScreen(
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(errorMessage) {
+        if (errorMessage == null) {
+            hasScanned = false
         }
     }
 
@@ -142,7 +157,7 @@ fun QrScannerScreen(
                                     if (!hasScanned && !isProcessingGallery) {
                                         processImageFrame(imageProxy, scanner) { qrContent ->
                                             hasScanned = true
-                                            onResult(qrContent)
+                                            onResult(qrContent, QrScannerResultSource.QrCode)
                                         }
                                     } else {
                                         imageProxy.close()
@@ -196,6 +211,17 @@ fun QrScannerScreen(
                     Text("Grant permission", color = WalletColors.Primary)
                 }
             }
+        }
+
+        errorMessage?.let { message ->
+            QrScanErrorBox(
+                title = errorTitle.orEmpty(),
+                message = message,
+                onDismiss = onErrorDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(start = 24.dp, top = 72.dp, end = 24.dp),
+            )
         }
 
         Row(
@@ -277,7 +303,7 @@ fun QrScannerScreen(
                         if (manualInput.isNotBlank()) {
                             IconButton(onClick = {
                                 hasScanned = true
-                                onResult(manualInput.trim())
+                                onResult(manualInput.trim(), QrScannerResultSource.Url)
                             }) {
                                 Icon(
                                     Icons.Default.Check,
@@ -319,6 +345,51 @@ fun QrScannerScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun QrScanErrorBox(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(WalletColors.DangerLight, RoundedCornerShape(8.dp))
+            .padding(start = 12.dp, top = 10.dp, end = 4.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (title.isNotBlank()) {
+                Text(
+                    text = title,
+                    color = WalletColors.Danger,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
+            Text(
+                text = message,
+                color = WalletColors.Danger,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Dismiss error",
+                tint = WalletColors.Danger,
+            )
         }
     }
 }

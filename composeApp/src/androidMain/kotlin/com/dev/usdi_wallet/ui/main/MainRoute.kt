@@ -3,7 +3,6 @@ package com.dev.usdi_wallet.ui.main
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.dev.usdi_wallet.ui.auth.LockScreen
 import com.dev.usdi_wallet.ui.auth.LockState
 import com.dev.usdi_wallet.ui.auth.LockViewModel
+import com.dev.usdi_wallet.ui.common.QrScannerResultSource
 import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
@@ -24,6 +24,11 @@ import com.dev.usdi_wallet.ui.settings.SettingsViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
+
+private data class ScannerErrorMessage(
+    val title: String,
+    val detail: String,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +66,7 @@ fun MainRoute(
     val startDestinationRoute = WalletTab.CREDENTIALS.rootRoute
     val snackbarHostState = remember { SnackbarHostState() }
     var showScanner by remember { mutableStateOf(false) }
-    var scanError by remember { mutableStateOf<String?>(null) }
+    var scanError by remember { mutableStateOf<ScannerErrorMessage?>(null) }
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
     } ?: WalletTab.CREDENTIALS
@@ -75,28 +80,28 @@ fun MainRoute(
         }
     }
 
-    LaunchedEffect(scanError) {
-        scanError?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            scanError = null
-        }
-    }
-
     if (showScanner) {
         QrScannerScreen(
-            onResult = { content ->
-                showScanner = false
+            errorTitle = scanError?.title,
+            errorMessage = scanError?.detail,
+            onErrorDismiss = { scanError = null },
+            onResult = { content, source ->
+                scanError = null
                 DeepLinkRouter.getInstance().handle(
                     link = content,
                     onSuccess = { result ->
+                        showScanner = false
                         if (result.contentType == DeepLinkContentType.Credential) {
                             navigateToCredentials()
                         }
                     },
-                    onError = { message -> scanError = message },
+                    onError = { message -> scanError = scannerErrorMessage(source, message) },
                 )
             },
-            onClose = { showScanner = false },
+            onClose = {
+                scanError = null
+                showScanner = false
+            },
         )
         return
     }
@@ -111,7 +116,10 @@ fun MainRoute(
                 launchSingleTop = true
             }
         },
-        onScanSelected = { showScanner = true },
+        onScanSelected = {
+            scanError = null
+            showScanner = true
+        },
         navHost = {
             MainNavHost(
                 navController = navController,
@@ -141,6 +149,23 @@ fun MainRoute(
         RevokedCredentialDialog(
             subject = it.subject,
             onDismiss = viewModel::dismissRevokedCredentialAlert
+        )
+    }
+}
+
+private fun scannerErrorMessage(
+    source: QrScannerResultSource,
+    routerMessage: String,
+): ScannerErrorMessage {
+    val details = routerMessage.ifBlank { "Unable to handle this content." }
+    return when (source) {
+        QrScannerResultSource.QrCode -> ScannerErrorMessage(
+            title = "Can't scan QR code",
+            detail = "Please try again.",
+        )
+        QrScannerResultSource.Url -> ScannerErrorMessage(
+            title = "URL problem",
+            detail = "The pasted URL could not be opened. Check that it is a valid URL.",
         )
     }
 }
