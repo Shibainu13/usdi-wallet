@@ -3,6 +3,7 @@ package com.dev.usdi_wallet.ui.main
 import android.content.Intent
 import co.touchlab.kermit.Logger
 import com.dev.usdi_wallet.domain.protocol.Protocol
+import com.dev.usdi_wallet.hyperledger_identus.CloudAgentVerifierClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -23,9 +24,15 @@ data class DeepLinkRouteResult(
     val contentType: DeepLinkContentType,
 )
 
+private data class PresentationLookup(
+    val presentationId: String,
+    val backendUrl: String,
+)
+
 class DeepLinkRouter private constructor(
     private val protocols: List<Protocol<*, *>>,
     private val scope: CoroutineScope,
+    private val cloudAgentClient: CloudAgentVerifierClient = CloudAgentVerifierClient(),
 ) {
     fun handle(intent: Intent) {
         if (Intent.ACTION_VIEW != intent.action) return
@@ -54,18 +61,23 @@ class DeepLinkRouter private constructor(
     }
 
     private suspend fun routeToContactManager(uri: String): DeepLinkRouteResult {
-        val trimmed = invitationUrlFromInput(uri.trim())
+        val input = uri.trim()
+        var trimmed = invitationUrlFromInput(input)
         if (trimmed.isBlank()) error("Empty URL")
+
+        var protocol = protocolFor(trimmed)
+        if (protocol == null) {
+            presentationInvitationUrlFromInput(input)?.let { resolvedInvitation ->
+                trimmed = resolvedInvitation
+                protocol = protocolFor(resolvedInvitation)
+            }
+        }
 
         Logger.d(DeepLinkRouter::class.toString()) {
             "Handling deep link: $trimmed"
         }
 
-        val protocol = protocols.firstOrNull { protocol ->
-            protocol.contactManager.canHandle(trimmed)
-        }
-
-        if (protocol == null) {
+        val selectedProtocol = protocol ?: run {
             Logger.w(DeepLinkRouter::class.toString()) {
                 "No contact protocol found for $trimmed"
             }
@@ -73,15 +85,18 @@ class DeepLinkRouter private constructor(
         }
 
         Logger.d(DeepLinkRouter::class.toString()) {
-            "Routing $trimmed to ${protocol::class.simpleName}"
+            "Routing $trimmed to ${selectedProtocol::class.simpleName}"
         }
 
-        protocol.contactManager.parseInvitation(trimmed)
+        selectedProtocol.contactManager.parseInvitation(trimmed)
         return DeepLinkRouteResult(
-            protocolId = protocol.protocolId,
+            protocolId = selectedProtocol.protocolId,
             contentType = classify(trimmed),
         )
     }
+
+    private fun protocolFor(invitation: String): Protocol<*, *>? =
+        protocols.firstOrNull { protocol -> protocol.contactManager.canHandle(invitation) }
 
     private fun invitationUrlFromInput(input: String): String {
         if (!input.trimStart().startsWith("{")) return input
@@ -125,6 +140,58 @@ class DeepLinkRouter private constructor(
             .withoutPadding()
             .encodeToString(invitation.toString().toByteArray(StandardCharsets.UTF_8))
         return "https://usdi-wallet.local?_oob=$encoded"
+    }
+
+    private suspend fun presentationInvitationUrlFromInput(input: String): String? {
+        val lookup = presentationLookupFromInput(input) ?: return null
+
+        return runCatching {
+            cloudAgentClient.getPresentationInvitationUrl(
+                baseUrl = lookup.backendUrl,
+                apiKey = null,
+                presentationId = lookup.presentationId,
+            )
+        }.onFailure { error ->
+            Logger.w(DeepLinkRouter::class.toString()) {
+                "Failed to resolve presentation ${lookup.presentationId} from ${lookup.backendUrl}: ${error.message}"
+            }
+        }.getOrElse { error ->
+            throw error
+        }
+    }
+
+    private fun presentationLookupFromInput(input: String): PresentationLookup? {
+        if (!input.trimStart().startsWith("{")) {
+            if (input.isLikelyPresentationId()) {
+                error("Presentation QR code is missing a valid backendUrl")
+            }
+            return null
+        }
+
+        val json = runCatching { JSONObject(input) }.getOrNull() ?: return null
+        val presentationId = presentationIdFromJson(json).takeIf { it.isNotBlank() } ?: return null
+        val backendUrl = backendUrlFromJson(json)
+            ?: error("Presentation QR code is missing a valid backendUrl")
+        return PresentationLookup(
+            presentationId = presentationId,
+            backendUrl = backendUrl,
+        )
+    }
+
+    private fun presentationIdFromJson(json: JSONObject): String =
+        json.optString("presentationID")
+
+    private fun backendUrlFromJson(json: JSONObject): String? =
+        json.optString("backendUrl")
+            .trim()
+            .trimEnd('/')
+            .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+    private fun String.isLikelyPresentationId(): Boolean {
+        if (length !in 8..128) return false
+        if (contains("://") || contains("_oob=")) return false
+        if (any { it.isWhitespace() || it == '/' || it == '?' || it == '&' || it == '=' }) return false
+        return all { it.isLetterOrDigit() || it == '-' || it == '_' || it == ':' || it == '.' }
     }
 
     private fun classify(uri: String): DeepLinkContentType {

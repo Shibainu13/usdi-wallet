@@ -10,6 +10,8 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 data class CloudAgentAnonCredSchema(
     val guid: String,
@@ -69,6 +71,22 @@ class CloudAgentVerifierClient(
         }.bodyAsText()
 
         return JSONObject(responseText).toAnonCredSchema()
+    }
+
+    suspend fun getPresentationInvitationUrl(
+        baseUrl: String,
+        apiKey: String?,
+        presentationId: String,
+    ): String {
+        val responseText = httpClient.get(
+            endpoint(baseUrl, "present-proof/presentations/${presentationId.pathSegment()}")
+        ) {
+            accept(ContentType.Application.Json)
+            apiKey(apiKey)
+        }.bodyAsText()
+
+        return JSONObject(responseText).presentationInvitationUrl()
+            .ifBlank { error("Presentation $presentationId does not contain invitation.invitationUrl") }
     }
 
     private fun schemaItems(responseText: String): List<JSONObject> {
@@ -152,6 +170,25 @@ class CloudAgentVerifierClient(
         } else {
             endpoint(baseUrl, schemaId.trimStart('/'))
         }
+
+    private fun JSONObject.presentationInvitationUrl(): String =
+        optString("invitationUrl")
+            .ifBlank { optString("invitation_url") }
+            .ifBlank { optString("invitationURL") }
+            .ifBlank { optString("oobUrl") }
+            .ifBlank { optString("outOfBandInvitationUrl") }
+            .ifBlank {
+                when (val invitation = opt("invitation")) {
+                    is JSONObject -> invitation.presentationInvitationUrl()
+                    is String -> invitation.takeIf { it.contains("_oob=") || it.startsWith("http") }.orEmpty()
+                    else -> ""
+                }
+            }
+            .ifBlank { optJSONObject("outOfBandInvitation")?.presentationInvitationUrl().orEmpty() }
+            .ifBlank { optJSONObject("oobInvitation")?.presentationInvitationUrl().orEmpty() }
+
+    private fun String.pathSegment(): String =
+        URLEncoder.encode(this, StandardCharsets.UTF_8.name())
 
     private fun io.ktor.client.request.HttpRequestBuilder.apiKey(apiKey: String?) {
         if (!apiKey.isNullOrBlank()) {
