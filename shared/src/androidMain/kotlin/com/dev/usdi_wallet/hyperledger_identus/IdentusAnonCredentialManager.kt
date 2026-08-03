@@ -1094,7 +1094,7 @@ class IdentusAnonCredentialManager(
         }
         val claimsByName = claims.associateBy { normalizeClaimName(it.name) }
         return predicates.all { predicate ->
-            val claimValue = claimsByName[normalizeClaimName(predicate.name)]?.value?.toPredicateLong()
+            val claimValue = claimsByName[normalizeClaimName(predicate.name)]?.value?.toPredicateLong(predicate.name)
                 ?: return@all false
             when (predicate.operator) {
                 ">" -> claimValue > predicate.value
@@ -1108,10 +1108,17 @@ class IdentusAnonCredentialManager(
 
     private fun normalizeClaimName(name: String): String = name.trim()
 
-    private fun Any.toPredicateLong(): Long? {
+    private fun Any.toPredicateLong(claimName: String): Long? {
         return when (this) {
             is Number -> toLong()
-            is String -> trim().toLongOrNull()
+            is String -> {
+                val trimmed = trim()
+                if (claimName.knownTypeSuffix() == "date") {
+                    trimmed.toDatePredicateLong() ?: trimmed.toLongOrNull()
+                } else {
+                    trimmed.toLongOrNull()
+                }
+            }
             else -> null
         }
     }
@@ -1161,7 +1168,7 @@ class IdentusAnonCredentialManager(
                 result.add(
                     ProofRequestField(
                         name = name,
-                        requirement = "$operator ${predicate.optLong("p_value")}",
+                        requirement = "$operator ${formatPredicateRequirementValue(name, predicate.optLong("p_value"))}",
                     )
                 )
             }
@@ -1289,11 +1296,32 @@ class IdentusAnonCredentialManager(
         ).joinToString(", ").takeIf { it.isNotBlank() }
     }
 
+    private fun formatPredicateRequirementValue(name: String, value: Long): String {
+        val text = value.toString()
+        return if (name.knownTypeSuffix() == "date" && text.length == 8) {
+            "${text.substring(0, 4)}-${text.substring(4, 6)}-${text.substring(6, 8)}"
+        } else {
+            text
+        }
+    }
+
+    private fun String.toDatePredicateLong(): Long? =
+        takeIf { DATE_INPUT_REGEX.matches(it) }
+            ?.replace("-", "")
+            ?.toLongOrNull()
+
+    private fun String.knownTypeSuffix(): String? {
+        val suffix = substringAfterLast("_", missingDelimiterValue = "").lowercase()
+        return suffix.takeIf { it in KNOWN_TYPE_SUFFIXES }
+    }
+
     private companion object {
         const val ANONCREDS_CREDENTIAL_FORMAT = "anoncreds/credential@v1.0"
         const val ANONCREDS_REVOCATION_FORMAT = "anoncreds/credential-revocation@v1.0"
         const val REVOCATION_METADATA_LINK_SECRET_NAME = "anoncred-revocation-metadata"
         const val LOG_CHUNK_SIZE = 3_500
+        val DATE_INPUT_REGEX = Regex("\\d{4}-\\d{2}-\\d{2}")
+        val KNOWN_TYPE_SUFFIXES = setOf("str", "num", "bool", "date")
         val ISSUED_CREDENTIAL_FORMATS = setOf(
             CredentialType.JWT.type,
             CredentialType.ANONCREDS_ISSUE.type,

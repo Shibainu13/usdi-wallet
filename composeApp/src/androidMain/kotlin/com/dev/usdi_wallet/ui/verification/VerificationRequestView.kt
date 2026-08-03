@@ -39,6 +39,7 @@ import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.credential.VerificationResult
+import com.dev.usdi_wallet.ui.common.formatClaimName
 import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 
 private enum class VerificationTab(val title: String) {
@@ -244,7 +245,7 @@ private fun VerificationResultCard(result: VerificationResult) {
                 Text(text = "Message ID: ${result.messageId}")
             } else {
                 visibleAttributes.forEach { (name, value) ->
-                    Text(text = "$name: $value")
+                    Text(text = "${formatClaimName(name)}: $value")
                 }
             }
         }
@@ -299,7 +300,7 @@ private fun ClaimItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = item.name, style = MaterialTheme.typography.titleMedium)
+                Text(text = formatClaimName(item.name), style = MaterialTheme.typography.titleMedium)
                 FilterChip(
                     selected = item.checked,
                     onClick = { onCheckedChange(!item.checked) },

@@ -46,8 +46,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import com.dev.usdi_wallet.domain.credential.ClaimType
 import com.dev.usdi_wallet.domain.credential.Credential
+import com.dev.usdi_wallet.ui.common.formatClaimDisplayValue
 import com.dev.usdi_wallet.ui.common.formatClaimName
-import com.dev.usdi_wallet.ui.common.formatClaimValue
 import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
@@ -406,7 +406,7 @@ fun ProofRequestSheet(
                                 Text(formatClaimName(claim.name))
                                 claim.value?.let {
                                     Text(
-                                        text = formatClaimValue(it),
+                                        text = formatClaimDisplayValue(claim.name, it),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -479,7 +479,7 @@ private fun CredentialClaimValues(credential: Credential) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         claims.forEach { claim ->
             Text(
-                text = "${formatClaimName(claim.name)}: ${formatClaimValue(claim.value)}",
+                text = "${formatClaimName(claim.name)}: ${formatClaimDisplayValue(claim.name, claim.value)}",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

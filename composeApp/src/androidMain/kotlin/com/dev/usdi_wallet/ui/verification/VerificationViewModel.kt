@@ -23,8 +23,14 @@ import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonBluetoothProofManager
 import com.dev.usdi_wallet.hyperledger_identus.LocalAnonCredBluetoothExchange
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
+import com.dev.usdi_wallet.ui.common.ClaimInputFormat
+import com.dev.usdi_wallet.ui.common.claimPredicateWireValue
+import com.dev.usdi_wallet.ui.common.formatClaimName
+import com.dev.usdi_wallet.ui.common.isClaimInputCandidate
+import com.dev.usdi_wallet.ui.common.isFinalClaimInputValid
 import com.dev.usdi_wallet.ui.common.isSystemIndexClaim
 import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
+import com.dev.usdi_wallet.ui.common.predicateInputFormatForClaim
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -137,6 +143,7 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onFieldPredicateValueChanged(fieldName: String, value: String) {
+        if (!isClaimInputCandidate(value, predicateInputFormatForClaim(fieldName))) return
         updateField(fieldName) { it.copy(predicateValue = value) }
     }
 
@@ -179,15 +186,21 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             )
             return
         }
+        predicateInputError(state)?.let { message ->
+            _uiState.value = _uiState.value.copy(error = message)
+            return
+        }
         val verificationManager = credentialTypeToManager[credentialType] ?: run {
             _uiState.value = _uiState.value.copy(error = "No verifier available for this credential type")
             return
         }
-        val requestedFields = requestedFieldSelections(state).map {
+        val requestedFields = requestedFieldSelections(state).map { selection ->
             RequestedField(
-                field = it.schema,
-                predicateOperator = it.predicateOperator,
-                predicateValue = it.predicateValue.ifBlank { null },
+                field = selection.schema,
+                predicateOperator = selection.predicateOperator,
+                predicateValue = selection.predicateOperator?.let {
+                    claimPredicateWireValue(selection.schema.name, selection.predicateValue)
+                },
             )
         }
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
@@ -314,11 +327,17 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
             _uiState.update { it.copy(error = "Select at least one field") }
             return
         }
-        val requestedFields = selectedFields.map {
+        predicateInputError(state)?.let { message ->
+            _uiState.update { it.copy(error = message) }
+            return
+        }
+        val requestedFields = selectedFields.map { selection ->
             RequestedField(
-                field = it.schema,
-                predicateOperator = it.predicateOperator,
-                predicateValue = it.predicateValue.ifBlank { null },
+                field = selection.schema,
+                predicateOperator = selection.predicateOperator,
+                predicateValue = selection.predicateOperator?.let {
+                    claimPredicateWireValue(selection.schema.name, selection.predicateValue)
+                },
             )
         }
 
@@ -391,6 +410,24 @@ class VerificationViewModel(application: Application) : AndroidViewModel(applica
         state.fieldSelections.filter {
             it.checked || isAutoRequiredIndexField(it, state.selectedCredentialType?.protocol)
         }
+
+    private fun predicateInputError(state: VerificationUiState): String? {
+        val invalidSelection = state.fieldSelections.firstOrNull { selection ->
+            selection.checked &&
+                selection.predicateOperator != null &&
+                !isFinalClaimInputValid(
+                    value = selection.predicateValue,
+                    format = predicateInputFormatForClaim(selection.schema.name),
+                )
+        } ?: return null
+
+        val label = formatClaimName(invalidSelection.schema.label)
+        return when (predicateInputFormatForClaim(invalidSelection.schema.name)) {
+            ClaimInputFormat.DATE -> "Enter $label in YYYY-MM-DD format"
+            ClaimInputFormat.INTEGER -> "Enter an integer for $label"
+            else -> "Enter a valid value for $label"
+        }
+    }
 
     private fun isAutoRequiredIndexField(
         selection: FieldSelection,

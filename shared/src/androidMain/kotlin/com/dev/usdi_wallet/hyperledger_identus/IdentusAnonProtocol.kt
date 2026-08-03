@@ -22,7 +22,7 @@ class IdentusAnonProtocol(
     override val connectionManager: ConnectionManager<SdkMessage>,
     override val contactManager: ContactManager,
     override val credentialManager: CredentialManager<SdkCredential, SdkMessage>,
-    override val verificationManager: VerificationManager?,
+    override val verificationManager: VerificationManager,
     override val walletBackupManager: WalletBackupManager?
 ) : Protocol<SdkCredential, SdkMessage>() {
     private val messages = MutableLiveData<List<SdkMessage>>()
@@ -79,6 +79,10 @@ class IdentusAnonProtocol(
 
             val connectionManager = IdentusDIDCommConnectionManager(application)
             val credentialManager = IdentusAnonCredentialManager(scope, application)
+            val verificationManager = IdentusAnonVerificationManager(
+                baseUrl = "http://13.90.44.25:8085",
+                apiKey = null,
+            )
             val contactManager = IdentusDIDCommContactManager(
                 onCredentialOffer = { message ->
                     credentialManager.handleInbound(message, connectionManager)
@@ -96,7 +100,7 @@ class IdentusAnonProtocol(
                     connectionManager,
                     contactManager,
                     credentialManager,
-                    null,
+                    verificationManager,
                     walletBackupManager,
                 )
             ).also { _instance = it }

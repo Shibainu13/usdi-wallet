@@ -1,6 +1,8 @@
 package com.dev.usdi_wallet.ui.verification
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
@@ -20,6 +23,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,21 +34,30 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dev.usdi_wallet.bluetooth.BluetoothProofConnectionStatus
 import com.dev.usdi_wallet.bluetooth.BluetoothProofPeer
 import com.dev.usdi_wallet.bluetooth.BluetoothProofTransportState
+import com.dev.usdi_wallet.ui.common.ClaimInputFormat
 import com.dev.usdi_wallet.domain.credential.PredicateOperator
 import com.dev.usdi_wallet.domain.verification.VerifiableCredentialType
 import com.dev.usdi_wallet.domain.verification.VerificationPollResult
 import com.dev.usdi_wallet.domain.verification.VerificationProtocol
+import com.dev.usdi_wallet.ui.common.formatClaimName
+import com.dev.usdi_wallet.ui.common.isClaimInputCandidate
+import com.dev.usdi_wallet.ui.common.isFinalClaimInputValid
 import com.dev.usdi_wallet.ui.common.PrimaryButton
 import com.dev.usdi_wallet.ui.common.ProtocolBadge
 import com.dev.usdi_wallet.ui.common.QrCodeView
@@ -52,7 +67,11 @@ import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.WalletCard
 import com.dev.usdi_wallet.ui.common.WalletListItem
 import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
+import com.dev.usdi_wallet.ui.common.predicateInputFormatForClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @Composable
 fun VerificationScreen(
@@ -60,6 +79,10 @@ fun VerificationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    BackHandler(enabled = uiState.step is VerificationStep.SelectFields) {
+        viewModel.onBackToCredentialTypes()
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -429,6 +452,8 @@ private fun FieldSelectionRow(
     onPredicateOperatorChanged: (PredicateOperator?) -> Unit,
     onPredicateValueChanged: (String) -> Unit,
 ) {
+    val inputFormat = predicateInputFormatForClaim(selection.schema.name)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -440,7 +465,7 @@ private fun FieldSelectionRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = selection.schema.label, style = MaterialTheme.typography.titleMedium)
+            Text(text = formatClaimName(selection.schema.label), style = MaterialTheme.typography.titleMedium)
             Checkbox(checked = selection.checked, onCheckedChange = onChecked)
         }
 
@@ -449,6 +474,7 @@ private fun FieldSelectionRow(
             PredicateEditor(
                 selectedOperator = selection.predicateOperator,
                 predicateValue = selection.predicateValue,
+                inputFormat = inputFormat,
                 onOperatorSelected = onPredicateOperatorChanged,
                 onValueChanged = onPredicateValueChanged,
             )
@@ -460,6 +486,7 @@ private fun FieldSelectionRow(
 private fun PredicateEditor(
     selectedOperator: PredicateOperator?,
     predicateValue: String,
+    inputFormat: ClaimInputFormat,
     onOperatorSelected: (PredicateOperator?) -> Unit,
     onValueChanged: (String) -> Unit,
 ) {
@@ -475,16 +502,120 @@ private fun PredicateEditor(
             }
         }
         if (selectedOperator != null) {
-            OutlinedTextField(
-                value = predicateValue,
-                onValueChange = onValueChanged,
-                label = { Text("Value") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (inputFormat == ClaimInputFormat.DATE) {
+                DatePredicateValuePicker(
+                    predicateValue = predicateValue,
+                    onValueChanged = onValueChanged,
+                )
+            } else {
+                val isInvalid = predicateValue.isNotBlank() && !isFinalClaimInputValid(predicateValue, inputFormat)
+                OutlinedTextField(
+                    value = predicateValue,
+                    onValueChange = { value ->
+                        if (isClaimInputCandidate(value, inputFormat)) {
+                            onValueChanged(value)
+                        }
+                    },
+                    label = { Text("Value") },
+                    singleLine = true,
+                    isError = isInvalid,
+                    supportingText = {
+                        Text(predicateInputHelpText(inputFormat))
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = when (inputFormat) {
+                            ClaimInputFormat.INTEGER -> KeyboardType.Number
+                            else -> KeyboardType.Text
+                        },
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatePredicateValuePicker(
+    predicateValue: String,
+    onValueChanged: (String) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val isInvalid = predicateValue.isNotBlank() && !isFinalClaimInputValid(predicateValue, ClaimInputFormat.DATE)
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = predicateValue,
+            onValueChange = {},
+            label = { Text("Date") },
+            placeholder = { Text("Select a date") },
+            singleLine = true,
+            readOnly = true,
+            isError = isInvalid,
+            supportingText = {
+                Text(if (isInvalid) "Select a valid date" else predicateInputHelpText(ClaimInputFormat.DATE))
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { showPicker = true },
+        )
+    }
+
+    if (showPicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = predicateValue.toUtcStartOfDayMillisOrNull(),
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    enabled = datePickerState.selectedDateMillis != null,
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { selectedDateMillis ->
+                            onValueChanged(selectedDateMillis.toIsoDateString())
+                        }
+                        showPicker = false
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text("Cancel")
+                }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+private fun predicateInputHelpText(inputFormat: ClaimInputFormat): String =
+    when (inputFormat) {
+        ClaimInputFormat.DATE -> "Select a date"
+        ClaimInputFormat.INTEGER -> "Use an integer"
+        else -> "Enter a value"
+    }
+
+private fun String.toUtcStartOfDayMillisOrNull(): Long? =
+    runCatching {
+        LocalDate.parse(trim())
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toEpochMilli()
+    }.getOrNull()
+
+private fun Long.toIsoDateString(): String =
+    Instant.ofEpochMilli(this)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDate()
+        .toString()
 
 @Composable
 private fun ShowQrWaitingStep(
@@ -554,7 +685,7 @@ private fun ResultStep(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                Text(text = key, style = MaterialTheme.typography.bodyMedium)
+                                Text(text = formatClaimName(key), style = MaterialTheme.typography.bodyMedium)
                                 Text(text = value.toString(), style = MaterialTheme.typography.titleSmall)
                             }
                             Spacer(modifier = Modifier.height(8.dp))

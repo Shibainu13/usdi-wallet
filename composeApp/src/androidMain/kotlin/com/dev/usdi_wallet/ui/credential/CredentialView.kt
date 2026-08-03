@@ -40,8 +40,8 @@ import com.dev.usdi_wallet.ui.common.SectionLabel
 import com.dev.usdi_wallet.ui.common.StatusBadge
 import com.dev.usdi_wallet.ui.common.WalletDivider
 import com.dev.usdi_wallet.ui.common.WalletListItem
+import com.dev.usdi_wallet.ui.common.formatClaimDisplayValue
 import com.dev.usdi_wallet.ui.common.formatClaimName
-import com.dev.usdi_wallet.ui.common.formatClaimValue
 import com.dev.usdi_wallet.ui.common.isUserVisibleClaim
 import com.dev.usdi_wallet.ui.theme.WalletColors
 
@@ -242,7 +242,7 @@ private fun CredentialDetailSheet(
                         style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        text = formatClaimValue(claim.value),
+                        text = formatClaimDisplayValue(claim.name, claim.value),
                         style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                     )
                 }

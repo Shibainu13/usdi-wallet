@@ -22,11 +22,16 @@ class IdentusAnonVerificationManager(
                 }
                 val schema = client.getAnonCredSchemaById(baseUrl, apiKey, definition.schemaId)
                 val fields = schema?.attrNames?.map { attrName ->
+                    val suffix = attrName.knownTypeSuffix()
                     VerifiableFieldSchema(
                         name = attrName,
-                        label = attrName.replaceFirstChar { it.uppercase() },
-                        type = ClaimType.STRING,
-                        supportsPredicate = true,
+                        label = attrName.displayLabel(),
+                        type = when (suffix) {
+                            "num" -> ClaimType.NUMBER
+                            "bool" -> ClaimType.BOOLEAN
+                            else -> ClaimType.STRING
+                        },
+                        supportsPredicate = suffix == null || suffix == "num" || suffix == "date",
                     )
                 }.orEmpty()
 
@@ -73,5 +78,24 @@ class IdentusAnonVerificationManager(
             trimmedId.startsWith("credential-definition-registry/") -> "$trimmedBaseUrl/$trimmedId"
             else -> "$trimmedBaseUrl/credential-definition-registry/definitions/$guid/definition"
         }.withCredentialDefinitionResourceSuffix()
+    }
+
+    private fun String.knownTypeSuffix(): String? {
+        val suffix = substringAfterLast("_", missingDelimiterValue = "").lowercase()
+        return suffix.takeIf { it in KNOWN_TYPE_SUFFIXES }
+    }
+
+    private fun String.displayLabel(): String {
+        val withoutSuffix = if (knownTypeSuffix() != null) substringBeforeLast("_") else this
+        return withoutSuffix
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .trim()
+            .replace(Regex("\\s+"), " ")
+            .replaceFirstChar { it.uppercase() }
+    }
+
+    private companion object {
+        val KNOWN_TYPE_SUFFIXES = setOf("str", "num", "bool", "date")
     }
 }

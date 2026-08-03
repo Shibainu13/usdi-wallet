@@ -350,7 +350,7 @@ class IdentusAnonBluetoothProofManager {
     ): Map<String, AnoncredsInputFieldFilter> =
         fields.mapNotNull { field ->
             val operator = field.predicateOperator ?: return@mapNotNull null
-            val value = field.predicateValue?.trim()?.toIntOrNull() ?: return@mapNotNull null
+            val value = field.anonCredPredicateValue() ?: return@mapNotNull null
             field.field.name to AnoncredsInputFieldFilter(
                 type = "NUMBER",
                 name = field.field.name,
@@ -360,6 +360,15 @@ class IdentusAnonBluetoothProofManager {
                 lte = value.takeIf { operator == PredicateOperator.LESS_THAN_OR_EQUAL },
             )
         }.toMap()
+
+    private fun RequestedField.anonCredPredicateValue(): Int? {
+        val value = predicateValue?.trim() ?: return null
+        return if (field.name.knownTypeSuffix() == "date") {
+            value.replace("-", "").takeIf { DATE_WIRE_REGEX.matches(it) }?.toIntOrNull()
+        } else {
+            value.toIntOrNull()
+        }
+    }
 
     private fun decodeMessage(value: String, direction: Message.Direction): Message =
         json.decodeFromString<Message>(value).copy(direction = direction)
@@ -397,6 +406,11 @@ class IdentusAnonBluetoothProofManager {
         }
     }
 
+    private fun String.knownTypeSuffix(): String? {
+        val suffix = substringAfterLast("_", missingDelimiterValue = "").lowercase()
+        return suffix.takeIf { it in KNOWN_TYPE_SUFFIXES }
+    }
+
     private fun String.isBareUuid(): Boolean = BARE_UUID.matches(trim())
 
     private suspend fun awaitAgent() {
@@ -424,6 +438,7 @@ class IdentusAnonBluetoothProofManager {
         val BARE_UUID = Regex(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         )
+        val DATE_WIRE_REGEX = Regex("\\d{8}")
         val KNOWN_TYPE_SUFFIXES = setOf("str", "num", "bool", "date")
     }
 }
