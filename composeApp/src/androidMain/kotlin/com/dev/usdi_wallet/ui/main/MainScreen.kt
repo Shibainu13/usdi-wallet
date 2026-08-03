@@ -57,6 +57,7 @@ fun MainScreen(
     serviceNotice: String?,
     currentTab: WalletTab,
     snackbarHostState: SnackbarHostState,
+    showBottomBar: Boolean,
     onTabSelected: (WalletTab) -> Unit,
     onScanSelected: () -> Unit,
     navHost: @Composable () -> Unit,
@@ -65,11 +66,13 @@ fun MainScreen(
         containerColor = WalletColors.Surface,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            BottomTabBar(
-                currentTab = currentTab,
-                onTabSelected = onTabSelected,
-                onScanSelected = onScanSelected,
-            )
+            if (showBottomBar) {
+                BottomTabBar(
+                    currentTab = currentTab,
+                    onTabSelected = onTabSelected,
+                    onScanSelected = onScanSelected,
+                )
+            }
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
@@ -134,7 +137,7 @@ private fun BottomTabBar(
             modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.Bottom,
         ) {
-            listOf(WalletTab.CONTACTS, WalletTab.CREDENTIALS).forEach { tab ->
+            listOf(WalletTab.CREDENTIALS, WalletTab.CONTACTS).forEach { tab ->
                 WalletTabItem(
                     tab = tab,
                     currentTab = currentTab,

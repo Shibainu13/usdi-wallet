@@ -5,6 +5,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.dev.usdi_wallet.ui.common.QrScannerResultSource
+import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.contact.ContactScreen
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialScreen
@@ -14,6 +16,8 @@ import com.dev.usdi_wallet.ui.settings.SettingsViewModel
 import com.dev.usdi_wallet.ui.verification.VerificationScreen
 import com.dev.usdi_wallet.ui.verification.VerificationViewModel
 
+internal const val SCAN_ROUTE = "scan"
+
 @Composable
 fun MainNavHost(
     navController: NavHostController,
@@ -21,6 +25,11 @@ fun MainNavHost(
     credentialViewModel: CredentialViewModel,
     verificationViewModel: VerificationViewModel,
     settingsViewModel: SettingsViewModel,
+    scanErrorTitle: String?,
+    scanErrorMessage: String?,
+    onScanErrorDismiss: () -> Unit,
+    onScanResult: (String, QrScannerResultSource) -> Unit,
+    onScanClose: () -> Unit,
 ) {
     NavHost(
         navController = navController,
@@ -66,6 +75,16 @@ fun MainNavHost(
             composable("settings/main") {
                 SettingsScreen(settingsViewModel)
             }
+        }
+
+        composable(SCAN_ROUTE) {
+            QrScannerScreen(
+                errorTitle = scanErrorTitle,
+                errorMessage = scanErrorMessage,
+                onErrorDismiss = onScanErrorDismiss,
+                onResult = onScanResult,
+                onClose = onScanClose,
+            )
         }
     }
 }

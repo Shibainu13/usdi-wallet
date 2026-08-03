@@ -15,7 +15,6 @@ import com.dev.usdi_wallet.ui.auth.LockScreen
 import com.dev.usdi_wallet.ui.auth.LockState
 import com.dev.usdi_wallet.ui.auth.LockViewModel
 import com.dev.usdi_wallet.ui.common.QrScannerResultSource
-import com.dev.usdi_wallet.ui.common.QrScannerScreen
 import com.dev.usdi_wallet.ui.contact.ContactViewModel
 import com.dev.usdi_wallet.ui.credential.CredentialViewModel
 import com.dev.usdi_wallet.ui.onboarding.OnboardingScreen
@@ -65,8 +64,8 @@ fun MainRoute(
     val currentRoute = currentBackStack?.destination?.route
     val startDestinationRoute = WalletTab.CREDENTIALS.rootRoute
     val snackbarHostState = remember { SnackbarHostState() }
-    var showScanner by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<ScannerErrorMessage?>(null) }
+    val isScanRoute = currentRoute == SCAN_ROUTE
     val currentTab = WalletTab.entries.find { tab ->
         currentRoute?.startsWith(tab.rootRoute.substringBefore("_root")) == true
     } ?: WalletTab.CREDENTIALS
@@ -80,36 +79,11 @@ fun MainRoute(
         }
     }
 
-    if (showScanner) {
-        QrScannerScreen(
-            errorTitle = scanError?.title,
-            errorMessage = scanError?.detail,
-            onErrorDismiss = { scanError = null },
-            onResult = { content, source ->
-                scanError = null
-                DeepLinkRouter.getInstance().handle(
-                    link = content,
-                    onSuccess = { result ->
-                        showScanner = false
-                        if (result.contentType == DeepLinkContentType.Credential) {
-                            navigateToCredentials()
-                        }
-                    },
-                    onError = { message -> scanError = scannerErrorMessage(source, message) },
-                )
-            },
-            onClose = {
-                scanError = null
-                showScanner = false
-            },
-        )
-        return
-    }
-
     MainScreen(
-        serviceNotice = uiState.serviceNotice,
+        serviceNotice = if (isScanRoute) null else uiState.serviceNotice,
         currentTab = currentTab,
         snackbarHostState = snackbarHostState,
+        showBottomBar = !isScanRoute,
         onTabSelected = { tab ->
             navController.navigate(tab.rootRoute) {
                 popUpTo(startDestinationRoute)
@@ -118,7 +92,9 @@ fun MainRoute(
         },
         onScanSelected = {
             scanError = null
-            showScanner = true
+            navController.navigate(SCAN_ROUTE) {
+                launchSingleTop = true
+            }
         },
         navHost = {
             MainNavHost(
@@ -127,29 +103,51 @@ fun MainRoute(
                 credentialViewModel = credentialViewModel,
                 verificationViewModel = verificationViewModel,
                 settingsViewModel = settingsViewModel,
+                scanErrorTitle = scanError?.title,
+                scanErrorMessage = scanError?.detail,
+                onScanErrorDismiss = { scanError = null },
+                onScanResult = { content, source ->
+                    scanError = null
+                    DeepLinkRouter.getInstance().handle(
+                        link = content,
+                        onSuccess = { result ->
+                            scanError = null
+                            navController.popBackStack()
+                            if (result.contentType == DeepLinkContentType.Credential) {
+                                navigateToCredentials()
+                            }
+                        },
+                        onError = { message -> scanError = scannerErrorMessage(source, message) },
+                    )
+                },
+                onScanClose = {
+                    scanError = null
+                    navController.popBackStack()
+                },
             )
         }
     )
 
-    // Side effects (unchanged)
-    uiState.pendingProofRequests.firstOrNull()?.let {
-        ProofRequestSheet(
-            request = it,
-            onDismiss = viewModel::dismissProofRequest,
-            onSelectCredential = { credential, disclosedClaimLabels ->
-                scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
-            },
-            onDeny = {
-                scope.launch { it.onDenied() }
-            },
-        )
-    }
+    if (!isScanRoute) {
+        uiState.pendingProofRequests.firstOrNull()?.let {
+            ProofRequestSheet(
+                request = it,
+                onDismiss = viewModel::dismissProofRequest,
+                onSelectCredential = { credential, disclosedClaimLabels ->
+                    scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
+                },
+                onDeny = {
+                    scope.launch { it.onDenied() }
+                },
+            )
+        }
 
-    uiState.revokedCredentialAlerts.firstOrNull()?.let {
-        RevokedCredentialDialog(
-            subject = it.subject,
-            onDismiss = viewModel::dismissRevokedCredentialAlert
-        )
+        uiState.revokedCredentialAlerts.firstOrNull()?.let {
+            RevokedCredentialDialog(
+                subject = it.subject,
+                onDismiss = viewModel::dismissRevokedCredentialAlert
+            )
+        }
     }
 }
 
