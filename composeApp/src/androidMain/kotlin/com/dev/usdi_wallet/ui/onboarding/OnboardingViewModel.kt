@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.dev.usdi_wallet.common.ErrorHandler
 import com.dev.usdi_wallet.domain.auth.AndroidWalletAuthManager
 import com.dev.usdi_wallet.domain.backup.UnifiedBackupService
-import com.dev.usdi_wallet.domain.protocol.Protocol
 import com.dev.usdi_wallet.eudi.EudiProtocol
 import com.dev.usdi_wallet.hyperledger_identus.IdentusAnonProtocol
 import com.dev.usdi_wallet.preferences.AndroidWalletPreferences
