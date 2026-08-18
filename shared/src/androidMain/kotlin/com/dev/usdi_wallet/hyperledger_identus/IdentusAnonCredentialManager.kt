@@ -537,7 +537,9 @@ class IdentusAnonCredentialManager(
             }
             if (isLocalBluetoothRequest) {
                 notifyBluetoothProofFailure(message, error)
+                LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
             }
+            clearPendingProofRequest(message)
             return
         }
 
@@ -551,8 +553,6 @@ class IdentusAnonCredentialManager(
                 false
             }
             if (sent) {
-                LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
-                clearPendingProofRequest(message)
                 Logger.d(IdentusAnonCredentialManager::class.toString()) {
                     "Bluetooth proof presentation sent for request ${message.id}"
                 }
@@ -561,13 +561,21 @@ class IdentusAnonCredentialManager(
                     "Bluetooth proof presentation could not be sent because no active local session is registered"
                 }
             }
+            LocalAnonCredBluetoothExchange.clearLocalRequest(message.id)
+            clearPendingProofRequest(message)
             return
         }
 
-        val response = sdk.sendMessage(outMessage) ?: return
+        val response = sdk.sendMessage(outMessage)
 
-        Logger.d(IdentusAnonCredentialManager::class.toString()) {
-            "sendMessage response=$response"
+        if (response == null) {
+            Logger.e(IdentusAnonCredentialManager::class.toString()) {
+                "Proof presentation send returned no response for request ${message.id}"
+            }
+        } else {
+            Logger.d(IdentusAnonCredentialManager::class.toString()) {
+                "sendMessage response=$response"
+            }
         }
         clearPendingProofRequest(message)
         Logger.d(IdentusAnonCredentialManager::class.toString()) {

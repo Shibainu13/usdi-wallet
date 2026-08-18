@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.hyperledger.identus.walletsdk.domain.models.Message as SdkMessage
 
 enum class WalletTab(
     val title: String,
@@ -174,71 +175,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     emit(emptyList())
                 }
                 .collect { requests ->
-                requests.forEachIndexed { index, request ->
-                    val credentials = runCatching {
-                        protocol.credentialManager.findMatchingCredentials(request).map {
-                            protocol.credentialManager.toUiCredential(it)
+                    val pendingRequests = requests.mapIndexed { index, request ->
+                        val credentials = runCatching {
+                            protocol.credentialManager.findMatchingCredentials(request).map {
+                                protocol.credentialManager.toUiCredential(it)
+                            }
+                        }.getOrElse { error ->
+                            Logger.w(MainViewModel::class.toString()) {
+                                "Failed to find matching credentials for ${protocol.protocolId}: ${error.message}"
+                            }
+                            emptyList()
                         }
-                    }.getOrElse { error ->
-                        Logger.w(MainViewModel::class.toString()) {
-                            "Failed to find matching credentials for ${protocol.protocolId}: ${error.message}"
+                        val details = runCatching {
+                            protocol.credentialManager.getProofRequestDetails(request)
+                        }.getOrElse { error ->
+                            Logger.e(MainViewModel::class.toString()) {
+                                "Failed to read proof request details: ${error.message}"
+                            }
+                            ProofRequestDetails(verifier = "Unknown verifier")
                         }
-                        emptyList()
-                    }
-                    val details = runCatching {
-                        protocol.credentialManager.getProofRequestDetails(request)
-                    }.getOrElse { error ->
-                        Logger.e(MainViewModel::class.toString()) {
-                            "Failed to read proof request details: ${error.message}"
+                        Logger.d(MainViewModel::class.toString()) {
+                            "Found ${credentials.size} matching credentials for request $request"
                         }
-                        ProofRequestDetails(verifier = "Unknown verifier")
+                        Logger.d(MainViewModel::class.toString()) {
+                            "Credentials: $credentials"
+                        }
+
+                        PendingProofRequest(
+                            id = proofRequestId(protocol.protocolId, request, index),
+                            protocolId = protocol.protocolId,
+                            details = details,
+                            credentials = credentials,
+                            onCredentialSelected = { credential, disclosedClaimLabels ->
+                                protocol.credentialManager.preparePresentationProof(
+                                    protocol.credentialManager.toSdkCredential(credential),
+                                    request,
+                                    disclosedClaimLabels,
+                                )
+                                dismissProofRequest()
+                            },
+                            onDenied = {
+                                protocol.credentialManager.denyProofRequest(request)
+                                dismissProofRequest()
+                            },
+                        )
                     }
-                    Logger.d(MainViewModel::class.toString()) {
-                        "Found ${credentials.size} matching credentials for request $request"
-                    }
-                    Logger.d(MainViewModel::class.toString()) {
-                        "Credentials: $credentials"
-                    }
+
                     _uiState.update { state ->
-                        if (state.pendingProofRequests.isNotEmpty()) {
-                            state
+                        val otherProtocolRequests = state.pendingProofRequests
+                            .filterNot { it.protocolId == protocol.protocolId }
+                        val nextRequests = otherProtocolRequests + pendingRequests
+                        val activeRequestId = state.pendingProofRequests.firstOrNull()?.id
+                        val activeRequest = nextRequests.firstOrNull { it.id == activeRequestId }
+                        val orderedRequests = if (activeRequest == null) {
+                            nextRequests
                         } else {
-
-                            Logger.d(MainViewModel::class.toString()) {
-                                "State before copy: $state"
-                            }
-                            val newState = state.copy(
-                                pendingProofRequests = listOf(
-                                    PendingProofRequest(
-                                        id = "${protocol.protocolId}-$index",
-                                        protocolId = protocol.protocolId,
-                                        details = details,
-                                        credentials = credentials,
-                                        onCredentialSelected = { credential, disclosedClaimLabels ->
-                                            protocol.credentialManager.preparePresentationProof(
-                                                protocol.credentialManager.toSdkCredential(credential),
-                                                request,
-                                                disclosedClaimLabels,
-                                            )
-                                            dismissProofRequest()
-                                        },
-                                        onDenied = {
-                                            protocol.credentialManager.denyProofRequest(request)
-                                            dismissProofRequest()
-                                        },
-                                    ),
-                                ),
-                            )
-                            Logger.d(MainViewModel::class.toString()) {
-                                "State after copy: $newState"
-                            }
-                            newState
-
+                            listOf(activeRequest) + nextRequests.filterNot { it.id == activeRequestId }
                         }
+
+                        state.copy(pendingProofRequests = orderedRequests)
                     }
                 }
-            }
         }
+    }
+
+    private fun proofRequestId(protocolId: String, request: Any?, index: Int): String {
+        val requestId = (request as? SdkMessage)?.id ?: index.toString()
+        return "$protocolId-$requestId"
     }
 
     private fun <C, M> observeProtocolRevokedCredentials(protocol: Protocol<C, M>) {

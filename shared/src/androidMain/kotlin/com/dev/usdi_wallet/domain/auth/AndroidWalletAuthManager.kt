@@ -52,7 +52,7 @@ class AndroidWalletAuthManager private constructor() : WalletAuthManager {
     }
 
     companion object {
-        private const val BYPASS_WALLET_AUTH = true
+        private const val BYPASS_WALLET_AUTH = false
         private val _instance: AndroidWalletAuthManager by lazy { AndroidWalletAuthManager() }
         fun getInstance() = _instance
     }

@@ -4,6 +4,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -130,16 +131,18 @@ fun MainRoute(
 
     if (!isScanRoute) {
         uiState.pendingProofRequests.firstOrNull()?.let {
-            ProofRequestSheet(
-                request = it,
-                onDismiss = viewModel::dismissProofRequest,
-                onSelectCredential = { credential, disclosedClaimLabels ->
-                    scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
-                },
-                onDeny = {
-                    scope.launch { it.onDenied() }
-                },
-            )
+            key(it.id) {
+                ProofRequestSheet(
+                    request = it,
+                    onDismiss = viewModel::dismissProofRequest,
+                    onSelectCredential = { credential, disclosedClaimLabels ->
+                        scope.launch { it.onCredentialSelected(credential, disclosedClaimLabels) }
+                    },
+                    onDeny = {
+                        scope.launch { it.onDenied() }
+                    },
+                )
+            }
         }
 
         uiState.revokedCredentialAlerts.firstOrNull()?.let {
